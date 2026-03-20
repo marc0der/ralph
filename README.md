@@ -11,31 +11,25 @@ The pattern works in two phases: **plan** (analyse the codebase against specific
 ## Install
 
 ```bash
-git clone git@github.com:sdkman/ralph.git
+git clone git@github.com:marc0der/ralph.git
 cd ralph
 ./install.sh
 ```
 
-This places `ralph` in `~/.local/bin/` and default prompts in `~/.config/ralph/prompts/`.
+This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prompts/`, and workspace templates in `~/.config/ralph/templates/`.
 
-## Usage
+## Commands
 
-```bash
-ralph plan                                          # analyse and plan
-ralph plan -g "Migrate to hexagonal architecture"   # plan with a goal
-ralph build                                         # implement next item
-ralph build -n 10 -m sonnet                         # 10 iterations with sonnet
-ralph init                                          # scaffold local prompt overrides
-```
+| Command   | Description                                                                  |
+|-----------|------------------------------------------------------------------------------|
+| `plan`    | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` (default: 3 iterations) |
+| `build`   | Pick the next item, implement, test, commit, push (default: 50 iterations)   |
+| `init`    | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`). Pass `--prompts` to also copy prompt templates for local customisation |
+| `archive` | Move `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` to `.ralph/<timestamp>/`    |
+| `clean`   | Delete `IMPLEMENTATION_PLAN.md` and `PROGRESS.md`                           |
+| `version` | Print version                                                                |
 
-### Modes
-
-| Mode    | What it does                                              | Default iterations |
-|---------|-----------------------------------------------------------|--------------------|
-| `plan`  | Analyse specs and source, create/update IMPLEMENTATION_PLAN.md | 3             |
-| `build` | Pick next item, implement, test, commit, push             | 50                 |
-
-### Options
+### Options (plan and build)
 
 | Flag                 | Description                              |
 |----------------------|------------------------------------------|
@@ -44,6 +38,18 @@ ralph init                                          # scaffold local prompt over
 | `-m`, `--model`      | Claude model (default: `opus`)           |
 | `-h`, `--help`       | Show help                                |
 
+### Examples
+
+```bash
+ralph plan                                          # analyse and plan
+ralph plan -g "Migrate to hexagonal architecture"   # plan with a goal
+ralph build                                         # implement next item
+ralph build -n 10 -m sonnet                         # 10 iterations with sonnet
+ralph archive                                       # archive before starting fresh
+ralph init                                          # initialise workspace
+ralph init --prompts                                # also copy prompts for customisation
+```
+
 ## Prompt resolution
 
 Ralph looks for prompts in this order:
@@ -51,7 +57,7 @@ Ralph looks for prompts in this order:
 1. **Project-local** — `PROMPT_plan.md` / `PROMPT_build.md` in the working directory
 2. **Installed defaults** — `~/.config/ralph/prompts/plan.md` / `build.md`
 
-Run `ralph init` to copy the defaults into your project for customisation.
+Run `ralph init --prompts` to copy the defaults into your project for customisation.
 
 ## Project artifacts
 
