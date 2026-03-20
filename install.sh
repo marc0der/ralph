@@ -17,7 +17,12 @@ echo "  CLI:     $BIN_DIR/ralph"
 mkdir -p "$CONFIG_DIR/prompts"
 cp "$SCRIPT_DIR/prompts/plan.md" "$CONFIG_DIR/prompts/plan.md"
 cp "$SCRIPT_DIR/prompts/build.md" "$CONFIG_DIR/prompts/build.md"
-echo "  Prompts: $CONFIG_DIR/prompts/"
+echo "  Prompts:    $CONFIG_DIR/prompts/"
+
+# Install templates
+mkdir -p "$CONFIG_DIR/templates"
+cp "$SCRIPT_DIR/templates/PROGRESS.md" "$CONFIG_DIR/templates/PROGRESS.md"
+echo "  Templates:  $CONFIG_DIR/templates/"
 
 # Check PATH
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
