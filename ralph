@@ -1,0 +1,222 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION="0.1.0"
+CONFIG_DIR="${RALPH_CONFIG_DIR:-$HOME/.config/ralph}"
+
+# Default caps prevent runaway loops
+PLAN_DEFAULT_CAP=3
+BUILD_DEFAULT_CAP=50
+
+ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md)
+ARCHIVE_DIR=".ralph"
+
+usage() {
+    cat <<'EOF'
+ralph — autonomous Claude Code loop runner
+
+Usage:
+  ralph <plan|build> [options]
+  ralph init
+  ralph clean
+  ralph archive
+  ralph version
+
+Modes:
+  plan      Analyse specs and source, create/update IMPLEMENTATION_PLAN.md
+  build     Pick the next item, implement, test, commit, push
+  init      Scaffold prompt templates into the current project for customisation
+  clean     Delete IMPLEMENTATION_PLAN.md and PROGRESS.md
+  archive   Move IMPLEMENTATION_PLAN.md and PROGRESS.md to .ralph/<timestamp>/
+
+Options:
+  -n, --iterations N   Max iterations (plan default: 3, build default: 50)
+  -g, --goal TEXT      Goal to inject into the prompt template
+  -m, --model MODEL    Claude model to use (default: opus)
+  -h, --help           Show this help message
+
+Examples:
+  ralph plan
+  ralph plan -n 2
+  ralph plan -g "Migrate to hexagonal architecture"
+  ralph build -n 10 -m sonnet
+  ralph build --iterations 5 --goal "Add PATCH endpoint"
+  ralph archive
+EOF
+    exit 0
+}
+
+cmd_version() {
+    echo "ralph $VERSION"
+    exit 0
+}
+
+cmd_clean() {
+    local found=false
+    for file in "${ARTIFACTS[@]}"; do
+        if [[ -f "$file" ]]; then
+            rm "$file"
+            echo "Deleted: $file"
+            found=true
+        fi
+    done
+    $found || echo "Nothing to clean."
+}
+
+cmd_archive() {
+    local found=false
+    for file in "${ARTIFACTS[@]}"; do
+        if [[ -f "$file" ]]; then
+            found=true
+            break
+        fi
+    done
+
+    if ! $found; then
+        echo "Nothing to archive."
+        return
+    fi
+
+    local timestamp
+    timestamp=$(date +%Y%m%d-%H%M%S)
+    local dest="$ARCHIVE_DIR/$timestamp"
+    mkdir -p "$dest"
+
+    for file in "${ARTIFACTS[@]}"; do
+        if [[ -f "$file" ]]; then
+            mv "$file" "$dest/"
+            echo "Archived: $file -> $dest/$file"
+        fi
+    done
+}
+
+cmd_init() {
+    local prompts_dir="$CONFIG_DIR/prompts"
+    if [[ ! -d "$prompts_dir" ]]; then
+        echo "Error: ralph prompts not found at $prompts_dir"
+        echo "Run the installer first: ./install.sh"
+        exit 1
+    fi
+
+    for file in plan.md build.md; do
+        local target="PROMPT_${file}"
+        if [[ -f "$target" ]]; then
+            echo "Skipped: $target already exists"
+        else
+            cp "$prompts_dir/$file" "$target"
+            echo "Created: $target"
+        fi
+    done
+}
+
+# Resolve which prompt file to use.
+# Priority: project-local PROMPT_<mode>.md > installed default
+resolve_prompt() {
+    local mode="$1"
+    local local_file="PROMPT_${mode}.md"
+    local default_file="$CONFIG_DIR/prompts/${mode}.md"
+
+    if [[ -f "$local_file" ]]; then
+        echo "$local_file"
+    elif [[ -f "$default_file" ]]; then
+        echo "$default_file"
+    else
+        echo "Error: no prompt found for mode '$mode'" >&2
+        echo "Looked for: $local_file, $default_file" >&2
+        echo "Run 'ralph init' to scaffold local prompts, or reinstall with ./install.sh" >&2
+        exit 1
+    fi
+}
+
+cmd_loop() {
+    local mode="$1"
+    shift
+
+    # Parse flags
+    local max_iterations=""
+    local goal=""
+    local model="opus"
+
+    ARGS=$(getopt -o n:g:m:h --long iterations:,goal:,model:,help -n 'ralph' -- "$@")
+    eval set -- "$ARGS"
+
+    while true; do
+        case "$1" in
+            -n|--iterations) max_iterations="$2"; shift 2 ;;
+            -g|--goal)       goal="$2";           shift 2 ;;
+            -m|--model)      model="$2";          shift 2 ;;
+            -h|--help)       usage ;;
+            --)              shift; break ;;
+        esac
+    done
+
+    # Apply default iteration cap based on mode
+    if [[ -z "$max_iterations" ]]; then
+        case "$mode" in
+            plan)  max_iterations=$PLAN_DEFAULT_CAP  ;;
+            build) max_iterations=$BUILD_DEFAULT_CAP ;;
+        esac
+    fi
+
+    local prompt_file
+    prompt_file=$(resolve_prompt "$mode")
+
+    local current_branch
+    current_branch=$(git branch --show-current)
+
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "Mode:   $mode"
+    echo "Prompt: $prompt_file"
+    echo "Branch: $current_branch"
+    echo "Model:  $model"
+    echo "Max:    $max_iterations iterations"
+    [[ -n "$goal" ]] && echo "Goal:   $goal"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    # Permission handling:
+    #   Inside devcontainer ($DEVCONTAINER=true): network firewall provides safety,
+    #   so --dangerously-skip-permissions is acceptable.
+    #   Outside devcontainer: omitted, requiring manual approval of tool calls.
+    local permission_flag=""
+    if [[ "${DEVCONTAINER:-false}" = "true" ]]; then
+        permission_flag="--dangerously-skip-permissions"
+    fi
+
+    local iteration=0
+
+    while [[ $iteration -lt $max_iterations ]]; do
+        iteration=$((iteration + 1))
+        echo -e "\n======================== ITERATION $iteration / $max_iterations ========================\n"
+
+        # Inject {{GOAL}} into prompt using bash substitution (avoids sed escaping issues)
+        local prompt
+        prompt=$(<"$prompt_file")
+        prompt="${prompt//\{\{GOAL\}\}/${goal:-No specific goal provided}}"
+
+        echo "$prompt" | claude -p \
+            $permission_flag \
+            --output-format=stream-json \
+            --model "$model" \
+            --verbose
+
+        # Push changes after each iteration
+        git push origin "$current_branch" || {
+            echo "Failed to push. Creating remote branch..."
+            git push -u origin "$current_branch"
+        }
+    done
+
+    echo -e "\nCompleted $iteration iterations."
+}
+
+# Main dispatch
+case "${1:-}" in
+    plan|build) cmd_loop "$@" ;;
+    init)       cmd_init ;;
+    clean)      cmd_clean ;;
+    archive)    cmd_archive ;;
+    version)    cmd_version ;;
+    -h|--help)  usage ;;
+    "")         usage ;;
+    *)          echo "Error: unknown command '$1'"; exit 1 ;;
+esac
