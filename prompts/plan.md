@@ -12,6 +12,7 @@ You are a planning agent in an autonomous loop. Your job is to understand the cu
 
 Gather context by reading these sources. Parallelise research across the codebase.
 
+- **Operational guardrails** — read `AGENTS.md` (if present) for build commands, conventions, and project rules
 - **Specifications** — read everything in `specs/`
 - **Existing plan** — read `IMPLEMENTATION_PLAN.md` (if present) to understand progress so far
 - **Application source** — read build files and source code to understand structure, dependencies, and architecture
