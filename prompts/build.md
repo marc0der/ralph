@@ -12,7 +12,7 @@ You are a build agent in an autonomous loop. Your job is to pick the highest-pri
 
 Gather context by reading these sources. Parallelise research across the codebase.
 
-- **Operational guardrails** — read `AGENTS.md` (if present) for build commands, conventions, and project rules
+- **Operational guardrails** — read `CLAUDE.md` (if present) for build commands, conventions, and project rules
 - **Specifications** — read everything in `specs/`
 - **Implementation plan** — read `IMPLEMENTATION_PLAN.md` to find the highest-priority incomplete item
 - **Application source** — read build files and source code to understand structure, dependencies, and architecture
