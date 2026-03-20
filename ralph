@@ -126,6 +126,17 @@ cmd_init() {
         echo "Created: specs/"
     fi
 
+    # Add ralph artifacts to .gitignore
+    if [[ -f ".gitignore" ]]; then
+        local ignore_entries=("IMPLEMENTATION_PLAN.md" "PROGRESS.md" ".ralph/")
+        for entry in "${ignore_entries[@]}"; do
+            if ! grep -qxF "$entry" .gitignore; then
+                echo "$entry" >> .gitignore
+                echo "Added to .gitignore: $entry"
+            fi
+        done
+    fi
+
     # Optional: copy prompt templates for local customisation
     if $with_prompts; then
         local prompts_dir="$CONFIG_DIR/prompts"
