@@ -25,9 +25,12 @@ Usage:
 Modes:
   plan      Analyse specs and source, create/update IMPLEMENTATION_PLAN.md
   build     Pick the next item, implement, test, commit, push
-  init      Scaffold prompt templates into the current project for customisation
+  init      Initialise workspace (PROGRESS.md, IMPLEMENTATION_PLAN.md, specs/)
   clean     Delete IMPLEMENTATION_PLAN.md and PROGRESS.md
   archive   Move IMPLEMENTATION_PLAN.md and PROGRESS.md to .ralph/<timestamp>/
+
+Init options:
+  -p, --prompts      Also copy prompt templates for local customisation
 
 Options:
   -n, --iterations N   Max iterations (plan default: 3, build default: 50)
@@ -91,22 +94,61 @@ cmd_archive() {
 }
 
 cmd_init() {
-    local prompts_dir="$CONFIG_DIR/prompts"
-    if [[ ! -d "$prompts_dir" ]]; then
-        echo "Error: ralph prompts not found at $prompts_dir"
-        echo "Run the installer first: ./install.sh"
-        exit 1
+    local with_prompts=false
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -p|--prompts) with_prompts=true; shift ;;
+            *) echo "Error: unknown init option '$1'"; exit 1 ;;
+        esac
+    done
+
+    local templates_dir="$CONFIG_DIR/templates"
+
+    # Workspace artifacts
+    if [[ -f "$templates_dir/PROGRESS.md" ]]; then
+        scaffold "PROGRESS.md" "$templates_dir/PROGRESS.md"
+    else
+        echo "Warning: PROGRESS.md template not found at $templates_dir"
     fi
 
-    for file in plan.md build.md; do
-        local target="PROMPT_${file}"
-        if [[ -f "$target" ]]; then
-            echo "Skipped: $target already exists"
-        else
-            cp "$prompts_dir/$file" "$target"
-            echo "Created: $target"
+    if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
+        echo "Skipped: IMPLEMENTATION_PLAN.md already exists"
+    else
+        touch "IMPLEMENTATION_PLAN.md"
+        echo "Created: IMPLEMENTATION_PLAN.md"
+    fi
+
+    if [[ -d "specs" ]]; then
+        echo "Skipped: specs/ already exists"
+    else
+        mkdir -p "specs"
+        echo "Created: specs/"
+    fi
+
+    # Optional: copy prompt templates for local customisation
+    if $with_prompts; then
+        local prompts_dir="$CONFIG_DIR/prompts"
+        if [[ ! -d "$prompts_dir" ]]; then
+            echo "Error: ralph prompts not found at $prompts_dir"
+            echo "Run the installer first: ./install.sh"
+            exit 1
         fi
-    done
+        for file in plan.md build.md; do
+            scaffold "PROMPT_${file}" "$prompts_dir/$file"
+        done
+    fi
+}
+
+scaffold() {
+    local target="$1"
+    local source="$2"
+    if [[ -f "$target" ]]; then
+        echo "Skipped: $target already exists"
+    else
+        cp "$source" "$target"
+        echo "Created: $target"
+    fi
 }
 
 # Resolve which prompt file to use.
@@ -212,7 +254,7 @@ cmd_loop() {
 # Main dispatch
 case "${1:-}" in
     plan|build) cmd_loop "$@" ;;
-    init)       cmd_init ;;
+    init)       shift; cmd_init "$@" ;;
     clean)      cmd_clean ;;
     archive)    cmd_archive ;;
     version)    cmd_version ;;
