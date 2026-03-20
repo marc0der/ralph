@@ -128,7 +128,7 @@ cmd_init() {
 
     # Add ralph artifacts to .gitignore
     if [[ -f ".gitignore" ]]; then
-        local ignore_entries=("IMPLEMENTATION_PLAN.md" "PROGRESS.md" ".ralph/")
+        local ignore_entries=("IMPLEMENTATION_PLAN.md" "PROGRESS.md" ".ralph/" "PROMPT_plan.md" "PROMPT_build.md")
         for entry in "${ignore_entries[@]}"; do
             if ! grep -qxF "$entry" .gitignore; then
                 echo "$entry" >> .gitignore
