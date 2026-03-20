@@ -1,0 +1,95 @@
+# ralph
+
+Autonomous [Claude Code](https://claude.ai/code) loop runner. Runs plan and build phases in a loop, feeding structured prompts to Claude in headless mode.
+
+## Background
+
+Ralph implements the [Ralph Wiggum pattern](https://github.com/ghuntley/how-to-ralph-wiggum) — a technique for running AI coding agents in autonomous loops where each iteration picks up where the last left off. The name comes from Ralph Wiggum's famous line *"I'm helping!"*, which captures the spirit of an agent that cheerfully works through a task list one item at a time, without needing hand-holding between steps.
+
+The pattern works in two phases: **plan** (analyse the codebase against specifications and produce a prioritised implementation plan) and **build** (pick the next item, implement it, run tests, commit, repeat). A shared `IMPLEMENTATION_PLAN.md` acts as the handoff between iterations, giving each fresh Claude session the context it needs to continue. An append-only `PROGRESS.md` log captures what each iteration did, what it learned, and what broke — providing a breadcrumb trail for both the human and future iterations.
+
+## Install
+
+```bash
+git clone git@github.com:sdkman/ralph.git
+cd ralph
+./install.sh
+```
+
+This places `ralph` in `~/.local/bin/` and default prompts in `~/.config/ralph/prompts/`.
+
+## Usage
+
+```bash
+ralph plan                                          # analyse and plan
+ralph plan -g "Migrate to hexagonal architecture"   # plan with a goal
+ralph build                                         # implement next item
+ralph build -n 10 -m sonnet                         # 10 iterations with sonnet
+ralph init                                          # scaffold local prompt overrides
+```
+
+### Modes
+
+| Mode    | What it does                                              | Default iterations |
+|---------|-----------------------------------------------------------|--------------------|
+| `plan`  | Analyse specs and source, create/update IMPLEMENTATION_PLAN.md | 3             |
+| `build` | Pick next item, implement, test, commit, push             | 50                 |
+
+### Options
+
+| Flag                 | Description                              |
+|----------------------|------------------------------------------|
+| `-n`, `--iterations` | Max iterations                           |
+| `-g`, `--goal`       | Goal injected into the prompt template   |
+| `-m`, `--model`      | Claude model (default: `opus`)           |
+| `-h`, `--help`       | Show help                                |
+
+## Prompt resolution
+
+Ralph looks for prompts in this order:
+
+1. **Project-local** — `PROMPT_plan.md` / `PROMPT_build.md` in the working directory
+2. **Installed defaults** — `~/.config/ralph/prompts/plan.md` / `build.md`
+
+Run `ralph init` to copy the defaults into your project for customisation.
+
+## Project artifacts
+
+Ralph iterations create and maintain these files in your project:
+
+| File                     | Purpose                                                       |
+|--------------------------|---------------------------------------------------------------|
+| `IMPLEMENTATION_PLAN.md` | Prioritised task list — shared state between iterations       |
+| `PROGRESS.md`            | Append-only log of what each iteration did, learned, and broke|
+| `specs/`                 | Feature specifications driving the work                       |
+
+`PROMPT_plan.md` and `PROMPT_build.md` are optional project-local prompt overrides (see [Prompt resolution](#prompt-resolution)).
+
+### Starting a new goal
+
+When switching to a new goal, clear out stale artifacts first:
+
+```bash
+ralph archive                                    # move to .ralph/<timestamp>/
+ralph plan -g "New goal"
+```
+
+Or if you don't need the history:
+
+```bash
+ralph clean                                      # delete artifacts
+ralph plan -g "New goal"
+```
+
+Archived artifacts are stored under `.ralph/` in your project directory, organised by timestamp.
+
+## Devcontainer support
+
+When `$DEVCONTAINER=true`, ralph automatically enables `--dangerously-skip-permissions` for Claude, relying on the container's network firewall for safety.
+
+## Configuration
+
+| Variable           | Default              | Description                     |
+|--------------------|----------------------|---------------------------------|
+| `RALPH_BIN_DIR`    | `~/.local/bin`       | Where to install the CLI        |
+| `RALPH_CONFIG_DIR` | `~/.config/ralph`    | Where to store default prompts  |
