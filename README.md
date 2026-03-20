@@ -65,6 +65,7 @@ Ralph iterations create and maintain these files in your project:
 
 | File                     | Purpose                                                       |
 |--------------------------|---------------------------------------------------------------|
+| `AGENTS.md`              | Operational guardrails — build commands, conventions, project rules. Read by every iteration to orient the agent. You maintain this file; ralph does not create or modify it |
 | `IMPLEMENTATION_PLAN.md` | Prioritised task list — shared state between iterations       |
 | `PROGRESS.md`            | Append-only log of what each iteration did, learned, and broke|
 | `specs/`                 | Feature specifications driving the work                       |
