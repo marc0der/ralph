@@ -213,6 +213,12 @@ cmd_loop() {
         esac
     fi
 
+    # Validate iterations is a positive integer
+    if [[ ! "$max_iterations" =~ ^[1-9][0-9]*$ ]]; then
+        echo "Error: iterations must be a positive integer, got '$max_iterations'" >&2
+        exit 1
+    fi
+
     local prompt_file
     prompt_file=$(resolve_prompt "$mode")
 
