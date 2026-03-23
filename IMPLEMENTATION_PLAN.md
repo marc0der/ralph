@@ -28,7 +28,7 @@
 
 - [x] **Add BATS test framework** — Create `test/` directory with BATS as the test runner. Add a `test/test_helper.bash` with common setup (temp dirs, mock fixtures).
 - [x] **Test `cmd_init`** — Verify it creates `PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`, updates `.gitignore`, and respects `--prompts` flag. Test idempotency (running init twice doesn't duplicate).
-- [ ] **Test `cmd_clean`** — Verify it deletes artifacts that exist and handles the case where none exist.
+- [x] **Test `cmd_clean`** — Verify it deletes artifacts that exist and handles the case where none exist.
 - [ ] **Test `cmd_archive`** — Verify artifacts move to `.ralph/<timestamp>/`, directory is created, and handles "nothing to archive" case.
 - [ ] **Test `resolve_prompt`** — Verify priority order: local `PROMPT_<mode>.md` > installed default > error with helpful message.
 - [ ] **Test `.gitignore` handling** — Verify entries are appended correctly, no duplicates, newline edge case is handled.
