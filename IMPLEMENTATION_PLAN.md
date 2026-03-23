@@ -10,7 +10,7 @@
 
 - [x] **Check `claude` CLI is in PATH** — Before entering the loop in `cmd_loop()`, verify `command -v claude >/dev/null` and exit with a helpful message if missing.
 - [x] **Check `git` is available and we're in a repo** — Before `git branch --show-current`, verify we're inside a git working tree with `git rev-parse --is-inside-work-tree`.
-- [ ] **Add signal trap for clean exit** — Register `trap cleanup SIGINT SIGTERM` at the top of `cmd_loop()` that logs the current iteration number and state to stderr so users know where it stopped.
+- [x] **Add signal trap for clean exit** — Register `trap cleanup SIGINT SIGTERM` at the top of `cmd_loop()` that logs the current iteration number and state to stderr so users know where it stopped.
 
 ## 3. README Improvements
 

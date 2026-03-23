@@ -262,6 +262,9 @@ cmd_loop() {
 
     local iteration=0
 
+    # Clean exit on interrupt signals
+    trap 'echo -e "\nInterrupted at iteration $iteration / $max_iterations" >&2; exit 130' SIGINT SIGTERM
+
     while [[ $iteration -lt $max_iterations ]]; do
         iteration=$((iteration + 1))
         echo -e "\n======================== ITERATION $iteration / $max_iterations ========================\n"
