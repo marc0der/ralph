@@ -1,0 +1,15 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Ralph artifacts (generated in target projects)
+IMPLEMENTATION_PLAN.md
+PROGRESS.md
+.ralph/
