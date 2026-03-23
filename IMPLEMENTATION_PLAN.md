@@ -36,7 +36,7 @@
 
 ## 5. CI/CD
 
-- [ ] **Add GitHub Actions workflow** — `.github/workflows/ci.yml` that runs ShellCheck on `ralph` and `install.sh`, and runs the BATS test suite on push/PR.
+- [x] **Add GitHub Actions workflow** — `.github/workflows/ci.yml` that runs ShellCheck on `ralph` and `install.sh`, and runs the BATS test suite on push/PR.
 - [ ] **Add ShellCheck configuration** — `.shellcheckrc` with any necessary directives. Fix any ShellCheck findings in `ralph` and `install.sh`.
 
 ## 6. Nice-to-Have Enhancements
