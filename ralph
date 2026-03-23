@@ -226,6 +226,16 @@ cmd_loop() {
         exit 1
     fi
 
+    # Verify git is available and we're inside a repo
+    if ! command -v git >/dev/null 2>&1; then
+        echo "Error: 'git' not found in PATH." >&2
+        exit 1
+    fi
+    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        echo "Error: not inside a git repository. Run 'git init' first." >&2
+        exit 1
+    fi
+
     local prompt_file
     prompt_file=$(resolve_prompt "$mode")
 
