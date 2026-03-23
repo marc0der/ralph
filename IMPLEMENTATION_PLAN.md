@@ -41,6 +41,6 @@
 
 ## 6. Nice-to-Have Enhancements
 
-- [ ] **Add `--skip-push` flag** — Allow running build loops without pushing after each iteration (useful for local testing/experimentation).
+- [x] **Add `--skip-push` flag** — Allow running build loops without pushing after each iteration (useful for local testing/experimentation).
 - [ ] **Add `--dry-run` flag** — Print what would be executed without actually invoking `claude` or `git push`.
 - [ ] **Add `.gitignore` to the ralph repo itself** — The repo doesn't have one; add a minimal one for common OS/editor artifacts.

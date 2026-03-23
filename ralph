@@ -36,6 +36,7 @@ Options:
   -n, --iterations N   Max iterations (plan default: 3, build default: 50)
   -g, --goal TEXT      Goal to inject into the prompt template
   -m, --model MODEL    Claude model to use (default: opus)
+      --skip-push      Don't push after each iteration
   -h, --help           Show this help message
 
 Examples:
@@ -191,8 +192,9 @@ cmd_loop() {
     local max_iterations=""
     local goal=""
     local model="opus"
+    local skip_push=false
 
-    ARGS=$(getopt -o n:g:m:h --long iterations:,goal:,model:,help -n 'ralph' -- "$@")
+    ARGS=$(getopt -o n:g:m:h --long iterations:,goal:,model:,skip-push,help -n 'ralph' -- "$@")
     eval set -- "$ARGS"
 
     while true; do
@@ -200,6 +202,7 @@ cmd_loop() {
             -n|--iterations) max_iterations="$2"; shift 2 ;;
             -g|--goal)       goal="$2";           shift 2 ;;
             -m|--model)      model="$2";          shift 2 ;;
+            --skip-push)     skip_push=true;      shift ;;
             -h|--help)       usage ;;
             --)              shift; break ;;
         esac
@@ -284,15 +287,17 @@ cmd_loop() {
             --verbose
 
         # Push changes after each iteration
-        local push_output
-        if ! push_output=$(git push origin "$current_branch" 2>&1); then
-            if echo "$push_output" | grep -q "has no upstream branch"; then
-                echo "No upstream branch found. Setting upstream..."
-                git push -u origin "$current_branch"
-            else
-                echo "Push failed:" >&2
-                echo "$push_output" >&2
-                exit 1
+        if ! $skip_push; then
+            local push_output
+            if ! push_output=$(git push origin "$current_branch" 2>&1); then
+                if echo "$push_output" | grep -q "has no upstream branch"; then
+                    echo "No upstream branch found. Setting upstream..."
+                    git push -u origin "$current_branch"
+                else
+                    echo "Push failed:" >&2
+                    echo "$push_output" >&2
+                    exit 1
+                fi
             fi
         fi
     done
