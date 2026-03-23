@@ -70,6 +70,8 @@ Ralph iterations create and maintain these files in your project:
 | `PROGRESS.md`            | Append-only log of what each iteration did, learned, and broke|
 | `specs/`                 | Feature specifications driving the work                       |
 
+**Note:** `CLAUDE.md` is your project's own configuration file for Claude Code — ralph reads it but never creates or modifies it. See the [Claude Code documentation](https://docs.anthropic.com/en/docs/claude-code) for details on how to set it up.
+
 `PROMPT_plan.md` and `PROMPT_build.md` are optional project-local prompt overrides (see [Prompt resolution](#prompt-resolution)).
 
 ### Starting a new goal

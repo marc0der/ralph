@@ -14,7 +14,7 @@
 
 ## 3. README Improvements
 
-- [ ] **Clarify `CLAUDE.md` is user-maintained** — The artifacts table mentions it but could confuse users into thinking `ralph init` creates it. Add a sentence after the table: *"Note: `CLAUDE.md` is your project's own configuration file for Claude Code — ralph reads it but never creates or modifies it."*
+- [x] **Clarify `CLAUDE.md` is user-maintained** — The artifacts table mentions it but could confuse users into thinking `ralph init` creates it. Add a sentence after the table: *"Note: `CLAUDE.md` is your project's own configuration file for Claude Code — ralph reads it but never creates or modifies it."*
 - [ ] **Expand devcontainer section** — Explain *why* `--dangerously-skip-permissions` is acceptable (container network isolation, ephemeral environment) and note that outside containers, Claude will prompt for approval on tool calls.
 - [ ] **Add troubleshooting section** covering:
   - `claude` CLI not installed
