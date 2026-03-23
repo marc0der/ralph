@@ -16,7 +16,7 @@
 
 - [x] **Clarify `CLAUDE.md` is user-maintained** — The artifacts table mentions it but could confuse users into thinking `ralph init` creates it. Add a sentence after the table: *"Note: `CLAUDE.md` is your project's own configuration file for Claude Code — ralph reads it but never creates or modifies it."*
 - [x] **Fix permissions for non-interactive mode** — `claude -p` cannot prompt for tool approval, so `--dangerously-skip-permissions` is always required. Added loud warning when running outside a devcontainer. Updated README to explain the safety model.
-- [ ] **Add troubleshooting section** covering:
+- [x] **Add troubleshooting section** covering:
   - `claude` CLI not installed
   - `ralph` not in PATH after install
   - Push rejected / diverged branch

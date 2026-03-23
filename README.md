@@ -106,3 +106,20 @@ Ralph runs `claude -p` (non-interactive pipe mode), which cannot prompt for tool
 |--------------------|----------------------|---------------------------------|
 | `RALPH_BIN_DIR`    | `~/.local/bin`       | Where to install the CLI        |
 | `RALPH_CONFIG_DIR` | `~/.config/ralph`    | Where to store default prompts  |
+
+## Troubleshooting
+
+**`claude` CLI not installed**
+Ralph requires the Claude Code CLI. Install it from https://docs.anthropic.com/en/docs/claude-code — ralph will exit with a clear error if it can't find `claude` in your PATH.
+
+**`ralph` not in PATH after install**
+The installer places `ralph` in `~/.local/bin` by default. Ensure this directory is in your PATH:
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+**Push rejected / diverged branch**
+If `git push` fails due to diverged history, pull and resolve conflicts manually, then re-run `ralph build` to continue.
+
+**Resuming after a failed iteration**
+Just re-run `ralph build`. It picks up from the current state of `IMPLEMENTATION_PLAN.md` — no special recovery step is needed.
