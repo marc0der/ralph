@@ -1,12 +1,13 @@
 # Common test helper for ralph BATS tests
+bats_require_minimum_version 1.5.0
 
 # Path to the ralph script under test
-RALPH="$BATS_TEST_DIRNAME/../ralph"
+export RALPH="$BATS_TEST_DIRNAME/../ralph"
 
 # Create a temporary directory for each test with mock config
 setup() {
     TEST_DIR="$(mktemp -d)"
-    cd "$TEST_DIR"
+    cd "$TEST_DIR" || return 1
     git init --quiet
     git commit --allow-empty -m "initial" --quiet
 

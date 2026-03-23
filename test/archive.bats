@@ -11,20 +11,20 @@ load test_helper
     [[ -d ".ralph" ]]
     # Verify files exist in the archive subdirectory
     local archive_dir
-    archive_dir=$(ls -d .ralph/*/  | head -1)
-    [[ -f "${archive_dir}IMPLEMENTATION_PLAN.md" ]]
-    [[ -f "${archive_dir}PROGRESS.md" ]]
+    archive_dir=$(find .ralph -mindepth 1 -maxdepth 1 -type d | head -1)
+    [[ -f "${archive_dir}/IMPLEMENTATION_PLAN.md" ]]
+    [[ -f "${archive_dir}/PROGRESS.md" ]]
 }
 
 @test "archive creates timestamped directory" {
     "$RALPH" init
     "$RALPH" archive
     local dir_count
-    dir_count=$(ls -1 .ralph/ | wc -l)
+    dir_count=$(find .ralph -mindepth 1 -maxdepth 1 -type d | wc -l)
     [[ "$dir_count" -eq 1 ]]
     # Directory name should match YYYYMMDD-HHMMSS pattern
     local dir_name
-    dir_name=$(ls -1 .ralph/)
+    dir_name=$(basename "$(find .ralph -mindepth 1 -maxdepth 1 -type d)")
     [[ "$dir_name" =~ ^[0-9]{8}-[0-9]{6}$ ]]
 }
 

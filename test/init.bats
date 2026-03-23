@@ -45,7 +45,7 @@ load test_helper
     run "$RALPH" init
     [[ "$status" -eq 0 ]]
     # First gitignore entry should be on its own line, not concatenated
-    ! grep -q "node_modulesIMPLEMENTATION_PLAN.md" .gitignore
+    run ! grep -q "node_modulesIMPLEMENTATION_PLAN.md" .gitignore
     grep -qxF "node_modules" .gitignore
     grep -qxF "IMPLEMENTATION_PLAN.md" .gitignore
 }
