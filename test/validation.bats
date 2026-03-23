@@ -37,7 +37,8 @@ load test_helper
 }
 
 @test "build fails outside a git repo" {
-    cd "$(mktemp -d)"
+    command -v claude >/dev/null 2>&1 || skip "claude CLI not installed"
+    cd "$(mktemp -d)" || return 1
     run "$RALPH" build
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"not inside a git repository"* ]]
