@@ -92,9 +92,13 @@ ralph plan -g "New goal"
 
 Archived artifacts are stored under `.ralph/` in your project directory, organised by timestamp.
 
-## Devcontainer support
+## Permissions and safety
 
-When `$DEVCONTAINER=true`, ralph automatically enables `--dangerously-skip-permissions` for Claude, relying on the container's network firewall for safety.
+Ralph runs `claude -p` (non-interactive pipe mode), which cannot prompt for tool approval. This means `--dangerously-skip-permissions` is always enabled.
+
+**Inside a devcontainer** (`$DEVCONTAINER=true`), this is the intended setup — the container's network firewall and ephemeral environment provide isolation, so unrestricted tool access is safe.
+
+**Outside a container**, ralph will print a prominent warning on each run. If you're concerned about unrestricted tool access, use the provided devcontainer configuration for safer execution.
 
 ## Configuration
 

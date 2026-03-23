@@ -252,13 +252,16 @@ cmd_loop() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     # Permission handling:
-    #   Inside devcontainer ($DEVCONTAINER=true): network firewall provides safety,
-    #   so --dangerously-skip-permissions is acceptable.
-    #   Outside devcontainer: omitted, requiring manual approval of tool calls.
-    local permission_flag=""
-    if [[ "${DEVCONTAINER:-false}" = "true" ]]; then
-        permission_flag="--dangerously-skip-permissions"
+    #   claude -p is non-interactive and cannot prompt for tool approval,
+    #   so --dangerously-skip-permissions is always required.
+    #   Inside a devcontainer, network isolation provides additional safety.
+    if [[ "${DEVCONTAINER:-false}" != "true" ]]; then
+        echo "⚠️  WARNING: Running with --dangerously-skip-permissions outside a container." >&2
+        echo "⚠️  Claude will have unrestricted access to tools (file writes, shell commands, etc)." >&2
+        echo "⚠️  For safer execution, use the provided devcontainer." >&2
+        echo "" >&2
     fi
+    local permission_flag="--dangerously-skip-permissions"
 
     local iteration=0
 
