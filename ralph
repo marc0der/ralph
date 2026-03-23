@@ -261,10 +261,17 @@ cmd_loop() {
             --verbose
 
         # Push changes after each iteration
-        git push origin "$current_branch" || {
-            echo "Failed to push. Creating remote branch..."
-            git push -u origin "$current_branch"
-        }
+        local push_output
+        if ! push_output=$(git push origin "$current_branch" 2>&1); then
+            if echo "$push_output" | grep -q "has no upstream branch"; then
+                echo "No upstream branch found. Setting upstream..."
+                git push -u origin "$current_branch"
+            else
+                echo "Push failed:" >&2
+                echo "$push_output" >&2
+                exit 1
+            fi
+        fi
     done
 
     echo -e "\nCompleted $iteration iterations."

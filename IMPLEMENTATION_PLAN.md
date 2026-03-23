@@ -4,7 +4,7 @@
 
 - [x] **Fix `.gitignore` newline handling** (`ralph:134`) — Before appending entries, ensure the file ends with a newline to prevent concatenation with the last existing line. Add: `[[ -s .gitignore && $(tail -c1 .gitignore) != "" ]] && echo >> .gitignore`
 - [x] **Validate `-n` iterations as positive integer** (`ralph:198`) — After parsing, check `[[ "$max_iterations" =~ ^[1-9][0-9]*$ ]]` and exit with a clear error if invalid.
-- [ ] **Improve git push error handling** (`ralph:256-259`) — Distinguish between "no upstream" (where `-u` is the right fix) and other failures (network, rejected). Only fall back to `-u` when the error message indicates no upstream tracking branch.
+- [x] **Improve git push error handling** (`ralph:256-259`) — Distinguish between "no upstream" (where `-u` is the right fix) and other failures (network, rejected). Only fall back to `-u` when the error message indicates no upstream tracking branch.
 
 ## 2. Input Validation & Safety
 
