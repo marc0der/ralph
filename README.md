@@ -107,6 +107,17 @@ Ralph runs `claude -p` (non-interactive pipe mode), which cannot prompt for tool
 | `RALPH_BIN_DIR`    | `~/.local/bin`       | Where to install the CLI        |
 | `RALPH_CONFIG_DIR` | `~/.config/ralph`    | Where to store default prompts  |
 
+### Model selection
+
+Ralph defaults to `opus` (`-m opus`). You can switch models per run:
+
+```bash
+ralph build -m sonnet          # faster and cheaper
+ralph plan -m opus             # better for complex reasoning
+```
+
+Use **opus** for planning, architecture decisions, and tasks requiring deep reasoning. Use **sonnet** for straightforward implementation, simple fixes, and faster iteration cycles.
+
 ## Troubleshooting
 
 **`claude` CLI not installed**

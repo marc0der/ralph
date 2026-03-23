@@ -21,8 +21,8 @@
   - `ralph` not in PATH after install
   - Push rejected / diverged branch
   - Resuming after a failed iteration (just re-run `ralph build`)
-- [ ] **Add recovery/resumption guidance** — Explain that re-running `ralph build` picks up from `IMPLEMENTATION_PLAN.md` state, so no special recovery step is needed.
-- [ ] **Add model selection guidance** — Brief note on when to use `opus` (complex reasoning, architecture) vs `sonnet` (faster, cheaper, straightforward tasks).
+- [x] **Add recovery/resumption guidance** — Explain that re-running `ralph build` picks up from `IMPLEMENTATION_PLAN.md` state, so no special recovery step is needed.
+- [x] **Add model selection guidance** — Brief note on when to use `opus` (complex reasoning, architecture) vs `sonnet` (faster, cheaper, straightforward tasks).
 
 ## 4. Test Suite
 
