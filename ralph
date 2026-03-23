@@ -37,6 +37,7 @@ Options:
   -g, --goal TEXT      Goal to inject into the prompt template
   -m, --model MODEL    Claude model to use (default: opus)
       --skip-push      Don't push after each iteration
+      --dry-run        Print what would be executed without running
   -h, --help           Show this help message
 
 Examples:
@@ -193,8 +194,9 @@ cmd_loop() {
     local goal=""
     local model="opus"
     local skip_push=false
+    local dry_run=false
 
-    ARGS=$(getopt -o n:g:m:h --long iterations:,goal:,model:,skip-push,help -n 'ralph' -- "$@")
+    ARGS=$(getopt -o n:g:m:h --long iterations:,goal:,model:,skip-push,dry-run,help -n 'ralph' -- "$@")
     eval set -- "$ARGS"
 
     while true; do
@@ -203,6 +205,7 @@ cmd_loop() {
             -g|--goal)       goal="$2";           shift 2 ;;
             -m|--model)      model="$2";          shift 2 ;;
             --skip-push)     skip_push=true;      shift ;;
+            --dry-run)       dry_run=true;        shift ;;
             -h|--help)       usage ;;
             --)              shift; break ;;
         esac
@@ -280,14 +283,22 @@ cmd_loop() {
         prompt=$(<"$prompt_file")
         prompt="${prompt//\{\{GOAL\}\}/${goal:-No specific goal provided}}"
 
-        echo "$prompt" | claude -p \
-            $permission_flag \
-            --output-format=stream-json \
-            --model "$model" \
-            --verbose
+        if $dry_run; then
+            echo "[dry-run] Would run: claude -p $permission_flag --output-format=stream-json --model $model --verbose"
+            echo "[dry-run] Prompt content ($prompt_file with goal substituted):"
+            echo "$prompt"
+        else
+            echo "$prompt" | claude -p \
+                $permission_flag \
+                --output-format=stream-json \
+                --model "$model" \
+                --verbose
+        fi
 
         # Push changes after each iteration
-        if ! $skip_push; then
+        if $dry_run; then
+            echo "[dry-run] Would run: git push origin $current_branch"
+        elif ! $skip_push; then
             local push_output
             if ! push_output=$(git push origin "$current_branch" 2>&1); then
                 if echo "$push_output" | grep -q "has no upstream branch"; then
