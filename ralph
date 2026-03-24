@@ -402,7 +402,8 @@ cmd_loop() {
                 $permission_flag \
                 --output-format=stream-json \
                 --model "$model" \
-                --verbose
+                --verbose \
+                | jq -r 'select(.type == "result") | .result // empty'
         fi
 
         # Push changes after each iteration
