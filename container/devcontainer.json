@@ -41,6 +41,6 @@
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
-  "postStartCommand": "git config --global include.path /home/node/.gitconfig.host && git config --global --add safe.directory /workspace",
+  "postStartCommand": "sudo chmod 666 /var/run/docker.sock && git config --global include.path /home/node/.gitconfig.host && git config --global --add safe.directory /workspace",
   "waitFor": "postStartCommand"
 }

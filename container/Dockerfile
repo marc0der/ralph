@@ -45,6 +45,18 @@ RUN ARCH=$(dpkg --print-architecture) \
   && dpkg -i "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb" \
   && rm "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb"
 
+# Passwordless sudo for node user
+RUN echo "node ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/node \
+  && chmod 0440 /etc/sudoers.d/node
+
+# Locale
+RUN apt-get update && apt-get install -y --no-install-recommends locales \
+  && apt-get clean && rm -rf /var/lib/apt/lists/* \
+  && sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen \
+  && locale-gen
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+
 # Directories and permissions
 RUN mkdir -p /workspace /home/node/.claude /commandhistory /usr/local/share/npm-global \
   && chown -R node:node /workspace /home/node/.claude /commandhistory /usr/local/share/npm-global
