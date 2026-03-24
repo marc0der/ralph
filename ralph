@@ -210,14 +210,14 @@ cmd_sandbox() {
     local mounts=()
     local ralph_bin
     ralph_bin="$(command -v ralph)"
-    mounts+=("type=bind,source=$ralph_bin,target=/usr/local/bin/ralph,readonly")
-    mounts+=("type=bind,source=$CONFIG_DIR,target=/home/node/.config/ralph,readonly")
+    mounts+=("type=bind,source=$ralph_bin,target=/usr/local/bin/ralph")
+    mounts+=("type=bind,source=$CONFIG_DIR,target=/home/node/.config/ralph")
 
     if [[ -d "$HOME/.ssh" ]]; then
-        mounts+=("type=bind,source=$HOME/.ssh,target=/home/node/.ssh,readonly")
+        mounts+=("type=bind,source=$HOME/.ssh,target=/home/node/.ssh")
     fi
     if [[ -d "$HOME/.config/gh" ]]; then
-        mounts+=("type=bind,source=$HOME/.config/gh,target=/home/node/.config/gh,readonly")
+        mounts+=("type=bind,source=$HOME/.config/gh,target=/home/node/.config/gh")
     fi
 
     local ssh_env=()
