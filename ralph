@@ -16,6 +16,8 @@ usage() {
 ralph — autonomous Claude Code loop runner
 
 Usage:
+  ralph sandbox [--rebuild]
+  ralph sandbox clean
   ralph <plan|build> [options]
   ralph init
   ralph clean
@@ -23,11 +25,16 @@ Usage:
   ralph version
 
 Modes:
-  plan      Analyse specs and source, create/update IMPLEMENTATION_PLAN.md
-  build     Pick the next item, implement, test, commit, push
-  init      Initialise workspace (PROGRESS.md, IMPLEMENTATION_PLAN.md, specs/)
-  clean     Delete IMPLEMENTATION_PLAN.md and PROGRESS.md
-  archive   Move IMPLEMENTATION_PLAN.md and PROGRESS.md to .ralph/<timestamp>/
+  sandbox        Enter a devcontainer shell for the current project
+  sandbox clean  Remove the devcontainer for the current project
+  plan           Analyse specs and source, create/update IMPLEMENTATION_PLAN.md
+  build          Pick the next item, implement, test, commit, push
+  init           Initialise workspace (PROGRESS.md, IMPLEMENTATION_PLAN.md, specs/)
+  clean          Delete IMPLEMENTATION_PLAN.md and PROGRESS.md
+  archive        Move IMPLEMENTATION_PLAN.md and PROGRESS.md to .ralph/<timestamp>/
+
+Sandbox options:
+      --rebuild        Rebuild the container image from scratch
 
 Init options:
   -p, --prompts      Also copy prompt templates for local customisation
@@ -46,6 +53,9 @@ Examples:
   ralph plan -g "Migrate to hexagonal architecture"
   ralph build -n 10 -m sonnet
   ralph build --iterations 5 --goal "Add PATCH endpoint"
+  ralph sandbox
+  ralph sandbox --rebuild
+  ralph sandbox clean
   ralph archive
 EOF
     exit 0
@@ -164,6 +174,106 @@ scaffold() {
         cp "$source" "$target"
         echo "Created: $target"
     fi
+}
+
+cmd_sandbox() {
+    local rebuild=false
+
+    case "${1:-}" in
+        clean)     sandbox_clean; return ;;
+        --rebuild) rebuild=true ;;
+        "")        ;;
+        *)         echo "Error: unknown sandbox option '$1'" >&2; exit 1 ;;
+    esac
+
+    if ! command -v devcontainer >/dev/null 2>&1; then
+        echo "Error: 'devcontainer' CLI not found in PATH." >&2
+        echo "Install it with: npm install -g @devcontainers/cli" >&2
+        exit 1
+    fi
+
+    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        echo "Error: not inside a git repository." >&2
+        exit 1
+    fi
+
+    local config="$CONFIG_DIR/container/devcontainer.json"
+    if [[ ! -f "$config" ]]; then
+        echo "Error: devcontainer config not found at $config" >&2
+        echo "Run the installer first: ./install.sh" >&2
+        exit 1
+    fi
+
+    mkdir -p "$HOME/.claude"
+
+    # Runtime mounts (conditional on host file existence)
+    local mounts=()
+    local ralph_bin
+    ralph_bin="$(command -v ralph)"
+    mounts+=("type=bind,source=$ralph_bin,target=/usr/local/bin/ralph,readonly")
+    mounts+=("type=bind,source=$CONFIG_DIR,target=/home/node/.config/ralph,readonly")
+
+    if [[ -d "$HOME/.ssh" ]]; then
+        mounts+=("type=bind,source=$HOME/.ssh,target=/home/node/.ssh,readonly")
+    fi
+    if [[ -d "$HOME/.config/gh" ]]; then
+        mounts+=("type=bind,source=$HOME/.config/gh,target=/home/node/.config/gh,readonly")
+    fi
+
+    local ssh_env=()
+    if [[ -n "${SSH_AUTH_SOCK:-}" ]]; then
+        mounts+=("type=bind,source=$SSH_AUTH_SOCK,target=/tmp/ssh-agent.sock")
+        ssh_env=("--remote-env" "SSH_AUTH_SOCK=/tmp/ssh-agent.sock")
+    fi
+
+    # Shell history volume (deterministic per workspace)
+    local workspace_hash
+    workspace_hash=$(echo -n "$PWD" | md5sum | cut -c1-12)
+    mounts+=("type=volume,source=ralph-history-${workspace_hash},target=/commandhistory")
+
+    local mount_flags=()
+    for mount in "${mounts[@]}"; do
+        mount_flags+=("--mount" "$mount")
+    done
+
+    # Start or reuse container
+    local up_args=(
+        "--workspace-folder" "$PWD"
+        "--config" "$config"
+        "${mount_flags[@]}"
+        "${ssh_env[@]}"
+    )
+    if $rebuild; then
+        up_args+=("--rebuild-no-cache")
+    fi
+
+    echo "Starting sandbox..."
+    devcontainer up "${up_args[@]}"
+
+    # Drop into shell
+    devcontainer exec \
+        --workspace-folder "$PWD" \
+        --config "$config" \
+        "${ssh_env[@]}" \
+        zsh
+}
+
+sandbox_clean() {
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "Error: 'docker' not found in PATH." >&2
+        exit 1
+    fi
+
+    local container_id
+    container_id=$(docker ps -a --filter "label=devcontainer.local_folder=$PWD" --format '{{.ID}}')
+
+    if [[ -z "$container_id" ]]; then
+        echo "No sandbox container found for $PWD"
+        return
+    fi
+
+    docker rm -f "$container_id" >/dev/null
+    echo "Removed sandbox container for $PWD"
 }
 
 # Resolve which prompt file to use.
@@ -318,6 +428,7 @@ cmd_loop() {
 
 # Main dispatch
 case "${1:-}" in
+    sandbox)    shift; cmd_sandbox "$@" ;;
     plan|build) cmd_loop "$@" ;;
     init)       shift; cmd_init "$@" ;;
     clean)      cmd_clean ;;
