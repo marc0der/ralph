@@ -21,7 +21,7 @@
   },
   "mounts": [
     "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind",
-    "source=${localEnv:HOME}/.gitconfig,target=/home/node/.gitconfig,type=bind,readonly",
+    "source=${localEnv:HOME}/.gitconfig,target=/home/node/.gitconfig.host,type=bind,readonly",
     "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
   ],
   "customizations": {
@@ -41,6 +41,6 @@
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
-  "postStartCommand": "git config --global --add safe.directory /workspace",
+  "postStartCommand": "git config --global include.path /home/node/.gitconfig.host && git config --global --add safe.directory /workspace",
   "waitFor": "postStartCommand"
 }
