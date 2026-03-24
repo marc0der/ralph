@@ -24,6 +24,12 @@ mkdir -p "$CONFIG_DIR/templates"
 cp "$SCRIPT_DIR/templates/PROGRESS.md" "$CONFIG_DIR/templates/PROGRESS.md"
 echo "  Templates:  $CONFIG_DIR/templates/"
 
+# Install container config
+mkdir -p "$CONFIG_DIR/container"
+cp "$SCRIPT_DIR/container/Dockerfile" "$CONFIG_DIR/container/Dockerfile"
+cp "$SCRIPT_DIR/container/devcontainer.json" "$CONFIG_DIR/container/devcontainer.json"
+echo "  Container:  $CONFIG_DIR/container/"
+
 # Check PATH
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     echo ""
