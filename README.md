@@ -16,18 +16,21 @@ cd ralph
 ./install.sh
 ```
 
-This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prompts/`, and workspace templates in `~/.config/ralph/templates/`.
+This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prompts/`, workspace templates in `~/.config/ralph/templates/`, and the devcontainer config in `~/.config/ralph/container/`.
 
 ## Commands
 
-| Command   | Description                                                                  |
-|-----------|------------------------------------------------------------------------------|
-| `plan`    | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` (default: 3 iterations) |
-| `build`   | Pick the next item, implement, test, commit, push (default: 50 iterations)   |
-| `init`    | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`). Pass `--prompts` to also copy prompt templates for local customisation |
-| `archive` | Move `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` to `.ralph/<timestamp>/`    |
-| `clean`   | Delete `IMPLEMENTATION_PLAN.md` and `PROGRESS.md`                           |
-| `version` | Print version                                                                |
+| Command           | Description                                                                  |
+|-------------------|------------------------------------------------------------------------------|
+| `sandbox`         | Enter a devcontainer shell for the current project                           |
+| `sandbox clean`   | Remove the devcontainer for the current project                              |
+| `sandbox --rebuild` | Rebuild the container image from scratch                                   |
+| `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` (default: 3 iterations) |
+| `build`           | Pick the next item, implement, test, commit, push (default: 50 iterations)   |
+| `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`). Pass `--prompts` to also copy prompt templates for local customisation |
+| `archive`         | Move `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` to `.ralph/<timestamp>/`    |
+| `clean`           | Delete `IMPLEMENTATION_PLAN.md` and `PROGRESS.md`                           |
+| `version`         | Print version                                                                |
 
 ### Options (plan and build)
 
@@ -41,6 +44,9 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 ### Examples
 
 ```bash
+ralph sandbox                                       # enter devcontainer
+ralph sandbox --rebuild                             # rebuild and enter
+ralph sandbox clean                                 # remove the container
 ralph plan                                          # analyse and plan
 ralph plan -g "Migrate to hexagonal architecture"   # plan with a goal
 ralph build                                         # implement next item
@@ -48,6 +54,49 @@ ralph build -n 10 -m sonnet                         # 10 iterations with sonnet
 ralph archive                                       # archive before starting fresh
 ralph init                                          # initialise workspace
 ralph init --prompts                                # also copy prompts for customisation
+```
+
+## Sandbox
+
+The sandbox runs your project inside a devcontainer — an isolated environment with Claude Code, Node.js 20, SDKMAN, Docker CLI, and development tools pre-installed. Claude runs as a non-root user with `--dangerously-skip-permissions` enabled.
+
+### Prerequisites
+
+- **Docker** (rootful) — rootless Docker is not supported
+- **devcontainer CLI** — install with `npm install -g @devcontainers/cli`
+
+### Usage
+
+```bash
+cd your-project
+ralph sandbox              # start or reuse container, drop into zsh
+ralph sandbox --rebuild    # rebuild image from scratch (after ralph updates)
+ralph sandbox clean        # remove the container for this project
+```
+
+Each project gets its own container, automatically reused between sessions. Shell history persists across container recreations via a Docker volume.
+
+### What gets mounted
+
+| Source                    | Target                          | Mode      |
+|---------------------------|---------------------------------|-----------|
+| `~/.claude`               | `/home/node/.claude`            | read/write |
+| `~/.gitconfig`            | `/home/node/.gitconfig`         | readonly  |
+| `~/.ssh`                  | `/home/node/.ssh`               | readonly  |
+| `~/.config/gh`            | `/home/node/.config/gh`         | readonly  |
+| Docker socket             | `/var/run/docker.sock`          | read/write |
+| SSH agent socket           | `/tmp/ssh-agent.sock`           | read/write |
+| `ralph` binary            | `/usr/local/bin/ralph`          | readonly  |
+| ralph config dir           | `/home/node/.config/ralph`      | readonly  |
+
+Optional mounts (`~/.ssh`, `~/.config/gh`, SSH agent) are skipped if the source doesn't exist on the host.
+
+### SDKMAN
+
+SDKMAN is installed but no JDK is pre-installed. If your project uses a `.sdkmanrc`, install the declared JDK inside the sandbox:
+
+```bash
+sdk env install
 ```
 
 ## Prompt resolution
@@ -96,16 +145,16 @@ Archived artifacts are stored under `.ralph/` in your project directory, organis
 
 Ralph runs `claude -p` (non-interactive pipe mode), which cannot prompt for tool approval. This means `--dangerously-skip-permissions` is always enabled.
 
-**Inside a devcontainer** (`$DEVCONTAINER=true`), this is the intended setup — the container's network firewall and ephemeral environment provide isolation, so unrestricted tool access is safe.
+**Inside the sandbox** (`$DEVCONTAINER=true`), this is the intended setup — the container's isolation provides a safety boundary, so unrestricted tool access is acceptable.
 
-**Outside a container**, ralph will print a prominent warning on each run. If you're concerned about unrestricted tool access, use the provided devcontainer configuration for safer execution.
+**Outside a container**, ralph will print a prominent warning on each run. Use `ralph sandbox` to run inside a devcontainer for safer execution.
 
 ## Configuration
 
 | Variable           | Default              | Description                     |
 |--------------------|----------------------|---------------------------------|
 | `RALPH_BIN_DIR`    | `~/.local/bin`       | Where to install the CLI        |
-| `RALPH_CONFIG_DIR` | `~/.config/ralph`    | Where to store default prompts  |
+| `RALPH_CONFIG_DIR` | `~/.config/ralph`    | Where to store prompts and container config |
 
 ### Model selection
 
@@ -134,3 +183,22 @@ If `git push` fails due to diverged history, pull and resolve conflicts manually
 
 **Resuming after a failed iteration**
 Just re-run `ralph build`. It picks up from the current state of `IMPLEMENTATION_PLAN.md` — no special recovery step is needed.
+
+**Sandbox container is stale or broken**
+Remove it and start fresh:
+```bash
+ralph sandbox clean
+ralph sandbox
+```
+
+**Sandbox image needs updating**
+After updating ralph, rebuild the container image:
+```bash
+ralph sandbox --rebuild
+```
+
+**`devcontainer` CLI not installed**
+Install it with npm:
+```bash
+npm install -g @devcontainers/cli
+```
