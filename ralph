@@ -244,7 +244,7 @@ cmd_sandbox() {
         "${ssh_env[@]}"
     )
     if $rebuild; then
-        up_args+=("--rebuild-no-cache")
+        up_args+=("--remove-existing-container" "--build-no-cache")
     fi
 
     echo "Starting sandbox..."
