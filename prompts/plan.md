@@ -10,7 +10,7 @@ You are a planning agent in an autonomous loop. Your job is to understand the cu
 
 ## Phase 1: Understand
 
-Gather context by reading these sources. Parallelise research across the codebase.
+Gather context by reading these sources. Use up to 50 parallel **Sonnet** subagents to read specs, source, and tests concurrently.
 
 - **Operational guardrails** — read `CLAUDE.md` (if present) for build commands, conventions, and project rules
 - **Specifications** — read everything in `specs/`
@@ -20,7 +20,7 @@ Gather context by reading these sources. Parallelise research across the codebas
 
 ## Phase 2: Analyse
 
-Think deeply. Compare the source code and tests against the specifications.
+Use an **Opus** subagent to analyse and synthesise findings. Ultrathink. Compare the source code and tests against the specifications.
 
 Look for:
 - Gaps between specs and implementation
