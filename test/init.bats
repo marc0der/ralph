@@ -20,6 +20,17 @@ load test_helper
     [[ -d "specs" ]]
 }
 
+@test "init creates .gitignore when it does not exist" {
+    run "$RALPH" init
+    [[ "$status" -eq 0 ]]
+    [[ -f ".gitignore" ]]
+    grep -qxF "IMPLEMENTATION_PLAN.md" .gitignore
+    grep -qxF "PROGRESS.md" .gitignore
+    grep -qxF ".ralph/" .gitignore
+    grep -qxF "PROMPT_plan.md" .gitignore
+    grep -qxF "PROMPT_build.md" .gitignore
+}
+
 @test "init adds entries to existing .gitignore" {
     create_gitignore "node_modules"
     run "$RALPH" init

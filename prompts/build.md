@@ -43,7 +43,7 @@ Once tests pass:
 
 1. Update `IMPLEMENTATION_PLAN.md` — mark the item complete, clean out stale completed items, add any new findings
 2. Append an entry to `PROGRESS.md` following the template defined in its header (append-only — never edit previous entries)
-3. Use `/commit` to commit the changes
+3. Use `/commit` to commit the changes — **do NOT stage or commit `IMPLEMENTATION_PLAN.md`, `PROGRESS.md`, `PROMPT_plan.md`, `PROMPT_build.md`, or the `.ralph/` directory**; these are local-only loop artifacts
 4. `git push`
 
 ---
