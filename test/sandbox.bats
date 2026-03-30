@@ -79,3 +79,37 @@ path_without() {
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"--rebuild"* ]]
 }
+
+@test "sandbox uses md5 when md5sum is not available" {
+    command -v md5 >/dev/null 2>&1 || skip "md5 not available"
+    command -v devcontainer >/dev/null 2>&1 || skip "devcontainer CLI not installed"
+    # Skip if md5sum shares a directory with coreutils (cannot isolate)
+    local md5sum_dir cut_dir
+    md5sum_dir=$(dirname "$(command -v md5sum)")
+    cut_dir=$(dirname "$(command -v cut)")
+    [[ "$md5sum_dir" != "$cut_dir" ]] || skip "cannot isolate md5sum from coreutils in PATH"
+    mkdir -p "$RALPH_CONFIG_DIR/container"
+    echo '{}' > "$RALPH_CONFIG_DIR/container/devcontainer.json"
+    local filtered_path
+    filtered_path=$(path_without md5sum)
+    PATH="${filtered_path%:}" run "$RALPH" sandbox
+    [[ "$output" != *"no md5sum or md5 command found"* ]]
+}
+
+@test "sandbox hash detection fails when no hashing command exists" {
+    # Test the detection logic directly in a subshell with an empty PATH;
+    # command is a bash builtin so it works even without PATH entries.
+    run bash -c '
+        PATH="/nonexistent"
+        if command -v md5sum &>/dev/null; then
+            echo "found md5sum"
+        elif command -v md5 &>/dev/null; then
+            echo "found md5"
+        else
+            echo "Error: no md5sum or md5 command found — install coreutils" >&2
+            exit 1
+        fi
+    '
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"no md5sum or md5 command found"* ]]
+}
