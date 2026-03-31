@@ -441,26 +441,29 @@ cmd_loop() {
     local current_branch
     current_branch=$(git branch --show-current)
 
+    # Build the backend command array now that model is resolved
+    build_backend_cmd "$model"
+
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "Mode:   $mode"
-    echo "Prompt: $prompt_file"
-    echo "Branch: $current_branch"
-    echo "Model:  $model"
-    echo "Max:    $max_iterations iterations"
-    [[ -n "$goal" ]] && echo "Goal:   $goal"
+    echo "Mode:    $mode"
+    echo "Backend: $BACKEND_NAME"
+    echo "Prompt:  $prompt_file"
+    echo "Branch:  $current_branch"
+    echo "Model:   $model"
+    echo "Max:     $max_iterations iterations"
+    [[ -n "$goal" ]] && echo "Goal:    $goal"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     # Permission handling:
-    #   claude -p is non-interactive and cannot prompt for tool approval,
-    #   so --dangerously-skip-permissions is always required.
+    #   Backends run non-interactively and cannot prompt for tool approval,
+    #   so the backend's permission flag is always required.
     #   Inside a devcontainer, network isolation provides additional safety.
     if [[ "${DEVCONTAINER:-false}" != "true" ]]; then
-        echo "⚠️  WARNING: Running with --dangerously-skip-permissions outside a container." >&2
-        echo "⚠️  Claude will have unrestricted access to tools (file writes, shell commands, etc)." >&2
+        echo "⚠️  WARNING: Running with $BACKEND_PERMISSION_FLAG outside a container." >&2
+        echo "⚠️  $BACKEND_PERMISSION_WARNING" >&2
         echo "⚠️  For safer execution, use the provided devcontainer." >&2
         echo "" >&2
     fi
-    local permission_flag="--dangerously-skip-permissions"
 
     local iteration=0
 
@@ -471,22 +474,19 @@ cmd_loop() {
         iteration=$((iteration + 1))
         echo -e "\n======================== ITERATION $iteration / $max_iterations ========================\n"
 
-        # Inject {{GOAL}} into prompt using bash substitution (avoids sed escaping issues)
+        # Inject {{GOAL}} and {{BACKEND_HINTS}} into prompt using bash substitution
         local prompt
         prompt=$(<"$prompt_file")
         prompt="${prompt//\{\{GOAL\}\}/${goal:-No specific goal provided}}"
+        prompt="${prompt//\{\{BACKEND_HINTS\}\}/${BACKEND_HINTS}}"
 
         if $dry_run; then
-            echo "[dry-run] Would run: claude -p $permission_flag --output-format=stream-json --model $model --verbose"
+            echo "[dry-run] Would run: ${BACKEND_CMD[*]}"
             echo "[dry-run] Prompt content ($prompt_file with goal substituted):"
             echo "$prompt"
         else
-            echo "$prompt" | claude -p \
-                $permission_flag \
-                --output-format=stream-json \
-                --model "$model" \
-                --verbose \
-                | jq -r 'select(.type == "result") | .result // empty'
+            echo "$prompt" | "${BACKEND_CMD[@]}" \
+                | jq "${BACKEND_JQ_FLAGS[@]}" "$BACKEND_JQ_FILTER"
         fi
 
         # Push changes after each iteration
