@@ -11,6 +11,70 @@ BUILD_DEFAULT_CAP=50
 ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md PROMPT_plan.md PROMPT_build.md)
 ARCHIVE_DIR=".ralph"
 
+# --- Backend definitions ---
+# Each backend_<name> function sets well-known variables and defines
+# build_backend_cmd(model) which populates the BACKEND_CMD array.
+# Adding a new backend only requires a new function and a SUPPORTED_BACKENDS entry.
+
+SUPPORTED_BACKENDS=(claude codex)
+
+# shellcheck disable=SC2034  # Variables are set here and consumed in cmd_loop
+backend_claude() {
+    BACKEND_NAME="claude"
+    BACKEND_CLI="claude"
+    BACKEND_DEFAULT_MODEL="opus"
+    BACKEND_PERMISSION_FLAG="--dangerously-skip-permissions"
+    BACKEND_PERMISSION_WARNING="Claude will have unrestricted access to tools (file writes, shell commands, etc)."
+    BACKEND_INPUT_MODE="stdin"
+    BACKEND_JQ_FLAGS=(-r)
+    BACKEND_JQ_FILTER='select(.type == "result") | .result // empty'
+    BACKEND_HINTS="- Use **Sonnet** subagents for search/read, **Opus** subagents for complex reasoning
+- Use the \`/commit\` skill to commit changes
+- Read \`CLAUDE.md\` (if present) for project-specific guidance"
+    # shellcheck disable=SC2317  # Invoked indirectly via resolve_backend
+    build_backend_cmd() {
+        local model="$1"
+        BACKEND_CMD=(claude -p "$BACKEND_PERMISSION_FLAG" --output-format=stream-json --model "$model" --verbose)
+    }
+}
+
+# shellcheck disable=SC2034  # Variables are set here and consumed in cmd_loop
+backend_codex() {
+    BACKEND_NAME="codex"
+    BACKEND_CLI="codex"
+    BACKEND_DEFAULT_MODEL="gpt-5.2-codex"
+    BACKEND_PERMISSION_FLAG="--dangerously-bypass-approvals-and-sandbox"
+    BACKEND_PERMISSION_WARNING="Codex will have unrestricted access to tools (file writes, shell commands, etc)."
+    BACKEND_INPUT_MODE="stdin"
+    BACKEND_JQ_FLAGS=(-rs)
+    BACKEND_JQ_FILTER='last | .message // empty'
+    BACKEND_HINTS="- Use subagents for parallel search/read operations
+- Commit changes using git commands directly
+- Read \`AGENTS.md\` or \`CLAUDE.md\` (if present) for project-specific guidance"
+    # shellcheck disable=SC2317  # Invoked indirectly via resolve_backend
+    build_backend_cmd() {
+        local model="$1"
+        BACKEND_CMD=(codex exec "$BACKEND_PERMISSION_FLAG" --json --model "$model")
+    }
+}
+
+resolve_backend() {
+    local name="$1"
+    local found=false
+    for b in "${SUPPORTED_BACKENDS[@]}"; do
+        if [[ "$b" == "$name" ]]; then
+            found=true
+            break
+        fi
+    done
+    if ! $found; then
+        echo "Error: unknown backend '$name'" >&2
+        echo "Supported backends: ${SUPPORTED_BACKENDS[*]}" >&2
+        exit 1
+    fi
+    "backend_${name}"
+}
+
 usage() {
     cat <<'EOF'
 ralph — autonomous Claude Code loop runner
