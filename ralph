@@ -25,7 +25,6 @@ backend_claude() {
     BACKEND_DEFAULT_MODEL="opus"
     BACKEND_PERMISSION_FLAG="--dangerously-skip-permissions"
     BACKEND_PERMISSION_WARNING="Claude will have unrestricted access to tools (file writes, shell commands, etc)."
-    BACKEND_INPUT_MODE="stdin"
     BACKEND_JQ_FLAGS=(-r)
     BACKEND_JQ_FILTER='select(.type == "result") | .result // empty'
     BACKEND_HINTS="- Use **Sonnet** subagents for search/read, **Opus** subagents for complex reasoning
@@ -45,7 +44,6 @@ backend_codex() {
     BACKEND_DEFAULT_MODEL="gpt-5.2-codex"
     BACKEND_PERMISSION_FLAG="--dangerously-bypass-approvals-and-sandbox"
     BACKEND_PERMISSION_WARNING="Codex will have unrestricted access to tools (file writes, shell commands, etc)."
-    BACKEND_INPUT_MODE="stdin"
     BACKEND_JQ_FLAGS=(-rs)
     BACKEND_JQ_FILTER='last | .message // empty'
     BACKEND_HINTS="- Use subagents for parallel search/read operations
