@@ -375,11 +375,12 @@ cmd_loop() {
     # Parse flags
     local max_iterations=""
     local goal=""
-    local model="opus"
+    local model=""
+    local backend=""
     local skip_push=false
     local dry_run=false
 
-    ARGS=$(getopt -o n:g:m:h --long iterations:,goal:,model:,skip-push,dry-run,help -n 'ralph' -- "$@")
+    ARGS=$(getopt -o n:g:m:b:h --long iterations:,goal:,model:,backend:,skip-push,dry-run,help -n 'ralph' -- "$@")
     eval set -- "$ARGS"
 
     while true; do
@@ -387,12 +388,22 @@ cmd_loop() {
             -n|--iterations) max_iterations="$2"; shift 2 ;;
             -g|--goal)       goal="$2";           shift 2 ;;
             -m|--model)      model="$2";          shift 2 ;;
+            -b|--backend)    backend="$2";        shift 2 ;;
             --skip-push)     skip_push=true;      shift ;;
             --dry-run)       dry_run=true;        shift ;;
             -h|--help)       usage ;;
             --)              shift; break ;;
         esac
     done
+
+    # Resolve backend: CLI flag > env var > default
+    backend="${backend:-${RALPH_BACKEND:-claude}}"
+    resolve_backend "$backend"
+
+    # Apply backend default model if -m not explicitly passed
+    if [[ -z "$model" ]]; then
+        model="$BACKEND_DEFAULT_MODEL"
+    fi
 
     # Apply default iteration cap based on mode
     if [[ -z "$max_iterations" ]]; then
@@ -408,10 +419,9 @@ cmd_loop() {
         exit 1
     fi
 
-    # Verify claude CLI is available (not needed for dry-run)
-    if ! $dry_run && ! command -v claude >/dev/null 2>&1; then
-        echo "Error: 'claude' CLI not found in PATH." >&2
-        echo "Install it from https://docs.anthropic.com/en/docs/claude-code" >&2
+    # Verify backend CLI is available (not needed for dry-run)
+    if ! $dry_run && ! command -v "$BACKEND_CLI" >/dev/null 2>&1; then
+        echo "Error: '$BACKEND_CLI' CLI not found in PATH." >&2
         exit 1
     fi
 
