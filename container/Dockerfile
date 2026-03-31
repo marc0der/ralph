@@ -57,6 +57,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends locales \
 ENV LANG=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
+# BATS (testing) and ShellCheck (linting)
+RUN apt-get update && apt-get install -y --no-install-recommends shellcheck \
+  && apt-get clean && rm -rf /var/lib/apt/lists/* \
+  && git clone --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats \
+  && /tmp/bats/install.sh /usr/local \
+  && rm -rf /tmp/bats
+
 # Directories and permissions
 RUN mkdir -p /workspace /home/node/.claude /commandhistory /usr/local/share/npm-global \
   && chown -R node:node /workspace /home/node/.claude /commandhistory /usr/local/share/npm-global
@@ -87,13 +94,6 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
   -a "source /usr/share/doc/fzf/examples/completion.zsh" \
   -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
   -x
-
-# BATS (testing) and ShellCheck (linting)
-RUN apt-get update && apt-get install -y --no-install-recommends shellcheck \
-  && apt-get clean && rm -rf /var/lib/apt/lists/* \
-  && git clone --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats \
-  && sudo /tmp/bats/install.sh /usr/local \
-  && rm -rf /tmp/bats
 
 # Claude Code
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
