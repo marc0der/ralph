@@ -29,7 +29,7 @@ backend_claude() {
     BACKEND_JQ_FILTER='select(.type == "result") | .result // empty'
     BACKEND_HINTS="- Use **Sonnet** subagents for search/read, **Opus** subagents for complex reasoning
 - Read \`CLAUDE.md\` (if present) for project-specific guidance"
-    # shellcheck disable=SC2317  # Invoked indirectly via resolve_backend
+    # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
     build_backend_cmd() {
         local model="$1"
         BACKEND_CMD=(claude -p "$BACKEND_PERMISSION_FLAG" --output-format=stream-json --model "$model" --verbose)
@@ -48,7 +48,7 @@ backend_codex() {
     BACKEND_HINTS="- Use subagents for parallel search/read operations
 - Commit changes using git commands directly
 - Read \`AGENTS.md\` or \`CLAUDE.md\` (if present) for project-specific guidance"
-    # shellcheck disable=SC2317  # Invoked indirectly via resolve_backend
+    # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
     build_backend_cmd() {
         local model="$1"
         BACKEND_CMD=(codex exec "$BACKEND_PERMISSION_FLAG" --json --model "$model")
