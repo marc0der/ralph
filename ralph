@@ -270,7 +270,7 @@ cmd_sandbox() {
         exit 1
     fi
 
-    mkdir -p "$HOME/.claude"
+    mkdir -p "$HOME/.claude" "$HOME/.codex"
 
     # Runtime mounts (conditional on host file existence)
     local mounts=()
@@ -285,11 +285,17 @@ cmd_sandbox() {
     if [[ -d "$HOME/.config/gh" ]]; then
         mounts+=("type=bind,source=$HOME/.config/gh,target=/home/node/.config/gh")
     fi
+    if [[ -d "$HOME/.codex" ]]; then
+        mounts+=("type=bind,source=$HOME/.codex,target=/home/node/.codex")
+    fi
 
     local ssh_env=()
     if [[ -n "${SSH_AUTH_SOCK:-}" ]]; then
         mounts+=("type=bind,source=$SSH_AUTH_SOCK,target=/tmp/ssh-agent.sock")
         ssh_env=("--remote-env" "SSH_AUTH_SOCK=/tmp/ssh-agent.sock")
+    fi
+    if [[ -n "${OPENAI_API_KEY:-}" ]]; then
+        ssh_env+=("--remote-env" "OPENAI_API_KEY=$OPENAI_API_KEY")
     fi
 
     # Shell history volume (deterministic per workspace)
