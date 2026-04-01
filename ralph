@@ -135,6 +135,7 @@ cmd_version() {
 cmd_clean() {
     local found=false
     for file in "${ARTIFACTS[@]}"; do
+        [[ "$file" == PROMPT_*.md ]] && continue
         if [[ -f "$file" ]]; then
             rm "$file"
             echo "Deleted: $file"
@@ -147,6 +148,7 @@ cmd_clean() {
 cmd_archive() {
     local found=false
     for file in "${ARTIFACTS[@]}"; do
+        [[ "$file" == PROMPT_*.md ]] && continue
         if [[ -f "$file" ]]; then
             found=true
             break
@@ -164,6 +166,7 @@ cmd_archive() {
     mkdir -p "$dest"
 
     for file in "${ARTIFACTS[@]}"; do
+        [[ "$file" == PROMPT_*.md ]] && continue
         if [[ -f "$file" ]]; then
             mv "$file" "$dest/"
             echo "Archived: $file -> $dest/$file"

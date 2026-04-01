@@ -41,3 +41,11 @@ load test_helper
     [[ "$output" == *"Archived: IMPLEMENTATION_PLAN.md"* ]]
     [[ "$output" == *"Archived: PROGRESS.md"* ]]
 }
+
+@test "archive preserves local prompt templates" {
+    "$RALPH" init --prompts
+    run "$RALPH" archive
+    [[ "$status" -eq 0 ]]
+    [[ -f "PROMPT_plan.md" ]]
+    [[ -f "PROMPT_build.md" ]]
+}
