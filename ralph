@@ -396,8 +396,8 @@ cmd_loop() {
         esac
     done
 
-    # Resolve backend: CLI flag > env var > default
-    backend="${backend:-${RALPH_BACKEND:-claude}}"
+    # Resolve backend: CLI flag > default
+    backend="${backend:-claude}"
     resolve_backend "$backend"
 
     # Apply backend default model if -m not explicitly passed

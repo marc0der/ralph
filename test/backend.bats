@@ -2,7 +2,7 @@
 
 load test_helper
 
-@test "default backend is claude when neither -b nor RALPH_BACKEND is set" {
+@test "default backend is claude when -b flag is not set" {
     "$RALPH" init
     run "$RALPH" build --dry-run -n 1
     [[ "$status" -eq 0 ]]
@@ -15,20 +15,6 @@ load test_helper
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Backend: codex"* ]]
     [[ "$output" == *"[dry-run] Would run: codex exec"* ]]
-}
-
-@test "RALPH_BACKEND=codex env var selects codex backend" {
-    "$RALPH" init
-    RALPH_BACKEND=codex run "$RALPH" build --dry-run -n 1
-    [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Backend: codex"* ]]
-}
-
-@test "-b claude takes precedence over RALPH_BACKEND=codex" {
-    "$RALPH" init
-    RALPH_BACKEND=codex run "$RALPH" build --dry-run -n 1 -b claude
-    [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Backend: claude"* ]]
 }
 
 @test "unknown backend produces error listing supported backends" {
