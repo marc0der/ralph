@@ -107,6 +107,7 @@ Options:
   -b, --backend NAME   Backend to use (default: claude)
       --skip-push      Don't push after each iteration
       --dry-run        Print what would be executed without running
+  -v, --verbose        Show backend commands, raw output, and exit codes
   -h, --help           Show this help message
 
 Examples:
@@ -384,8 +385,9 @@ cmd_loop() {
     local backend=""
     local skip_push=false
     local dry_run=false
+    local verbose=false
 
-    ARGS=$(getopt -o n:g:m:b:h --long iterations:,goal:,model:,backend:,skip-push,dry-run,help -n 'ralph' -- "$@")
+    ARGS=$(getopt -o n:g:m:b:vh --long iterations:,goal:,model:,backend:,skip-push,dry-run,verbose,help -n 'ralph' -- "$@")
     eval set -- "$ARGS"
 
     while true; do
@@ -396,6 +398,7 @@ cmd_loop() {
             -b|--backend)    backend="$2";        shift 2 ;;
             --skip-push)     skip_push=true;      shift ;;
             --dry-run)       dry_run=true;        shift ;;
+            -v|--verbose)    verbose=true;        shift ;;
             -h|--help)       usage ;;
             --)              shift; break ;;
         esac
@@ -490,8 +493,54 @@ cmd_loop() {
             echo "[dry-run] Prompt content ($prompt_file with goal substituted):"
             echo "$prompt"
         else
-            echo "$prompt" | "${BACKEND_CMD[@]}" \
-                | jq "${BACKEND_JQ_FLAGS[@]}" "$BACKEND_JQ_FILTER"
+            # Verbose: print backend command before execution
+            if $verbose; then
+                echo "[verbose] Backend command: ${BACKEND_CMD[*]}" >&2
+            fi
+
+            # Run backend command separately, capturing stdout while preserving stderr
+            local backend_output=""
+            local backend_exit=0
+            backend_output=$(echo "$prompt" | "${BACKEND_CMD[@]}" 2> >(
+                if $verbose; then
+                    echo "[verbose] === Backend stderr ===" >&2
+                    cat >&2
+                    echo "[verbose] === End backend stderr ===" >&2
+                else
+                    cat >&2
+                fi
+            )) || backend_exit=$?
+
+            if [[ $backend_exit -ne 0 ]]; then
+                echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
+                echo "Hint: re-run with --dry-run to inspect the prompt, or --verbose for full diagnostics" >&2
+                exit "$backend_exit"
+            fi
+
+            # Verbose: show raw backend output before jq
+            if $verbose; then
+                echo "[verbose] Raw backend output:" >&2
+                echo "$backend_output" >&2
+            fi
+
+            # Run jq separately on captured output
+            local jq_output=""
+            local jq_exit=0
+            jq_output=$(echo "$backend_output" | jq "${BACKEND_JQ_FLAGS[@]}" "$BACKEND_JQ_FILTER") || jq_exit=$?
+
+            if [[ $jq_exit -ne 0 ]]; then
+                echo "Error: jq parse failure on iteration $iteration (exit code $jq_exit)" >&2
+                echo "Hint: re-run with --verbose to see raw backend output before jq processing" >&2
+                exit "$jq_exit"
+            fi
+
+            # Verbose: show exit codes
+            if $verbose; then
+                echo "[verbose] Exit codes — backend: $backend_exit, jq: $jq_exit" >&2
+            fi
+
+            # Print jq output (unchanged behaviour)
+            echo "$jq_output"
         fi
 
         # Push changes after each iteration
@@ -508,6 +557,9 @@ cmd_loop() {
                     echo "$push_output" >&2
                     exit 1
                 fi
+            elif $verbose; then
+                echo "[verbose] Push output:" >&2
+                echo "$push_output" >&2
             fi
         fi
     done
