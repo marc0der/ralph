@@ -71,6 +71,10 @@ Override with `RALPH_BIN_DIR` and `RALPH_CONFIG_DIR`.
 - Use `skip` with a message when a test can't run on the current platform (e.g., missing `devcontainer` CLI, NixOS PATH isolation issues)
 - The `path_without` helper in `sandbox.bats` builds a PATH excluding a specific command — but beware that on NixOS/Ubuntu, coreutils share a directory, so stripping one command may break others
 
+## Workflow conventions
+
+- Use the `/commit` skill to commit changes; if unavailable, follow the [Conventional Commits](https://www.conventionalcommits.org/) standard for commit messages
+
 ## Shell scripting conventions
 
 - All code lives in the single `ralph` script — no external shell libraries
