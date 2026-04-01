@@ -20,6 +20,7 @@ bats test/sandbox.bats -f "sandbox fails when config is missing"
 
 # Lint
 shellcheck ralph install.sh
+shellcheck test/*.bats test/test_helper.bash
 ```
 
 CI runs both ShellCheck and BATS on every push/PR to main.

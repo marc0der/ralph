@@ -49,6 +49,7 @@ path_without() {
 
 @test "sandbox fails when config is missing" {
     command -v devcontainer >/dev/null 2>&1 || skip "devcontainer CLI not installed"
+    # shellcheck disable=SC2030
     export RALPH_CONFIG_DIR="$TEST_DIR/.ralph-empty"
     mkdir -p "$RALPH_CONFIG_DIR"
     run "$RALPH" sandbox
@@ -88,7 +89,9 @@ path_without() {
     md5sum_dir=$(dirname "$(command -v md5sum)")
     cut_dir=$(dirname "$(command -v cut)")
     [[ "$md5sum_dir" != "$cut_dir" ]] || skip "cannot isolate md5sum from coreutils in PATH"
+    # shellcheck disable=SC2031
     mkdir -p "$RALPH_CONFIG_DIR/container"
+    # shellcheck disable=SC2031
     echo '{}' > "$RALPH_CONFIG_DIR/container/devcontainer.json"
     local filtered_path
     filtered_path=$(path_without md5sum)

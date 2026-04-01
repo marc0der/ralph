@@ -180,6 +180,22 @@ ralph build -b codex           # uses gpt-5.2-codex by default
 ralph build -b codex -m o3     # override codex model
 ```
 
+## Development
+
+Enter the Nix shell to get development dependencies (bats, shellcheck):
+
+```bash
+nix-shell
+```
+
+Run tests and lint:
+
+```bash
+bats test/
+shellcheck ralph install.sh
+shellcheck test/*.bats test/test_helper.bash
+```
+
 ## Troubleshooting
 
 **`claude` CLI not installed**

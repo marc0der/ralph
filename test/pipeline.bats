@@ -226,7 +226,7 @@ MOCK
 
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 -b codex --skip-push
     [[ "$status" -eq 0 ]]
-    ! echo "$output" | grep -q '^\$ '
+    if echo "$output" | grep -q '^\$ '; then return 1; fi
     [[ "$output" != *"Summary complete"* ]]
 }
 
