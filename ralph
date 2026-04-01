@@ -297,6 +297,9 @@ cmd_sandbox() {
     if [[ -n "${OPENAI_API_KEY:-}" ]]; then
         ssh_env+=("--remote-env" "OPENAI_API_KEY=$OPENAI_API_KEY")
     fi
+    if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
+        ssh_env+=("--remote-env" "OPENROUTER_API_KEY=$OPENROUTER_API_KEY")
+    fi
 
     # Shell history volume (deterministic per workspace)
     local workspace_hash
