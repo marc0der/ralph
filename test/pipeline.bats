@@ -154,7 +154,66 @@ MOCK
     [[ "$output" != *"Starting work on the fix"* ]]
 }
 
-@test "codex jq filter handles no agent_message events gracefully" {
+@test "codex jq filter falls back to command transcript when no agent_message" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/codex" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"thread.started","thread_id":"thread_abc123"}'
+echo '{"type":"turn.started"}'
+echo '{"type":"item.completed","item":{"id":"item_0","type":"command_execution","status":"completed","command":"rg -n TODO","aggregated_output":"README.md:1:TODO"}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":100,"cached_input_tokens":50,"output_tokens":200}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/codex"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 -b codex --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *'$ rg -n TODO'* ]]
+    [[ "$output" == *"README.md:1:TODO"* ]]
+}
+
+@test "codex jq filter includes multiple completed commands in transcript" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/codex" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"thread.started","thread_id":"thread_abc123"}'
+echo '{"type":"turn.started"}'
+echo '{"type":"item.completed","item":{"id":"item_0","type":"command_execution","status":"completed","command":"rg -n TODO","aggregated_output":"README.md:1:TODO"}}'
+echo '{"type":"item.completed","item":{"id":"item_1","type":"command_execution","status":"completed","command":"ls","aggregated_output":"README.md\\nralph"}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":100,"cached_input_tokens":50,"output_tokens":200}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/codex"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 -b codex --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *'$ rg -n TODO'* ]]
+    [[ "$output" == *"README.md:1:TODO"* ]]
+    [[ "$output" == *'$ ls'* ]]
+    [[ "$output" == *"README.md"* ]]
+    [[ "$output" == *"ralph"* ]]
+}
+
+@test "codex jq filter prefers agent_message over command transcript" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/codex" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"thread.started","thread_id":"thread_abc123"}'
+echo '{"type":"turn.started"}'
+echo '{"type":"item.completed","item":{"id":"item_0","type":"command_execution","status":"completed","command":"rg -n TODO","aggregated_output":"README.md:1:TODO"}}'
+echo '{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"Summary complete"}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":100,"cached_input_tokens":50,"output_tokens":200}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/codex"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 -b codex --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Summary complete"* ]]
+    [[ "$output" != *'$ rg -n TODO'* ]]
+}
+
+@test "codex jq filter returns empty output when no items exist" {
     "$RALPH" init
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/codex" <<'MOCK'
@@ -167,6 +226,8 @@ MOCK
 
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 -b codex --skip-push
     [[ "$status" -eq 0 ]]
+    ! echo "$output" | grep -q '^\$ '
+    [[ "$output" != *"Summary complete"* ]]
 }
 
 # --- Stdin prompt: codex passes prompt as CLI arg, claude pipes via stdin ---
