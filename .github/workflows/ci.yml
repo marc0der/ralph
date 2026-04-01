@@ -15,7 +15,7 @@ jobs:
       - uses: ludeeus/action-shellcheck@master
         with:
           scandir: .
-          additional_files: ralph install.sh
+          additional_files: ralph install.sh test/*.bats test/test_helper.bash
 
   test:
     name: BATS Tests
