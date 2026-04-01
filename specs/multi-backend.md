@@ -4,10 +4,7 @@ Ralph currently only works with Claude Code. This spec describes support for mul
 
 ## Backend Selection
 
-Ralph defaults to the `claude` backend. Users can override this with:
-
-1. The `-b` / `--backend` CLI flag (highest priority)
-2. The `RALPH_BACKEND` environment variable
+Ralph defaults to the `claude` backend. Users can override this with the `-b` / `--backend` CLI flag.
 
 There is no auto-detection. If an unrecognised backend name is given, ralph exits with an error listing the supported backends.
 
@@ -25,7 +22,7 @@ There is no auto-detection. If an unrecognised backend name is given, ralph exit
 - CLI binary: `codex`
 - Default model: `gpt-5.2-codex`
 - Runs via `codex exec` with `--json` and `--dangerously-bypass-approvals-and-sandbox`
-- Output is JSONL; the final result is extracted from the last event's `message` field
+- Output is JSONL; the agent's text response is extracted from `item.completed` events where `.item.type == "agent_message"`
 
 ## Behaviour
 
@@ -58,10 +55,8 @@ Adding a new backend should not require changes outside the backend definitions 
 
 All backend-related tests use `--dry-run` mode so they don't require actual backend CLIs installed.
 
-- Default backend is `claude` when neither `-b` nor `RALPH_BACKEND` is set
+- Default backend is `claude` when `-b` flag is not set
 - `-b` flag selects the backend
-- `RALPH_BACKEND` env var selects the backend
-- `-b` takes precedence over `RALPH_BACKEND`
 - Unknown backend name produces an error with the list of supported backends
 - Dry-run output reflects the selected backend and its default model
 - Existing dry-run and validation tests continue to pass

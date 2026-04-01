@@ -36,6 +36,17 @@ load test_helper
     [[ "$output" == *"'claude' CLI not found"* ]]
 }
 
+@test "build -b codex fails when codex is not in PATH" {
+    # Codex is almost certainly not installed, so just verify the error names the right binary
+    local filtered_path
+    filtered_path=$(echo "$PATH" | tr ':' '\n' | while read -r dir; do
+        [[ -x "$dir/codex" ]] || printf "%s:" "$dir"
+    done)
+    PATH="${filtered_path%:}" run "$RALPH" build -b codex
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"'codex' CLI not found"* ]]
+}
+
 @test "build fails outside a git repo" {
     command -v claude >/dev/null 2>&1 || skip "claude CLI not installed"
     cd "$(mktemp -d)" || return 1

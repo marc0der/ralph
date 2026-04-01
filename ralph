@@ -11,9 +11,72 @@ BUILD_DEFAULT_CAP=50
 ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md PROMPT_plan.md PROMPT_build.md)
 ARCHIVE_DIR=".ralph"
 
+# --- Backend definitions ---
+# Each backend_<name> function sets well-known variables and defines
+# build_backend_cmd(model) which populates the BACKEND_CMD array.
+# Adding a new backend only requires a new function and a SUPPORTED_BACKENDS entry.
+
+SUPPORTED_BACKENDS=(claude codex)
+
+# shellcheck disable=SC2034  # Variables are set here and consumed in cmd_loop
+backend_claude() {
+    BACKEND_NAME="claude"
+    BACKEND_CLI="claude"
+    BACKEND_DEFAULT_MODEL="opus"
+    BACKEND_PERMISSION_FLAG="--dangerously-skip-permissions"
+    BACKEND_PERMISSION_WARNING="Claude will have unrestricted access to tools (file writes, shell commands, etc)."
+    BACKEND_JQ_FLAGS=(-r)
+    BACKEND_JQ_FILTER='select(.type == "result") | .result // empty'
+    BACKEND_STDIN_PROMPT=true
+    BACKEND_HINTS="- Use **Sonnet** subagents for search/read, **Opus** subagents for complex reasoning
+- Read \`CLAUDE.md\` (if present) for project-specific guidance"
+    # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
+    build_backend_cmd() {
+        local model="$1"
+        BACKEND_CMD=(claude -p "$BACKEND_PERMISSION_FLAG" --output-format=stream-json --model "$model" --verbose)
+    }
+}
+
+# shellcheck disable=SC2034  # Variables are set here and consumed in cmd_loop
+backend_codex() {
+    BACKEND_NAME="codex"
+    BACKEND_CLI="codex"
+    BACKEND_DEFAULT_MODEL="gpt-5.2-codex"
+    BACKEND_PERMISSION_FLAG="--dangerously-bypass-approvals-and-sandbox"
+    BACKEND_PERMISSION_WARNING="Codex will have unrestricted access to tools (file writes, shell commands, etc)."
+    BACKEND_JQ_FLAGS=(-rs)
+    BACKEND_JQ_FILTER='map(select(.item.type == "agent_message")) | last | .item.text // empty'
+    BACKEND_STDIN_PROMPT=false
+    BACKEND_HINTS="- Use subagents for parallel search/read operations
+- Commit changes using git commands directly
+- Read \`AGENTS.md\` or \`CLAUDE.md\` (if present) for project-specific guidance"
+    # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
+    build_backend_cmd() {
+        local model="$1"
+        BACKEND_CMD=(codex exec "$BACKEND_PERMISSION_FLAG" --json --model "$model")
+    }
+}
+
+resolve_backend() {
+    local name="$1"
+    local found=false
+    for b in "${SUPPORTED_BACKENDS[@]}"; do
+        if [[ "$b" == "$name" ]]; then
+            found=true
+            break
+        fi
+    done
+    if ! $found; then
+        echo "Error: unknown backend '$name'" >&2
+        echo "Supported backends: ${SUPPORTED_BACKENDS[*]}" >&2
+        exit 1
+    fi
+    "backend_${name}"
+}
+
 usage() {
     cat <<'EOF'
-ralph — autonomous Claude Code loop runner
+ralph — autonomous AI coding agent loop runner
 
 Usage:
   ralph sandbox [--rebuild]
@@ -42,9 +105,11 @@ Init options:
 Options:
   -n, --iterations N   Max iterations (plan default: 3, build default: 50)
   -g, --goal TEXT      Goal to inject into the prompt template
-  -m, --model MODEL    Claude model to use (default: opus)
+  -m, --model MODEL    Model to use (default depends on backend)
+  -b, --backend NAME   Backend to use (default: claude)
       --skip-push      Don't push after each iteration
       --dry-run        Print what would be executed without running
+  -v, --verbose        Show backend commands, raw output, and exit codes
   -h, --help           Show this help message
 
 Examples:
@@ -52,6 +117,7 @@ Examples:
   ralph plan -n 2
   ralph plan -g "Migrate to hexagonal architecture"
   ralph build -n 10 -m sonnet
+  ralph build -b codex
   ralph build --iterations 5 --goal "Add PATCH endpoint"
   ralph sandbox
   ralph sandbox --rebuild
@@ -206,7 +272,7 @@ cmd_sandbox() {
         exit 1
     fi
 
-    mkdir -p "$HOME/.claude"
+    mkdir -p "$HOME/.claude" "$HOME/.codex"
 
     # Runtime mounts (conditional on host file existence)
     local mounts=()
@@ -221,11 +287,20 @@ cmd_sandbox() {
     if [[ -d "$HOME/.config/gh" ]]; then
         mounts+=("type=bind,source=$HOME/.config/gh,target=/home/node/.config/gh")
     fi
+    if [[ -d "$HOME/.codex" ]]; then
+        mounts+=("type=bind,source=$HOME/.codex,target=/home/node/.codex")
+    fi
 
     local ssh_env=()
     if [[ -n "${SSH_AUTH_SOCK:-}" ]]; then
         mounts+=("type=bind,source=$SSH_AUTH_SOCK,target=/tmp/ssh-agent.sock")
         ssh_env=("--remote-env" "SSH_AUTH_SOCK=/tmp/ssh-agent.sock")
+    fi
+    if [[ -n "${OPENAI_API_KEY:-}" ]]; then
+        ssh_env+=("--remote-env" "OPENAI_API_KEY=$OPENAI_API_KEY")
+    fi
+    if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
+        ssh_env+=("--remote-env" "OPENROUTER_API_KEY=$OPENROUTER_API_KEY")
     fi
 
     # Shell history volume (deterministic per workspace)
@@ -311,11 +386,13 @@ cmd_loop() {
     # Parse flags
     local max_iterations=""
     local goal=""
-    local model="opus"
+    local model=""
+    local backend=""
     local skip_push=false
     local dry_run=false
+    local verbose=false
 
-    ARGS=$(getopt -o n:g:m:h --long iterations:,goal:,model:,skip-push,dry-run,help -n 'ralph' -- "$@")
+    ARGS=$(getopt -o n:g:m:b:vh --long iterations:,goal:,model:,backend:,skip-push,dry-run,verbose,help -n 'ralph' -- "$@")
     eval set -- "$ARGS"
 
     while true; do
@@ -323,12 +400,23 @@ cmd_loop() {
             -n|--iterations) max_iterations="$2"; shift 2 ;;
             -g|--goal)       goal="$2";           shift 2 ;;
             -m|--model)      model="$2";          shift 2 ;;
+            -b|--backend)    backend="$2";        shift 2 ;;
             --skip-push)     skip_push=true;      shift ;;
             --dry-run)       dry_run=true;        shift ;;
+            -v|--verbose)    verbose=true;        shift ;;
             -h|--help)       usage ;;
             --)              shift; break ;;
         esac
     done
+
+    # Resolve backend: CLI flag > default
+    backend="${backend:-claude}"
+    resolve_backend "$backend"
+
+    # Apply backend default model if -m not explicitly passed
+    if [[ -z "$model" ]]; then
+        model="$BACKEND_DEFAULT_MODEL"
+    fi
 
     # Apply default iteration cap based on mode
     if [[ -z "$max_iterations" ]]; then
@@ -344,10 +432,9 @@ cmd_loop() {
         exit 1
     fi
 
-    # Verify claude CLI is available (not needed for dry-run)
-    if ! $dry_run && ! command -v claude >/dev/null 2>&1; then
-        echo "Error: 'claude' CLI not found in PATH." >&2
-        echo "Install it from https://docs.anthropic.com/en/docs/claude-code" >&2
+    # Verify backend CLI is available (not needed for dry-run)
+    if ! $dry_run && ! command -v "$BACKEND_CLI" >/dev/null 2>&1; then
+        echo "Error: '$BACKEND_CLI' CLI not found in PATH." >&2
         exit 1
     fi
 
@@ -367,26 +454,29 @@ cmd_loop() {
     local current_branch
     current_branch=$(git branch --show-current)
 
+    # Build the backend command array now that model is resolved
+    build_backend_cmd "$model"
+
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "Mode:   $mode"
-    echo "Prompt: $prompt_file"
-    echo "Branch: $current_branch"
-    echo "Model:  $model"
-    echo "Max:    $max_iterations iterations"
-    [[ -n "$goal" ]] && echo "Goal:   $goal"
+    echo "Mode:    $mode"
+    echo "Backend: $BACKEND_NAME"
+    echo "Prompt:  $prompt_file"
+    echo "Branch:  $current_branch"
+    echo "Model:   $model"
+    echo "Max:     $max_iterations iterations"
+    [[ -n "$goal" ]] && echo "Goal:    $goal"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     # Permission handling:
-    #   claude -p is non-interactive and cannot prompt for tool approval,
-    #   so --dangerously-skip-permissions is always required.
+    #   Backends run non-interactively and cannot prompt for tool approval,
+    #   so the backend's permission flag is always required.
     #   Inside a devcontainer, network isolation provides additional safety.
     if [[ "${DEVCONTAINER:-false}" != "true" ]]; then
-        echo "⚠️  WARNING: Running with --dangerously-skip-permissions outside a container." >&2
-        echo "⚠️  Claude will have unrestricted access to tools (file writes, shell commands, etc)." >&2
+        echo "⚠️  WARNING: Running with $BACKEND_PERMISSION_FLAG outside a container." >&2
+        echo "⚠️  $BACKEND_PERMISSION_WARNING" >&2
         echo "⚠️  For safer execution, use the provided devcontainer." >&2
         echo "" >&2
     fi
-    local permission_flag="--dangerously-skip-permissions"
 
     local iteration=0
 
@@ -397,22 +487,89 @@ cmd_loop() {
         iteration=$((iteration + 1))
         echo -e "\n======================== ITERATION $iteration / $max_iterations ========================\n"
 
-        # Inject {{GOAL}} into prompt using bash substitution (avoids sed escaping issues)
+        # Inject {{GOAL}} and {{BACKEND_HINTS}} into prompt using bash substitution
         local prompt
         prompt=$(<"$prompt_file")
         prompt="${prompt//\{\{GOAL\}\}/${goal:-No specific goal provided}}"
+        prompt="${prompt//\{\{BACKEND_HINTS\}\}/${BACKEND_HINTS}}"
 
         if $dry_run; then
-            echo "[dry-run] Would run: claude -p $permission_flag --output-format=stream-json --model $model --verbose"
+            if [[ "$BACKEND_STDIN_PROMPT" == "true" ]]; then
+                echo "[dry-run] Would run: ${BACKEND_CMD[*]}"
+            else
+                echo "[dry-run] Would run: ${BACKEND_CMD[*]} <prompt>"
+            fi
             echo "[dry-run] Prompt content ($prompt_file with goal substituted):"
             echo "$prompt"
         else
-            echo "$prompt" | claude -p \
-                $permission_flag \
-                --output-format=stream-json \
-                --model "$model" \
-                --verbose \
-                | jq -r 'select(.type == "result") | .result // empty'
+            # Verbose: print backend command before execution
+            if $verbose; then
+                if [[ "$BACKEND_STDIN_PROMPT" == "true" ]]; then
+                    echo "[verbose] Backend command: ${BACKEND_CMD[*]}" >&2
+                else
+                    local truncated_prompt="$prompt"
+                    if [[ ${#truncated_prompt} -gt 200 ]]; then
+                        truncated_prompt="${truncated_prompt:0:200}..."
+                    fi
+                    echo "[verbose] Backend command: ${BACKEND_CMD[*]} $truncated_prompt" >&2
+                fi
+            fi
+
+            # Run backend command separately, capturing stdout while preserving stderr
+            local backend_output=""
+            local backend_exit=0
+            if [[ "$BACKEND_STDIN_PROMPT" == "true" ]]; then
+                backend_output=$(echo "$prompt" | "${BACKEND_CMD[@]}" 2> >(
+                    if $verbose; then
+                        echo "[verbose] === Backend stderr ===" >&2
+                        cat >&2
+                        echo "[verbose] === End backend stderr ===" >&2
+                    else
+                        cat >&2
+                    fi
+                )) || backend_exit=$?
+            else
+                backend_output=$("${BACKEND_CMD[@]}" "$prompt" 2> >(
+                    if $verbose; then
+                        echo "[verbose] === Backend stderr ===" >&2
+                        cat >&2
+                        echo "[verbose] === End backend stderr ===" >&2
+                    else
+                        cat >&2
+                    fi
+                )) || backend_exit=$?
+            fi
+
+            if [[ $backend_exit -ne 0 ]]; then
+                echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
+                echo "Hint: re-run with --dry-run to inspect the prompt, or --verbose for full diagnostics" >&2
+                exit "$backend_exit"
+            fi
+
+            # Verbose: show raw backend output before jq
+            if $verbose; then
+                echo "[verbose] Raw backend output:" >&2
+                echo "$backend_output" >&2
+            fi
+
+            # Run jq separately on captured output
+            local jq_output=""
+            local jq_exit=0
+            jq_output=$(echo "$backend_output" | jq "${BACKEND_JQ_FLAGS[@]}" "$BACKEND_JQ_FILTER") || jq_exit=$?
+
+            if [[ $jq_exit -ne 0 ]]; then
+                echo "Error: jq parse failure on iteration $iteration (exit code $jq_exit)" >&2
+                echo "Hint: re-run with --verbose to see raw backend output before jq processing" >&2
+                exit "$jq_exit"
+            fi
+
+            # Verbose: show exit codes
+            if $verbose; then
+                echo "[verbose] Exit codes — backend: $backend_exit, jq: $jq_exit" >&2
+            fi
+
+            # Print jq output (unchanged behaviour)
+            echo "$jq_output"
         fi
 
         # Push changes after each iteration
@@ -429,6 +586,9 @@ cmd_loop() {
                     echo "$push_output" >&2
                     exit 1
                 fi
+            elif $verbose; then
+                echo "[verbose] Push output:" >&2
+                echo "$push_output" >&2
             fi
         fi
     done

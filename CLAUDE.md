@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is Ralph?
 
-Ralph is an autonomous Claude Code loop runner. It runs iterative plan/build cycles using Claude in headless mode (`claude -p`), with shared artifacts (`IMPLEMENTATION_PLAN.md`, `PROGRESS.md`) as handoffs between iterations. All execution happens inside isolated devcontainers.
+Ralph is an autonomous AI coding agent loop runner. It runs iterative plan/build cycles using a configurable backend (Claude Code, OpenAI Codex, etc.) in headless mode, with shared artifacts (`IMPLEMENTATION_PLAN.md`, `PROGRESS.md`) as handoffs between iterations. All execution happens inside isolated devcontainers.
 
 ## Commands
 
@@ -39,11 +39,12 @@ Ralph is a single Bash script (`ralph`) with these commands:
 
 ### Core loop flow (`cmd_loop`)
 
-1. Validate CLI dependencies (claude, git)
-2. Resolve prompt template: project-local `PROMPT_<mode>.md` → installed default (`~/.config/ralph/prompts/`)
-3. Substitute `{{GOAL}}` into prompt via bash parameter expansion
-4. Pipe prompt to `claude -p --dangerously-skip-permissions` in a loop
-5. Parse JSON output with jq, push changes after each iteration
+1. Validate CLI dependencies (selected backend's CLI binary, git)
+2. Resolve backend via `-b` flag (default: `claude`), which loads the backend's command builder, default model, and jq filter
+3. Resolve prompt template: project-local `PROMPT_<mode>.md` → installed default (`~/.config/ralph/prompts/`)
+4. Substitute `{{GOAL}}` and `{{BACKEND_HINTS}}` into prompt via bash parameter expansion
+5. Pipe prompt to the backend command in a loop (e.g., `claude -p` or `codex exec`)
+6. Parse JSON output with jq using backend-specific flags and filters, push changes after each iteration
 
 ### Sandbox
 
@@ -70,10 +71,15 @@ Override with `RALPH_BIN_DIR` and `RALPH_CONFIG_DIR`.
 - Use `skip` with a message when a test can't run on the current platform (e.g., missing `devcontainer` CLI, NixOS PATH isolation issues)
 - The `path_without` helper in `sandbox.bats` builds a PATH excluding a specific command — but beware that on NixOS/Ubuntu, coreutils share a directory, so stripping one command may break others
 
+## Workflow conventions
+
+- Use the `/commit` skill to commit changes; if unavailable, follow the [Conventional Commits](https://www.conventionalcommits.org/) standard for commit messages
+
 ## Shell scripting conventions
 
 - All code lives in the single `ralph` script — no external shell libraries
 - Functions are named `cmd_<command>` for top-level commands
+- Backend definitions use `backend_<name>` functions that set well-known variables (`BACKEND_CLI`, `BACKEND_DEFAULT_MODEL`, etc.) and define a `build_backend_cmd` inner function — adding a new backend only requires a new function and a `SUPPORTED_BACKENDS` entry
 - Use `command -v` to check for CLI dependencies
 - Validate early, fail with clear error messages to stderr
 - Cross-platform: support both Linux (`md5sum`) and macOS (`md5`) where needed
