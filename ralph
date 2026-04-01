@@ -44,7 +44,7 @@ backend_codex() {
     BACKEND_PERMISSION_FLAG="--dangerously-bypass-approvals-and-sandbox"
     BACKEND_PERMISSION_WARNING="Codex will have unrestricted access to tools (file writes, shell commands, etc)."
     BACKEND_JQ_FLAGS=(-rs)
-    BACKEND_JQ_FILTER='last | .message // empty'
+    BACKEND_JQ_FILTER='map(select(.item.type == "agent_message")) | last | .item.text // empty'
     BACKEND_HINTS="- Use subagents for parallel search/read operations
 - Commit changes using git commands directly
 - Read \`AGENTS.md\` or \`CLAUDE.md\` (if present) for project-specific guidance"

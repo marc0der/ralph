@@ -116,6 +116,59 @@ MOCK
     [[ "$output" == *"hello world"* ]]
 }
 
+# --- Codex jq filter tests ---
+
+@test "codex jq filter extracts agent_message text from realistic JSONL" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/codex" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"thread.started","thread_id":"thread_abc123"}'
+echo '{"type":"turn.started"}'
+echo '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"I fixed the bug in main.py"}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":100,"cached_input_tokens":50,"output_tokens":200}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/codex"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 -b codex --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"I fixed the bug in main.py"* ]]
+}
+
+@test "codex jq filter takes last agent_message when multiple exist" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/codex" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"thread.started","thread_id":"thread_abc123"}'
+echo '{"type":"turn.started"}'
+echo '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"Starting work on the fix"}}'
+echo '{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"All done, tests pass"}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":100,"cached_input_tokens":50,"output_tokens":200}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/codex"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 -b codex --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"All done, tests pass"* ]]
+    [[ "$output" != *"Starting work on the fix"* ]]
+}
+
+@test "codex jq filter handles no agent_message events gracefully" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/codex" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"thread.started","thread_id":"thread_abc123"}'
+echo '{"type":"turn.started"}'
+echo '{"type":"turn.completed","usage":{"input_tokens":100,"cached_input_tokens":50,"output_tokens":200}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/codex"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 -b codex --skip-push
+    [[ "$status" -eq 0 ]]
+}
+
 # --- Verbose mode: exit codes shown ---
 
 @test "--verbose output includes exit codes after each iteration" {

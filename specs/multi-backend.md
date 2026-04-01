@@ -22,7 +22,7 @@ There is no auto-detection. If an unrecognised backend name is given, ralph exit
 - CLI binary: `codex`
 - Default model: `gpt-5.2-codex`
 - Runs via `codex exec` with `--json` and `--dangerously-bypass-approvals-and-sandbox`
-- Output is JSONL; the final result is extracted from the last event's `message` field
+- Output is JSONL; the agent's text response is extracted from `item.completed` events where `.item.type == "agent_message"`
 
 ## Behaviour
 
