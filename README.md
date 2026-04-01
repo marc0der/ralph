@@ -1,6 +1,6 @@
 # ralph
 
-Autonomous [Claude Code](https://claude.ai/code) loop runner. Runs plan and build phases in a loop, feeding structured prompts to Claude in headless mode.
+Autonomous AI coding agent loop runner. Runs plan and build phases in a loop, feeding structured prompts to an AI coding agent in headless mode. Supports multiple backends — currently [Claude Code](https://claude.ai/code) and [OpenAI Codex](https://openai.com/index/codex/).
 
 ## Background
 
@@ -34,12 +34,15 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 
 ### Options (plan and build)
 
-| Flag                 | Description                              |
-|----------------------|------------------------------------------|
-| `-n`, `--iterations` | Max iterations                           |
-| `-g`, `--goal`       | Goal injected into the prompt template   |
-| `-m`, `--model`      | Claude model (default: `opus`)           |
-| `-h`, `--help`       | Show help                                |
+| Flag                 | Description                                              |
+|----------------------|----------------------------------------------------------|
+| `-n`, `--iterations` | Max iterations                                           |
+| `-g`, `--goal`       | Goal injected into the prompt template                   |
+| `-m`, `--model`      | Model to use (default depends on backend)                |
+| `-b`, `--backend`    | Backend to use: `claude`, `codex` (default: `claude`)    |
+| `--skip-push`        | Don't push after each iteration                          |
+| `--dry-run`          | Print what would be executed without running              |
+| `-h`, `--help`       | Show help                                                |
 
 ### Examples
 
@@ -51,6 +54,9 @@ ralph plan                                          # analyse and plan
 ralph plan -g "Migrate to hexagonal architecture"   # plan with a goal
 ralph build                                         # implement next item
 ralph build -n 10 -m sonnet                         # 10 iterations with sonnet
+ralph build -b codex                                # build using codex backend
+ralph plan -b codex -g "design the auth module"     # plan with codex
+ralph build --dry-run -b codex                      # dry-run with codex
 ralph archive                                       # archive before starting fresh
 ralph init                                          # initialise workspace
 ralph init --prompts                                # also copy prompts for customisation
@@ -58,7 +64,7 @@ ralph init --prompts                                # also copy prompts for cust
 
 ## Sandbox
 
-The sandbox runs your project inside a devcontainer — an isolated environment with Claude Code, Node.js 20, SDKMAN, Docker CLI, and development tools pre-installed. Claude runs as a non-root user with `--dangerously-skip-permissions` enabled.
+The sandbox runs your project inside a devcontainer — an isolated environment with Claude Code, Codex CLI, Node.js 20, SDKMAN, Docker CLI, and development tools pre-installed. The active backend runs as a non-root user with its backend-specific permission-bypass flag enabled.
 
 ### Prerequisites
 
@@ -81,6 +87,7 @@ Each project gets its own container, automatically reused between sessions. Shel
 | Source                    | Target                          | Mode      |
 |---------------------------|---------------------------------|-----------|
 | `~/.claude`               | `/home/node/.claude`            | read/write |
+| `~/.codex`                | `/home/node/.codex`             | read/write |
 | `~/.gitconfig`            | `/home/node/.gitconfig`         | readonly  |
 | `~/.ssh`                  | `/home/node/.ssh`               | readonly  |
 | `~/.config/gh`            | `/home/node/.config/gh`         | readonly  |
@@ -89,7 +96,7 @@ Each project gets its own container, automatically reused between sessions. Shel
 | `ralph` binary            | `/usr/local/bin/ralph`          | readonly  |
 | ralph config dir           | `/home/node/.config/ralph`      | readonly  |
 
-Optional mounts (`~/.ssh`, `~/.config/gh`, SSH agent) are skipped if the source doesn't exist on the host.
+Optional mounts (`~/.ssh`, `~/.config/gh`, `~/.codex`, SSH agent) are skipped if the source doesn't exist on the host. `OPENAI_API_KEY` is forwarded into the container when set on the host.
 
 ### SDKMAN
 
@@ -114,12 +121,13 @@ Ralph iterations create and maintain these files in your project:
 
 | File                     | Purpose                                                       |
 |--------------------------|---------------------------------------------------------------|
-| `CLAUDE.md`              | Operational guardrails — build commands, conventions, project rules. Read by every iteration to orient the agent. You maintain this file; ralph does not create or modify it |
+| `CLAUDE.md`              | Operational guardrails for the Claude backend — build commands, conventions, project rules. Read by every iteration to orient the agent. You maintain this file; ralph does not create or modify it |
+| `AGENTS.md`              | Operational guardrails for the Codex backend — equivalent of `CLAUDE.md` for codex projects |
 | `IMPLEMENTATION_PLAN.md` | Prioritised task list — shared state between iterations       |
 | `PROGRESS.md`            | Append-only log of what each iteration did, learned, and broke|
 | `specs/`                 | Feature specifications driving the work                       |
 
-**Note:** `CLAUDE.md` is your project's own configuration file for Claude Code — ralph reads it but never creates or modifies it. See the [Claude Code documentation](https://docs.anthropic.com/en/docs/claude-code) for details on how to set it up.
+**Note:** `CLAUDE.md` and `AGENTS.md` are your project's own configuration files for Claude Code and Codex respectively — ralph reads them but never creates or modifies them. The prompt templates reference both files so each backend gets relevant project-specific guidance.
 
 `PROMPT_plan.md` and `PROMPT_build.md` are optional project-local prompt overrides (see [Prompt resolution](#prompt-resolution)).
 
@@ -143,7 +151,7 @@ Archived artifacts are stored under `.ralph/` in your project directory, organis
 
 ## Permissions and safety
 
-Ralph runs `claude -p` (non-interactive pipe mode), which cannot prompt for tool approval. This means `--dangerously-skip-permissions` is always enabled.
+Ralph runs backends in non-interactive pipe mode, which cannot prompt for tool approval. Each backend has its own permission-bypass flag (`--dangerously-skip-permissions` for Claude, `--dangerously-bypass-approvals-and-sandbox` for Codex), and ralph applies the appropriate one automatically.
 
 **Inside the sandbox** (`$DEVCONTAINER=true`), this is the intended setup — the container's isolation provides a safety boundary, so unrestricted tool access is acceptable.
 
@@ -158,19 +166,27 @@ Ralph runs `claude -p` (non-interactive pipe mode), which cannot prompt for tool
 
 ### Model selection
 
-Ralph defaults to `opus` (`-m opus`). You can switch models per run:
+The default model depends on the selected backend:
+
+- `claude` backend: `opus`
+- `codex` backend: `gpt-5.2-codex`
+
+The `-m` flag overrides the default for whichever backend is active:
 
 ```bash
-ralph build -m sonnet          # faster and cheaper
-ralph plan -m opus             # better for complex reasoning
+ralph build -m sonnet          # faster and cheaper (claude backend)
+ralph plan -m opus             # better for complex reasoning (claude backend)
+ralph build -b codex           # uses gpt-5.2-codex by default
+ralph build -b codex -m o3     # override codex model
 ```
-
-Use **opus** for planning, architecture decisions, and tasks requiring deep reasoning. Use **sonnet** for straightforward implementation, simple fixes, and faster iteration cycles.
 
 ## Troubleshooting
 
 **`claude` CLI not installed**
-Ralph requires the Claude Code CLI. Install it from https://docs.anthropic.com/en/docs/claude-code — ralph will exit with a clear error if it can't find `claude` in your PATH.
+Ralph requires the Claude Code CLI for the `claude` backend. Install it from https://docs.anthropic.com/en/docs/claude-code — ralph will exit with a clear error if it can't find `claude` in your PATH.
+
+**`codex` CLI not installed**
+Ralph requires the Codex CLI for the `codex` backend. Install it with `npm install -g @openai/codex` — ralph will exit with a clear error if it can't find `codex` in your PATH.
 
 **`ralph` not in PATH after install**
 The installer places `ralph` in `~/.local/bin` by default. Ensure this directory is in your PATH:
