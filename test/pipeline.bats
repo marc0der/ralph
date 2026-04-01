@@ -169,6 +169,74 @@ MOCK
     [[ "$status" -eq 0 ]]
 }
 
+# --- Stdin prompt: codex passes prompt as CLI arg, claude pipes via stdin ---
+
+@test "codex dry-run shows prompt as a positional argument in the command line" {
+    "$RALPH" init
+    run "$RALPH" build --dry-run -n 1 -b codex
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"[dry-run] Would run: codex exec"*"<prompt>"* ]]
+}
+
+@test "claude dry-run does NOT show prompt as a positional argument" {
+    "$RALPH" init
+    run "$RALPH" build --dry-run -n 1
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
+    # The dry-run line should NOT contain <prompt> marker
+    local dryrun_line
+    dryrun_line=$(echo "$output" | grep '\[dry-run\] Would run:')
+    [[ "$dryrun_line" != *"<prompt>"* ]]
+}
+
+@test "codex mock backend receives the prompt as a CLI argument (not on stdin)" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    local argfile="$TEST_DIR/received_arg.txt"
+    # Mock codex that writes its last CLI argument to a file
+    cat > "$TEST_DIR/bin/codex" <<MOCK
+#!/usr/bin/env bash
+# Save last argument (the prompt) to a file for verification
+echo "\${@: -1}" > "$argfile"
+# Output valid JSONL
+echo '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"done"}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/codex"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 -b codex --skip-push
+    [[ "$status" -eq 0 ]]
+    # Verify the prompt was passed as CLI arg (contains build prompt content)
+    [[ -f "$argfile" ]]
+    local received_arg
+    received_arg=$(<"$argfile")
+    [[ -n "$received_arg" ]]
+    # The received argument should contain the prompt text (from the build prompt template)
+    [[ "$received_arg" == *"Build"* ]] || [[ "$received_arg" == *"build"* ]] || [[ ${#received_arg} -gt 10 ]]
+}
+
+@test "claude mock backend receives the prompt on stdin (not as a CLI argument)" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    local stdinfile="$TEST_DIR/received_stdin.txt"
+    # Mock claude that captures stdin
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+# Capture stdin
+cat > "$stdinfile"
+# Output valid JSON
+echo '{"type":"result","result":"done"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
+    [[ "$status" -eq 0 ]]
+    # Verify stdin was received with prompt content
+    [[ -f "$stdinfile" ]]
+    local received_stdin
+    received_stdin=$(<"$stdinfile")
+    [[ -n "$received_stdin" ]]
+}
+
 # --- Verbose mode: exit codes shown ---
 
 @test "--verbose output includes exit codes after each iteration" {

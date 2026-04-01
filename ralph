@@ -27,6 +27,7 @@ backend_claude() {
     BACKEND_PERMISSION_WARNING="Claude will have unrestricted access to tools (file writes, shell commands, etc)."
     BACKEND_JQ_FLAGS=(-r)
     BACKEND_JQ_FILTER='select(.type == "result") | .result // empty'
+    BACKEND_STDIN_PROMPT=true
     BACKEND_HINTS="- Use **Sonnet** subagents for search/read, **Opus** subagents for complex reasoning
 - Read \`CLAUDE.md\` (if present) for project-specific guidance"
     # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
@@ -45,6 +46,7 @@ backend_codex() {
     BACKEND_PERMISSION_WARNING="Codex will have unrestricted access to tools (file writes, shell commands, etc)."
     BACKEND_JQ_FLAGS=(-rs)
     BACKEND_JQ_FILTER='map(select(.item.type == "agent_message")) | last | .item.text // empty'
+    BACKEND_STDIN_PROMPT=false
     BACKEND_HINTS="- Use subagents for parallel search/read operations
 - Commit changes using git commands directly
 - Read \`AGENTS.md\` or \`CLAUDE.md\` (if present) for project-specific guidance"
@@ -492,27 +494,51 @@ cmd_loop() {
         prompt="${prompt//\{\{BACKEND_HINTS\}\}/${BACKEND_HINTS}}"
 
         if $dry_run; then
-            echo "[dry-run] Would run: ${BACKEND_CMD[*]}"
+            if [[ "$BACKEND_STDIN_PROMPT" == "true" ]]; then
+                echo "[dry-run] Would run: ${BACKEND_CMD[*]}"
+            else
+                echo "[dry-run] Would run: ${BACKEND_CMD[*]} <prompt>"
+            fi
             echo "[dry-run] Prompt content ($prompt_file with goal substituted):"
             echo "$prompt"
         else
             # Verbose: print backend command before execution
             if $verbose; then
-                echo "[verbose] Backend command: ${BACKEND_CMD[*]}" >&2
+                if [[ "$BACKEND_STDIN_PROMPT" == "true" ]]; then
+                    echo "[verbose] Backend command: ${BACKEND_CMD[*]}" >&2
+                else
+                    local truncated_prompt="$prompt"
+                    if [[ ${#truncated_prompt} -gt 200 ]]; then
+                        truncated_prompt="${truncated_prompt:0:200}..."
+                    fi
+                    echo "[verbose] Backend command: ${BACKEND_CMD[*]} $truncated_prompt" >&2
+                fi
             fi
 
             # Run backend command separately, capturing stdout while preserving stderr
             local backend_output=""
             local backend_exit=0
-            backend_output=$(echo "$prompt" | "${BACKEND_CMD[@]}" 2> >(
-                if $verbose; then
-                    echo "[verbose] === Backend stderr ===" >&2
-                    cat >&2
-                    echo "[verbose] === End backend stderr ===" >&2
-                else
-                    cat >&2
-                fi
-            )) || backend_exit=$?
+            if [[ "$BACKEND_STDIN_PROMPT" == "true" ]]; then
+                backend_output=$(echo "$prompt" | "${BACKEND_CMD[@]}" 2> >(
+                    if $verbose; then
+                        echo "[verbose] === Backend stderr ===" >&2
+                        cat >&2
+                        echo "[verbose] === End backend stderr ===" >&2
+                    else
+                        cat >&2
+                    fi
+                )) || backend_exit=$?
+            else
+                backend_output=$("${BACKEND_CMD[@]}" "$prompt" 2> >(
+                    if $verbose; then
+                        echo "[verbose] === Backend stderr ===" >&2
+                        cat >&2
+                        echo "[verbose] === End backend stderr ===" >&2
+                    else
+                        cat >&2
+                    fi
+                )) || backend_exit=$?
+            fi
 
             if [[ $backend_exit -ne 0 ]]; then
                 echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
