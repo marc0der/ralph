@@ -36,6 +36,7 @@ Run the project's test suite to validate your changes.
 - If tests fail, use a reasoning subagent to reason about the root cause before attempting fixes
 - If tests unrelated to your work fail, resolve them as part of this increment
 - If functionality is missing, add it per the specifications
+- **Blocking Backpressure**: If the item involves frontend user interaction or workflows, verify with `dev-browser --headless` against `http://localhost:3000`.
 
 ## Phase 4: Finalise
 
