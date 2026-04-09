@@ -371,8 +371,8 @@ cmd_sandbox() {
     local up_args=(
         "--workspace-folder" "$PWD"
         "--config" "$config"
-        "${mount_flags[@]}"
-        "${ssh_env[@]}"
+        ${mount_flags[@]+"${mount_flags[@]}"}
+        ${ssh_env[@]+"${ssh_env[@]}"}
     )
     if $rebuild; then
         up_args+=("--remove-existing-container" "--build-no-cache")
@@ -385,7 +385,7 @@ cmd_sandbox() {
     devcontainer exec \
         --workspace-folder "$PWD" \
         --config "$config" \
-        "${ssh_env[@]}" \
+        ${ssh_env[@]+"${ssh_env[@]}"} \
         zsh
 }
 
