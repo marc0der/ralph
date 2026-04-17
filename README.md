@@ -182,19 +182,35 @@ ralph build -b codex -m o3     # override codex model
 
 ## Development
 
-Enter the Nix shell to get development dependencies (bats, shellcheck):
+Set up your development environment:
 
 ```bash
-nix-shell
+make dev-setup    # install prerequisites (macOS & Linux)
+```
+
+This installs system tools (`bats`, `shellcheck`, `jq`, `docker`) via Homebrew or apt, and project-local npm dependencies (`@devcontainers/cli`).
+
+Check your environment is ready:
+
+```bash
+make doctor       # verify all prerequisites
 ```
 
 Run tests and lint:
 
 ```bash
-bats test/
-shellcheck ralph install.sh
-shellcheck test/*.bats test/test_helper.bash
+make check        # lint + tests (CI equivalent)
+make test         # tests only
+make lint         # lint only
 ```
+
+See all available targets:
+
+```bash
+make help
+```
+
+Alternatively, use `nix-shell` to get `bats` and `shellcheck` via Nix.
 
 ## Troubleshooting
 
@@ -230,7 +246,7 @@ ralph sandbox --rebuild
 ```
 
 **`devcontainer` CLI not installed**
-Install it with npm:
+Run `npm install` in the ralph repo for a project-local copy, or install globally:
 ```bash
 npm install -g @devcontainers/cli
 ```
