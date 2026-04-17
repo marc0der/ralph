@@ -234,3 +234,26 @@ Install it with npm:
 ```bash
 npm install -g @devcontainers/cli
 ```
+
+**`sandbox` fails with `invalid mount config for type "bind": ... operation not supported`**
+
+Ralph bind-mounts `$SSH_AUTH_SOCK` into the container so git operations can reuse your host's ssh-agent. This fails when the socket lives at a path the Docker runtime's VM cannot bind-mount — either because the path is outside the VM's shared filesystem, or because the socket is a kernel-managed endpoint (e.g. a launchd-created socket on macOS) that doesn't survive the virtfs passthrough.
+
+The symptom is a `docker run` error naming the SSH agent path, for example:
+
+```
+invalid mount config for type "bind": stat /private/tmp/com.apple.launchd.XXXXXX/Listeners: operation not supported
+```
+
+When this happens, depends on your setup:
+
+- **macOS + Colima** — affected. Colima runs Docker inside a Lima VM that only mounts `$HOME` by default, and macOS's default `$SSH_AUTH_SOCK` points at a launchd socket under `/private/tmp/com.apple.launchd.*` which is neither mounted nor bind-mountable.
+- **macOS + Docker Desktop** — not typically affected. Docker Desktop intercepts `$SSH_AUTH_SOCK` and provides a magic `/run/host-services/ssh-auth.sock` passthrough.
+- **macOS + Rancher Desktop / OrbStack / other Lima-based runtimes** — likely affected for the same reason as Colima.
+- **Linux** — not affected. Docker runs natively on the host filesystem.
+
+Workaround: run ralph with an empty `SSH_AUTH_SOCK` so the mount is skipped. Git inside the container will fall back to the read-only `~/.ssh` bind mount (fine for key-based auth without a passphrase):
+
+```bash
+SSH_AUTH_SOCK="" ralph sandbox
+```
