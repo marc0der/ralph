@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "description": "Development dependencies for ralph",
+  "devDependencies": {
+    "@devcontainers/cli": "^0.75.0"
+  }
+}
