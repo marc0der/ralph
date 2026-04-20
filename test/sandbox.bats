@@ -13,6 +13,10 @@ path_without() {
 @test "sandbox fails when devcontainer CLI is not found" {
     local filtered_path
     filtered_path=$(path_without devcontainer)
+    # Also hide npx so the npx fallback doesn't resolve devcontainer
+    filtered_path=$(echo "$filtered_path" | tr ':' '\n' | while read -r dir; do
+        [[ -x "$dir/npx" ]] || printf "%s:" "$dir"
+    done)
     PATH="${filtered_path%:}" run "$RALPH" sandbox
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"'devcontainer' CLI not found"* ]]
@@ -34,9 +38,38 @@ path_without() {
 @test "sandbox --rebuild fails when devcontainer CLI is not found" {
     local filtered_path
     filtered_path=$(path_without devcontainer)
+    # Also hide npx so the npx fallback doesn't resolve devcontainer
+    filtered_path=$(echo "$filtered_path" | tr ':' '\n' | while read -r dir; do
+        [[ -x "$dir/npx" ]] || printf "%s:" "$dir"
+    done)
     PATH="${filtered_path%:}" run "$RALPH" sandbox --rebuild
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"'devcontainer' CLI not found"* ]]
+}
+
+@test "sandbox resolves devcontainer via npx when not in PATH" {
+    # Create a mock npx that succeeds for devcontainer
+    local mock_bin="$TEST_DIR/mock-bin"
+    mkdir -p "$mock_bin"
+    cat > "$mock_bin/npx" << 'MOCKEOF'
+#!/usr/bin/env bash
+# Succeed for --help (resolution check), fail for up/exec (we just want to test resolution)
+if [[ "$*" == *"--help"* ]]; then
+    echo "mock devcontainer help"
+    exit 0
+fi
+exit 0
+MOCKEOF
+    chmod +x "$mock_bin/npx"
+    # Remove devcontainer from PATH but keep npx
+    local filtered_path
+    filtered_path=$(path_without devcontainer)
+    mkdir -p "$RALPH_CONFIG_DIR/container"
+    echo '{}' > "$RALPH_CONFIG_DIR/container/devcontainer.json"
+    ln -s "$RALPH" "$mock_bin/ralph"
+    # Run sandbox — should resolve via npx and get past the devcontainer check
+    PATH="$mock_bin:${filtered_path%:}" run "$RALPH" sandbox
+    [[ "$output" != *"'devcontainer' CLI not found"* ]]
 }
 
 @test "sandbox fails outside a git repo" {

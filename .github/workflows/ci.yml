@@ -7,15 +7,12 @@ on:
     branches: [main]
 
 jobs:
-  shellcheck:
+  lint:
     name: ShellCheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ludeeus/action-shellcheck@master
-        with:
-          scandir: .
-          additional_files: ralph install.sh test/*.bats test/test_helper.bash
+      - run: make lint
 
   test:
     name: BATS Tests
@@ -23,4 +20,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: bats-core/bats-action@main
-      - run: bats test/
+      - run: make test

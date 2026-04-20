@@ -9,7 +9,17 @@ Ralph is an autonomous AI coding agent loop runner. It runs iterative plan/build
 ## Commands
 
 ```bash
+# Install dev prerequisites (macOS & Linux)
+make dev-setup
+
+# Check environment is ready
+make doctor
+
+# Run lint + tests (CI equivalent)
+make check
+
 # Run all tests
+make test
 bats test/
 
 # Run a single test file
@@ -19,11 +29,12 @@ bats test/sandbox.bats
 bats test/sandbox.bats -f "sandbox fails when config is missing"
 
 # Lint
+make lint
 shellcheck ralph install.sh
 shellcheck test/*.bats test/test_helper.bash
 ```
 
-CI runs both ShellCheck and BATS on every push/PR to main.
+CI runs both ShellCheck and BATS on every push/PR to main via Makefile targets.
 
 ## Architecture
 

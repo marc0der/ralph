@@ -33,10 +33,46 @@ echo "  Container:  $CONFIG_DIR/container/"
 
 # Check PATH
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+    shell_name="$(basename "${SHELL:-}")"
+    case "$shell_name" in
+        zsh)
+            rc_file="$HOME/.zshrc"
+            export_line="export PATH=\"$BIN_DIR:\$PATH\""
+            ;;
+        bash)
+            if [[ "$(uname -s)" == "Darwin" ]]; then
+                rc_file="$HOME/.bash_profile"
+            else
+                rc_file="$HOME/.bashrc"
+            fi
+            export_line="export PATH=\"$BIN_DIR:\$PATH\""
+            ;;
+        fish)
+            rc_file="$HOME/.config/fish/config.fish"
+            export_line="fish_add_path $BIN_DIR"
+            ;;
+        *)
+            rc_file=""
+            export_line="export PATH=\"$BIN_DIR:\$PATH\""
+            ;;
+    esac
+
     echo ""
     echo "Warning: $BIN_DIR is not in your PATH."
-    echo "Add this to your shell profile:"
-    echo "  export PATH=\"$BIN_DIR:\$PATH\""
+    if [[ -n "$rc_file" ]]; then
+        echo "Detected shell: $shell_name"
+        echo ""
+        echo "Add this line to $rc_file:"
+        echo "  $export_line"
+        echo ""
+        echo "Or run this one-liner to do it now:"
+        echo "  echo '$export_line' >> $rc_file"
+        echo ""
+        echo "Then restart your shell or run: source $rc_file"
+    else
+        echo "Add this to your shell profile:"
+        echo "  $export_line"
+    fi
 fi
 
 echo ""

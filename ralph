@@ -240,6 +240,16 @@ scaffold() {
     fi
 }
 
+resolve_devcontainer() {
+    if command -v devcontainer >/dev/null 2>&1; then
+        echo "devcontainer"
+    elif npx --yes devcontainer --help >/dev/null 2>&1; then
+        echo "npx --yes devcontainer"
+    else
+        return 1
+    fi
+}
+
 cmd_sandbox() {
     local rebuild=false
 
@@ -250,9 +260,11 @@ cmd_sandbox() {
         *)         echo "Error: unknown sandbox option '$1'" >&2; exit 1 ;;
     esac
 
-    if ! command -v devcontainer >/dev/null 2>&1; then
-        echo "Error: 'devcontainer' CLI not found in PATH." >&2
+    local devcontainer_cmd
+    if ! devcontainer_cmd=$(resolve_devcontainer); then
+        echo "Error: 'devcontainer' CLI not found." >&2
         echo "Install it with: npm install -g @devcontainers/cli" >&2
+        echo "Or run 'npm install' in the ralph repo for a project-local copy." >&2
         exit 1
     fi
 
@@ -337,10 +349,12 @@ cmd_sandbox() {
     fi
 
     echo "Starting sandbox..."
-    devcontainer up "${up_args[@]}"
+    # shellcheck disable=SC2086  # devcontainer_cmd may contain multiple words (e.g. "npx --yes devcontainer")
+    $devcontainer_cmd up "${up_args[@]}"
 
     # Drop into shell
-    devcontainer exec \
+    # shellcheck disable=SC2086
+    $devcontainer_cmd exec \
         --workspace-folder "$PWD" \
         --config "$config" \
         ${ssh_env[@]+"${ssh_env[@]}"} \
