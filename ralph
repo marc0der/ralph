@@ -124,7 +124,7 @@ Options:
   -n, --iterations N   Max iterations (plan default: 3, build default: 50)
   -g, --goal TEXT      Goal to inject into the prompt template
   -m, --model MODEL    Model to use (default depends on backend)
-  -b, --backend NAME   Backend to use (default: claude)
+  -b, --backend NAME   Backend to use: claude, codex, copilot (default: claude)
       --skip-push      Don't push after each iteration
       --dry-run        Print what would be executed without running
   -v, --verbose        Show backend commands, raw output, and exit codes
