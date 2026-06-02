@@ -1,6 +1,6 @@
 # ralph
 
-Autonomous AI coding agent loop runner. Runs plan and build phases in a loop, feeding structured prompts to an AI coding agent in headless mode. Supports multiple backends — currently [Claude Code](https://claude.ai/code) and [OpenAI Codex](https://openai.com/index/codex/).
+Autonomous AI coding agent loop runner. Runs plan and build phases in a loop, feeding structured prompts to an AI coding agent in headless mode. Supports multiple backends — currently [Claude Code](https://claude.ai/code), [OpenAI Codex](https://openai.com/index/codex/), and [GitHub Copilot CLI](https://github.com/features/copilot).
 
 ## Background
 
@@ -39,7 +39,7 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `-n`, `--iterations` | Max iterations                                           |
 | `-g`, `--goal`       | Goal injected into the prompt template                   |
 | `-m`, `--model`      | Model to use (default depends on backend)                |
-| `-b`, `--backend`    | Backend to use: `claude`, `codex` (default: `claude`)    |
+| `-b`, `--backend`    | Backend to use: `claude`, `codex`, `copilot` (default: `claude`) |
 | `--skip-push`        | Don't push after each iteration                          |
 | `--dry-run`          | Print what would be executed without running              |
 | `-h`, `--help`       | Show help                                                |
@@ -57,6 +57,7 @@ ralph build -n 10 -m sonnet                         # 10 iterations with sonnet
 ralph build -b codex                                # build using codex backend
 ralph plan -b codex -g "design the auth module"     # plan with codex
 ralph build --dry-run -b codex                      # dry-run with codex
+ralph build -b copilot -n 10                        # 10 iterations with copilot
 ralph archive                                       # archive before starting fresh
 ralph init                                          # initialise workspace
 ralph init --prompts                                # also copy prompts for customisation
@@ -64,7 +65,7 @@ ralph init --prompts                                # also copy prompts for cust
 
 ## Sandbox
 
-The sandbox runs your project inside a devcontainer — an isolated environment with Claude Code, Codex CLI, Node.js 20, SDKMAN, Docker CLI, and development tools pre-installed. The active backend runs as a non-root user with its backend-specific permission-bypass flag enabled.
+The sandbox runs your project inside a devcontainer — an isolated environment with Claude Code, Codex CLI, GitHub Copilot CLI, Node.js 20, SDKMAN, Docker CLI, and development tools pre-installed. The active backend runs as a non-root user with its backend-specific permission-bypass flag enabled.
 
 ### Prerequisites
 
@@ -88,6 +89,7 @@ Each project gets its own container, automatically reused between sessions. Shel
 |---------------------------|---------------------------------|-----------|
 | `~/.claude`               | `/home/node/.claude`            | read/write |
 | `~/.codex`                | `/home/node/.codex`             | read/write |
+| `~/.copilot`              | `/home/node/.copilot`           | read/write |
 | `~/.gitconfig`            | `/home/node/.gitconfig`         | readonly  |
 | `~/.ssh`                  | `/home/node/.ssh`               | readonly  |
 | `~/.config/gh`            | `/home/node/.config/gh`         | readonly  |
@@ -96,7 +98,7 @@ Each project gets its own container, automatically reused between sessions. Shel
 | `ralph` binary            | `/usr/local/bin/ralph`          | readonly  |
 | ralph config dir           | `/home/node/.config/ralph`      | readonly  |
 
-Optional mounts (`~/.ssh`, `~/.config/gh`, `~/.codex`, SSH agent) are skipped if the source doesn't exist on the host. `OPENAI_API_KEY` is forwarded into the container when set on the host.
+Optional mounts (`~/.ssh`, `~/.config/gh`, `~/.codex`, `~/.copilot`, SSH agent) are skipped if the source doesn't exist on the host. `OPENAI_API_KEY`, `GH_TOKEN`, and `GITHUB_TOKEN` are forwarded into the container when set on the host.
 
 ### SDKMAN
 
@@ -182,6 +184,7 @@ The default model depends on the selected backend:
 
 - `claude` backend: `opus`
 - `codex` backend: `gpt-5.2-codex`
+- `copilot` backend: `claude-opus-4.7`
 
 The `-m` flag overrides the default for whichever backend is active:
 
@@ -190,6 +193,7 @@ ralph build -m sonnet          # faster and cheaper (claude backend)
 ralph plan -m opus             # better for complex reasoning (claude backend)
 ralph build -b codex           # uses gpt-5.2-codex by default
 ralph build -b codex -m o3     # override codex model
+ralph build -b copilot         # uses claude-opus-4.7 by default
 ```
 
 ## Development
@@ -215,6 +219,9 @@ Ralph requires the Claude Code CLI for the `claude` backend. Install it from htt
 
 **`codex` CLI not installed**
 Ralph requires the Codex CLI for the `codex` backend. Install it with `npm install -g @openai/codex` — ralph will exit with a clear error if it can't find `codex` in your PATH.
+
+**`copilot` CLI not installed**
+Ralph requires the GitHub Copilot CLI for the `copilot` backend. Install it with `npm install -g @github/copilot` — ralph will exit with a clear error if it can't find `copilot` in your PATH.
 
 **`ralph` not in PATH after install**
 The installer places `ralph` in `~/.local/bin` by default. Ensure this directory is in your PATH:
