@@ -302,6 +302,44 @@ MOCKEOF
     run ! grep -q "^GITHUB_TOKEN=" "$DEVCONTAINER_CALL_LOG"
 }
 
+# ─── optional ~/.copilot mount tests ────────────────────────────────────────
+# HOME is overridden to an isolated tmp dir so cmd_sandbox's `mkdir -p` runs
+# against a path under our control and we can observe the conditional mount
+# branch deterministically — without polluting the test runner's real $HOME.
+
+@test "sandbox mounts ~/.copilot when host directory exists" {
+    setup_sandbox_mock
+    local fake_home="$TEST_DIR/fake-home"
+    mkdir -p "$fake_home"
+    HOME="$fake_home" run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    grep -qF "type=bind,source=$fake_home/.copilot,target=/home/node/.copilot" "$DEVCONTAINER_CALL_LOG"
+}
+
+@test "sandbox skips ~/.copilot mount when host directory does not exist" {
+    setup_sandbox_mock
+    local fake_home="$TEST_DIR/fake-home"
+    mkdir -p "$fake_home"
+    # cmd_sandbox's unconditional `mkdir -p ~/.copilot` otherwise satisfies the
+    # `[[ -d ~/.copilot ]]` check tautologically. Shadow mkdir in mock-bin to
+    # filter out the .copilot arg so the conditional observes an absent dir;
+    # remaining args are forwarded to the real mkdir found later in PATH.
+    cat > "$TEST_DIR/mock-bin/mkdir" << 'MKDIREOF'
+#!/usr/bin/env bash
+args=()
+for a in "$@"; do
+    [[ "$a" == */.copilot ]] && continue
+    args+=("$a")
+done
+[[ ${#args[@]} -eq 0 ]] && exit 0
+PATH="${PATH#*:}" exec mkdir "${args[@]}"
+MKDIREOF
+    chmod +x "$TEST_DIR/mock-bin/mkdir"
+    HOME="$fake_home" run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    run ! grep -q "target=/home/node/.copilot" "$DEVCONTAINER_CALL_LOG"
+}
+
 @test "sandbox hash detection fails when no hashing command exists" {
     # Test the detection logic directly in a subshell with an empty PATH;
     # command is a bash builtin so it works even without PATH entries.
