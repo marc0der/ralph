@@ -18,7 +18,8 @@
     "DEVCONTAINER": "true",
     "NODE_OPTIONS": "--max-old-space-size=4096",
     "CLAUDE_CONFIG_DIR": "/home/node/.claude",
-    "CODEX_HOME": "/home/node/.codex"
+    "CODEX_HOME": "/home/node/.codex",
+    "COPILOT_HOME": "/home/node/.copilot"
   },
   "mounts": [
     "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind",
