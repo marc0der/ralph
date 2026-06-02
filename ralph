@@ -57,10 +57,10 @@ backend_copilot() {
     BACKEND_CLI="copilot"
     # Latest Claude Opus identifier exposed by Copilot CLI's model registry
     # (verify via `copilot model list`; bump when a newer Opus is published).
-    BACKEND_DEFAULT_MODEL="claude-opus-4.7"
+    BACKEND_DEFAULT_MODEL="claude-sonnet-4.6"
     # --allow-all bundles --allow-all-tools / --allow-all-paths / --allow-all-urls;
     # --allow-all-tools is required when running programmatically.
-    BACKEND_PERMISSION_FLAG="--allow-all"
+    BACKEND_PERMISSION_FLAG="--yolo"
     BACKEND_PERMISSION_WARNING="Copilot will have unrestricted access to tools (file writes, shell commands, etc)."
     BACKEND_JQ_FLAGS=(-rs)
     # Prefer the final assistant.message text; fall back to a transcript of

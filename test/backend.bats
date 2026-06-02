@@ -53,16 +53,16 @@ load test_helper
     run "$RALPH" build --dry-run -n 1 -b copilot
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Backend: copilot"* ]]
-    [[ "$output" == *"[dry-run] Would run: copilot --output-format=json --allow-all --model"* ]]
+    [[ "$output" == *"[dry-run] Would run: copilot --output-format=json --yolo --model"* ]]
     [[ "$output" == *"-p <prompt>"* ]]
 }
 
-@test "dry-run with copilot shows default model claude-opus-4.7" {
+@test "dry-run with copilot shows default model claude-sonnet-4.6" {
     "$RALPH" init
     run "$RALPH" build --dry-run -n 1 -b copilot
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Model:   claude-opus-4.7"* ]]
-    [[ "$output" == *"--model claude-opus-4.7"* ]]
+    [[ "$output" == *"Model:   claude-sonnet-4.6"* ]]
+    [[ "$output" == *"--model claude-sonnet-4.6"* ]]
 }
 
 @test "-m flag overrides default model for copilot" {
