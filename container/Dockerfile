@@ -68,8 +68,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends shellcheck \
 RUN corepack enable pnpm
 
 # Directories and permissions
-RUN mkdir -p /workspace /home/node/.claude /home/node/.codex /commandhistory /usr/local/share/npm-global \
-  && chown -R node:node /workspace /home/node/.claude /home/node/.codex /commandhistory /usr/local/share/npm-global
+RUN mkdir -p /workspace /home/node/.claude /home/node/.codex /home/node/.copilot /commandhistory /usr/local/share/npm-global \
+  && chown -R node:node /workspace /home/node/.claude /home/node/.codex /home/node/.copilot /commandhistory /usr/local/share/npm-global
 
 # Shell history persistence
 RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
