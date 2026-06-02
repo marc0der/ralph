@@ -193,7 +193,7 @@ ralph build -m sonnet          # faster and cheaper (claude backend)
 ralph plan -m opus             # better for complex reasoning (claude backend)
 ralph build -b codex           # uses gpt-5.2-codex by default
 ralph build -b codex -m o3     # override codex model
-ralph build -b copilot         # uses claude-opus-4.7 by default
+ralph build -b copilot         # uses claude-sonnet-4.6 by default
 ```
 
 ## Development
