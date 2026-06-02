@@ -316,7 +316,7 @@ cmd_sandbox() {
         exit 1
     fi
 
-    mkdir -p "$HOME/.claude" "$HOME/.codex"
+    mkdir -p "$HOME/.claude" "$HOME/.codex" "$HOME/.copilot"
 
     # Runtime mounts (conditional on host file existence)
     local mounts=()
@@ -333,6 +333,9 @@ cmd_sandbox() {
     fi
     if [[ -d "$HOME/.codex" ]]; then
         mounts+=("type=bind,source=$HOME/.codex,target=/home/node/.codex")
+    fi
+    if [[ -d "$HOME/.copilot" ]]; then
+        mounts+=("type=bind,source=$HOME/.copilot,target=/home/node/.copilot")
     fi
 
     local ssh_env=()
@@ -375,6 +378,12 @@ cmd_sandbox() {
     fi
     if [[ -n "${ANTHROPIC_API_KEY+set}" ]]; then
         ssh_env+=("--remote-env" "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}")
+    fi
+    if [[ -n "${GH_TOKEN:-}" ]]; then
+        ssh_env+=("--remote-env" "GH_TOKEN=$GH_TOKEN")
+    fi
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+        ssh_env+=("--remote-env" "GITHUB_TOKEN=$GITHUB_TOKEN")
     fi
 
     # Shell history volume (deterministic per workspace)
