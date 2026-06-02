@@ -268,6 +268,40 @@ MOCKEOF
     run ! grep -q "/home/node/.gnupg/" "$DEVCONTAINER_CALL_LOG"
 }
 
+@test "sandbox propagates GH_TOKEN when set" {
+    setup_sandbox_mock
+    unset GH_TOKEN
+    export GH_TOKEN="gh-token-123"
+    run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    grep -q "^GH_TOKEN=gh-token-123$" "$DEVCONTAINER_CALL_LOG"
+}
+
+@test "sandbox does not propagate GH_TOKEN when unset" {
+    setup_sandbox_mock
+    unset GH_TOKEN
+    run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    run ! grep -q "^GH_TOKEN=" "$DEVCONTAINER_CALL_LOG"
+}
+
+@test "sandbox propagates GITHUB_TOKEN when set" {
+    setup_sandbox_mock
+    unset GITHUB_TOKEN
+    export GITHUB_TOKEN="github-token-abc"
+    run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    grep -q "^GITHUB_TOKEN=github-token-abc$" "$DEVCONTAINER_CALL_LOG"
+}
+
+@test "sandbox does not propagate GITHUB_TOKEN when unset" {
+    setup_sandbox_mock
+    unset GITHUB_TOKEN
+    run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    run ! grep -q "^GITHUB_TOKEN=" "$DEVCONTAINER_CALL_LOG"
+}
+
 @test "sandbox hash detection fails when no hashing command exists" {
     # Test the detection logic directly in a subshell with an empty PATH;
     # command is a bash builtin so it works even without PATH entries.
