@@ -230,6 +230,61 @@ MOCK
     [[ "$output" != *"Summary complete"* ]]
 }
 
+# --- Copilot jq filter tests ---
+
+@test "copilot jq filter extracts assistant.message content from realistic JSONL" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/copilot" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"id":"e1","timestamp":"2026-01-01T00:00:00Z","parentId":null,"ephemeral":false,"type":"assistant.turn_start","data":{}}'
+echo '{"id":"e2","timestamp":"2026-01-01T00:00:01Z","parentId":null,"ephemeral":true,"type":"assistant.message_delta","data":{"delta":"Fixed "}}'
+echo '{"id":"e3","timestamp":"2026-01-01T00:00:02Z","parentId":null,"ephemeral":false,"type":"assistant.message","data":{"messageId":"m1","content":"Fixed the bug in main.py","toolRequests":[],"outputTokens":42,"phase":"response"}}'
+echo '{"id":"e4","timestamp":"2026-01-01T00:00:03Z","parentId":null,"ephemeral":false,"type":"assistant.usage","data":{}}'
+echo '{"id":"e5","timestamp":"2026-01-01T00:00:04Z","parentId":null,"ephemeral":false,"type":"assistant.turn_end","data":{}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/copilot"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 -b copilot --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Fixed the bug in main.py"* ]]
+}
+
+@test "copilot jq filter falls back to tool.execution_complete transcript when no assistant.message" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/copilot" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"id":"e1","timestamp":"2026-01-01T00:00:00Z","parentId":null,"ephemeral":false,"type":"assistant.turn_start","data":{}}'
+echo '{"id":"e2","timestamp":"2026-01-01T00:00:01Z","parentId":null,"ephemeral":false,"type":"tool.execution_start","data":{"toolName":"shell"}}'
+echo '{"id":"e3","timestamp":"2026-01-01T00:00:02Z","parentId":null,"ephemeral":false,"type":"tool.execution_complete","data":{"success":true,"result":{"content":"README.md:1:TODO"}}}'
+echo '{"id":"e4","timestamp":"2026-01-01T00:00:03Z","parentId":null,"ephemeral":false,"type":"tool.execution_complete","data":{"success":true,"result":{"content":"main.py:42:FIXME"}}}'
+echo '{"id":"e5","timestamp":"2026-01-01T00:00:04Z","parentId":null,"ephemeral":false,"type":"session.idle","data":{}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/copilot"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 -b copilot --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"README.md:1:TODO"* ]]
+    [[ "$output" == *"main.py:42:FIXME"* ]]
+}
+
+@test "copilot jq filter prefers assistant.message over tool transcript" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/copilot" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"id":"e1","timestamp":"2026-01-01T00:00:00Z","parentId":null,"ephemeral":false,"type":"tool.execution_complete","data":{"success":true,"result":{"content":"README.md:1:TODO"}}}'
+echo '{"id":"e2","timestamp":"2026-01-01T00:00:01Z","parentId":null,"ephemeral":false,"type":"assistant.message","data":{"messageId":"m1","content":"Summary complete","toolRequests":[],"outputTokens":12,"phase":"response"}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/copilot"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 -b copilot --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Summary complete"* ]]
+    [[ "$output" != *"README.md:1:TODO"* ]]
+}
+
 # --- Stdin prompt: codex passes prompt as CLI arg, claude pipes via stdin ---
 
 @test "codex dry-run shows prompt as a positional argument in the command line" {

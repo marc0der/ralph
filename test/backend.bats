@@ -47,3 +47,35 @@ load test_helper
     [[ "$output" == *"Model:   custom-model"* ]]
     [[ "$output" == *"custom-model"* ]]
 }
+
+@test "-b copilot selects copilot backend" {
+    "$RALPH" init
+    run "$RALPH" build --dry-run -n 1 -b copilot
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Backend: copilot"* ]]
+    [[ "$output" == *"[dry-run] Would run: copilot --output-format=json --allow-all --model"* ]]
+    [[ "$output" == *"-p <prompt>"* ]]
+}
+
+@test "dry-run with copilot shows default model claude-opus-4.7" {
+    "$RALPH" init
+    run "$RALPH" build --dry-run -n 1 -b copilot
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Model:   claude-opus-4.7"* ]]
+    [[ "$output" == *"--model claude-opus-4.7"* ]]
+}
+
+@test "-m flag overrides default model for copilot" {
+    "$RALPH" init
+    run "$RALPH" build --dry-run -n 1 -b copilot -m custom-copilot-model
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Model:   custom-copilot-model"* ]]
+    [[ "$output" == *"--model custom-copilot-model"* ]]
+}
+
+@test "unknown backend error lists copilot among supported backends" {
+    "$RALPH" init
+    run "$RALPH" build --dry-run -n 1 -b unknown
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"Supported backends:"*"copilot"* ]]
+}

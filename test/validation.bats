@@ -53,6 +53,20 @@ load test_helper
     [[ "$output" == *"'codex' CLI not found"* ]]
 }
 
+@test "build -b copilot fails when copilot is not in PATH" {
+    # Provide init artifacts so iteration calculation succeeds
+    echo "- [ ] **Task one**" > IMPLEMENTATION_PLAN.md
+    touch PROGRESS.md
+    # Copilot is almost certainly not installed, so just verify the error names the right binary
+    local filtered_path
+    filtered_path=$(echo "$PATH" | tr ':' '\n' | while read -r dir; do
+        [[ -x "$dir/copilot" ]] || printf "%s:" "$dir"
+    done)
+    PATH="${filtered_path%:}" run "$RALPH" build -b copilot
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"'copilot' CLI not found"* ]]
+}
+
 @test "build fails outside a git repo" {
     command -v claude >/dev/null 2>&1 || skip "claude CLI not installed"
     cd "$(mktemp -d)" || return 1
