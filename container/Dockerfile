@@ -104,6 +104,9 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 # Codex CLI
 RUN npm install -g @openai/codex
 
+# GitHub Copilot CLI
+RUN npm install -g @github/copilot
+
 # dev-browser (headless browser for AI agents, uses Playwright/Chromium)
 RUN npm install -g dev-browser \
   && npx playwright install --with-deps chromium
