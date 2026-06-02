@@ -165,7 +165,7 @@ The scaffolded skill lives in your project's `.claude/skills/` and is not gitign
 
 ## Permissions and safety
 
-Ralph runs backends in non-interactive pipe mode, which cannot prompt for tool approval. Each backend has its own permission-bypass flag (`--dangerously-skip-permissions` for Claude, `--dangerously-bypass-approvals-and-sandbox` for Codex), and ralph applies the appropriate one automatically.
+Ralph runs backends in non-interactive pipe mode, which cannot prompt for tool approval. Each backend has its own permission-bypass flag (`--dangerously-skip-permissions` for Claude, `--dangerously-bypass-approvals-and-sandbox` for Codex, `--allow-all` for Copilot), and ralph applies the appropriate one automatically.
 
 **Inside the sandbox** (`$DEVCONTAINER=true`), this is the intended setup — the container's isolation provides a safety boundary, so unrestricted tool access is acceptable.
 
