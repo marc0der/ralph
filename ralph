@@ -15,7 +15,7 @@ ARCHIVE_DIR=".ralph"
 # build_backend_cmd(model) which populates the BACKEND_CMD array.
 # Adding a new backend only requires a new function and a SUPPORTED_BACKENDS entry.
 
-SUPPORTED_BACKENDS=(claude codex)
+SUPPORTED_BACKENDS=(claude codex copilot)
 
 # shellcheck disable=SC2034  # Variables are set here and consumed in cmd_loop
 backend_claude() {
@@ -48,6 +48,30 @@ backend_codex() {
     build_backend_cmd() {
         local model="$1"
         BACKEND_CMD=(codex exec "$BACKEND_PERMISSION_FLAG" --json --model "$model")
+    }
+}
+
+# shellcheck disable=SC2034  # Variables are set here and consumed in cmd_loop
+backend_copilot() {
+    BACKEND_NAME="copilot"
+    BACKEND_CLI="copilot"
+    # Latest Claude Opus identifier exposed by Copilot CLI's model registry
+    # (verify via `copilot model list`; bump when a newer Opus is published).
+    BACKEND_DEFAULT_MODEL="claude-opus-4.7"
+    # --allow-all bundles --allow-all-tools / --allow-all-paths / --allow-all-urls;
+    # --allow-all-tools is required when running programmatically.
+    BACKEND_PERMISSION_FLAG="--allow-all"
+    BACKEND_PERMISSION_WARNING="Copilot will have unrestricted access to tools (file writes, shell commands, etc)."
+    BACKEND_JQ_FLAGS=(-rs)
+    # Prefer the final assistant.message text; fall back to a transcript of
+    # successful tool.execution_complete events when no assistant.message was
+    # emitted (mirrors the codex agent_message / command_execution fallback).
+    BACKEND_JQ_FILTER='(map(select(.type == "assistant.message")) | last | .data.content // null) // ([ .[] | select(.type == "tool.execution_complete" and .data.success == true) | (.data.result.content // .data.result.detailedContent // "") ] | join("\n") | if . == "" then null else . end) // empty'
+    BACKEND_STDIN_PROMPT=false
+    # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
+    build_backend_cmd() {
+        local model="$1"
+        BACKEND_CMD=(copilot --output-format=json "$BACKEND_PERMISSION_FLAG" --model "$model" -p)
     }
 }
 
