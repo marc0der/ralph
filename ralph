@@ -55,17 +55,10 @@ backend_codex() {
 backend_copilot() {
     BACKEND_NAME="copilot"
     BACKEND_CLI="copilot"
-    # Latest Claude Opus identifier exposed by Copilot CLI's model registry
-    # (verify via `copilot model list`; bump when a newer Opus is published).
     BACKEND_DEFAULT_MODEL="claude-sonnet-4.6"
-    # --allow-all bundles --allow-all-tools / --allow-all-paths / --allow-all-urls;
-    # --allow-all-tools is required when running programmatically.
     BACKEND_PERMISSION_FLAG="--yolo"
     BACKEND_PERMISSION_WARNING="Copilot will have unrestricted access to tools (file writes, shell commands, etc)."
     BACKEND_JQ_FLAGS=(-rs)
-    # Prefer the final assistant.message text; fall back to a transcript of
-    # successful tool.execution_complete events when no assistant.message was
-    # emitted (mirrors the codex agent_message / command_execution fallback).
     BACKEND_JQ_FILTER='(map(select(.type == "assistant.message")) | last | .data.content // null) // ([ .[] | select(.type == "tool.execution_complete" and .data.success == true) | (.data.result.content // .data.result.detailedContent // "") ] | join("\n") | if . == "" then null else . end) // empty'
     BACKEND_STDIN_PROMPT=false
     # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
