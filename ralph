@@ -640,7 +640,15 @@ cmd_loop() {
     #   so the backend's permission flag is always required.
     #   Inside a devcontainer, network isolation provides additional safety.
     if [[ "${DEVCONTAINER:-false}" != "true" ]]; then
-        truncate_line "⚠️  WARNING: Running with $BACKEND_PERMISSION_FLAG outside a container." "$line_width" >&2
+        # Some backends (pi) have no permission flag — drop the "with <flag>"
+        # clause so the line doesn't render with a double space or a stray empty arg.
+        local first_warning
+        if [[ -n "$BACKEND_PERMISSION_FLAG" ]]; then
+            first_warning="⚠️  WARNING: Running with $BACKEND_PERMISSION_FLAG outside a container."
+        else
+            first_warning="⚠️  WARNING: Running outside a container."
+        fi
+        truncate_line "$first_warning" "$line_width" >&2
         truncate_line "⚠️  $BACKEND_PERMISSION_WARNING" "$line_width" >&2
         truncate_line "⚠️  For safer execution, use the provided devcontainer." "$line_width" >&2
         echo "" >&2

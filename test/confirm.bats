@@ -88,6 +88,36 @@ PY
     [[ "$output" != *"WARNING: Running with"* ]]
 }
 
+# Each backend with a permission flag must name it in the first warning line;
+# the empty-flag backend (pi) must instead emit the no-flag wording so the line
+# does not render with a tell-tale double space.
+@test "warning names --dangerously-skip-permissions for claude" {
+    setup_build_workspace
+    run "$RALPH" build --dry-run -n 1
+    [[ "$output" == *"WARNING: Running with --dangerously-skip-permissions outside a container."* ]]
+}
+
+@test "warning names --dangerously-bypass-approvals-and-sandbox for codex" {
+    setup_build_workspace
+    run "$RALPH" build --dry-run -n 1 -b codex
+    [[ "$output" == *"WARNING: Running with --dangerously-bypass-approvals-and-sandbox outside a container."* ]]
+}
+
+@test "warning names --yolo for copilot" {
+    setup_build_workspace
+    run "$RALPH" build --dry-run -n 1 -b copilot
+    [[ "$output" == *"WARNING: Running with --yolo outside a container."* ]]
+}
+
+@test "warning omits the flag clause for pi" {
+    setup_build_workspace
+    run "$RALPH" build --dry-run -n 1 -b pi
+    [[ "$output" == *"WARNING: Running outside a container."* ]]
+    # No empty-flag artefact: "Running with " (with trailing space before "outside")
+    [[ "$output" != *"Running with  outside"* ]]
+    [[ "$output" != *"Running with outside"* ]]
+}
+
 # ─── non-interactive: must proceed without prompting (backward compat) ───────
 
 @test "build proceeds without prompting when stdin is not a tty" {
