@@ -186,7 +186,7 @@ The default model depends on the selected backend:
 
 - `claude` backend: `opus`
 - `codex` backend: `gpt-5.2-codex`
-- `copilot` backend: `claude-opus-4.7`
+- `copilot` backend: `claude-sonnet-4.6`
 - `pi` backend: `anthropic/claude-opus-4-8`
 
 The `-m` flag overrides the default for whichever backend is active:
