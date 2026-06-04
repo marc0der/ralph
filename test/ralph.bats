@@ -17,10 +17,10 @@ load test_helper
 @test "ralph --help enumerates all supported backends on the -b/--backend line" {
     run "$RALPH" --help
     [[ "$status" -eq 0 ]]
-    # Spec (copilot-backend.md): the -b/--backend description must list copilot
-    # alongside the existing backends. Assert all three names appear on the
-    # backend-flag line so dropping any one trips this test.
-    [[ "$output" == *"--backend NAME"*"claude"*"codex"*"copilot"* ]]
+    # Spec (pi-backend.md): the -b/--backend description must list pi alongside
+    # the existing claude/codex/copilot backends. Assert all four names appear
+    # on the backend-flag line so dropping any one trips this test.
+    [[ "$output" == *"--backend NAME"*"claude"*"codex"*"copilot"*"pi"* ]]
 }
 
 @test "ralph exits with error for unknown command" {
