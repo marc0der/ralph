@@ -165,6 +165,27 @@ MOCKEOF
     run ! grep -q "^OPENROUTER_API_KEY=" "$DEVCONTAINER_CALL_LOG"
 }
 
+# GEMINI_API_KEY is forwarded primarily for pi, whose default provider is google
+# — it is the most commonly missing key from the pre-pi forwarding set. The pair
+# mirrors the OPENROUTER_API_KEY tests above; any future provider key should
+# follow the same set/unset shape so absence stays a positive assertion.
+@test "sandbox propagates GEMINI_API_KEY when set" {
+    setup_sandbox_mock
+    unset GEMINI_API_KEY
+    export GEMINI_API_KEY="gemini-key-xyz"
+    run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    grep -q "^GEMINI_API_KEY=gemini-key-xyz$" "$DEVCONTAINER_CALL_LOG"
+}
+
+@test "sandbox does not propagate GEMINI_API_KEY when unset" {
+    setup_sandbox_mock
+    unset GEMINI_API_KEY
+    run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    run ! grep -q "^GEMINI_API_KEY=" "$DEVCONTAINER_CALL_LOG"
+}
+
 @test "sandbox propagates ANTHROPIC_BASE_URL when set" {
     setup_sandbox_mock
     unset ANTHROPIC_BASE_URL

@@ -394,6 +394,9 @@ cmd_sandbox() {
     if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
         ssh_env+=("--remote-env" "OPENROUTER_API_KEY=$OPENROUTER_API_KEY")
     fi
+    if [[ -n "${GEMINI_API_KEY:-}" ]]; then
+        ssh_env+=("--remote-env" "GEMINI_API_KEY=$GEMINI_API_KEY")
+    fi
     if [[ -n "${ANTHROPIC_BASE_URL:-}" ]]; then
         ssh_env+=("--remote-env" "ANTHROPIC_BASE_URL=$ANTHROPIC_BASE_URL")
     fi
