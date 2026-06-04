@@ -340,6 +340,45 @@ MKDIREOF
     run ! grep -q "target=/home/node/.copilot" "$DEVCONTAINER_CALL_LOG"
 }
 
+# ─── optional ~/.pi mount tests ─────────────────────────────────────────────
+# Mirrors the ~/.copilot mount tests above. The host directory pre-created by
+# cmd_sandbox is `~/.pi/agent` (pi stores credentials in the `agent` subdir);
+# the mount source is the parent `~/.pi` so a `/login` inside the container
+# persists `auth.json` back to the host.
+
+@test "sandbox mounts ~/.pi when host directory exists" {
+    setup_sandbox_mock
+    local fake_home="$TEST_DIR/fake-home"
+    mkdir -p "$fake_home"
+    HOME="$fake_home" run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    grep -qF "type=bind,source=$fake_home/.pi,target=/home/node/.pi" "$DEVCONTAINER_CALL_LOG"
+}
+
+@test "sandbox skips ~/.pi mount when host directory does not exist" {
+    setup_sandbox_mock
+    local fake_home="$TEST_DIR/fake-home"
+    mkdir -p "$fake_home"
+    # cmd_sandbox's unconditional `mkdir -p ~/.pi/agent` otherwise satisfies the
+    # `[[ -d ~/.pi ]]` check tautologically (mkdir -p creates the parent too).
+    # Shadow mkdir in mock-bin to drop the .pi/agent arg so neither .pi nor its
+    # agent subdir get created; remaining args forward to the real mkdir.
+    cat > "$TEST_DIR/mock-bin/mkdir" << 'MKDIREOF'
+#!/usr/bin/env bash
+args=()
+for a in "$@"; do
+    [[ "$a" == */.pi/agent ]] && continue
+    args+=("$a")
+done
+[[ ${#args[@]} -eq 0 ]] && exit 0
+PATH="${PATH#*:}" exec mkdir "${args[@]}"
+MKDIREOF
+    chmod +x "$TEST_DIR/mock-bin/mkdir"
+    HOME="$fake_home" run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    run ! grep -q "target=/home/node/.pi" "$DEVCONTAINER_CALL_LOG"
+}
+
 @test "sandbox hash detection fails when no hashing command exists" {
     # Test the detection logic directly in a subshell with an empty PATH;
     # command is a bash builtin so it works even without PATH entries.

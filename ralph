@@ -337,7 +337,7 @@ cmd_sandbox() {
         exit 1
     fi
 
-    mkdir -p "$HOME/.claude" "$HOME/.codex" "$HOME/.copilot"
+    mkdir -p "$HOME/.claude" "$HOME/.codex" "$HOME/.copilot" "$HOME/.pi/agent"
 
     # Runtime mounts (conditional on host file existence)
     local mounts=()
@@ -357,6 +357,9 @@ cmd_sandbox() {
     fi
     if [[ -d "$HOME/.copilot" ]]; then
         mounts+=("type=bind,source=$HOME/.copilot,target=/home/node/.copilot")
+    fi
+    if [[ -d "$HOME/.pi" ]]; then
+        mounts+=("type=bind,source=$HOME/.pi,target=/home/node/.pi")
     fi
 
     local ssh_env=()
