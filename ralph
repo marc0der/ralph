@@ -15,7 +15,7 @@ ARCHIVE_DIR=".ralph"
 # build_backend_cmd(model) which populates the BACKEND_CMD array.
 # Adding a new backend only requires a new function and a SUPPORTED_BACKENDS entry.
 
-SUPPORTED_BACKENDS=(claude codex copilot)
+SUPPORTED_BACKENDS=(claude codex copilot pi)
 
 # shellcheck disable=SC2034  # Variables are set here and consumed in cmd_loop
 backend_claude() {
@@ -65,6 +65,28 @@ backend_copilot() {
     build_backend_cmd() {
         local model="$1"
         BACKEND_CMD=(copilot --output-format=json "$BACKEND_PERMISSION_FLAG" --model "$model" -p)
+    }
+}
+
+# shellcheck disable=SC2034  # Variables are set here and consumed in cmd_loop
+backend_pi() {
+    BACKEND_NAME="pi"
+    BACKEND_CLI="pi"
+    # Pi's default provider is google, so a bare 'opus' would resolve there;
+    # pin the fully-qualified provider/id to land on Anthropic.
+    BACKEND_DEFAULT_MODEL="anthropic/claude-opus-4-8"
+    # Pi has no permission flag — its built-in tools run without prompting,
+    # so build_backend_cmd omits the positional entirely (no stray empty arg).
+    BACKEND_PERMISSION_FLAG=""
+    BACKEND_PERMISSION_WARNING="Pi will have unrestricted access to tools (file writes, shell commands, etc)."
+    BACKEND_JQ_FLAGS=(-rs)
+    # Placeholder; the two-stage agent_end filter is added by the next plan item.
+    BACKEND_JQ_FILTER='empty'
+    BACKEND_STDIN_PROMPT=true
+    # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
+    build_backend_cmd() {
+        local model="$1"
+        BACKEND_CMD=(pi -p --mode json --model "$model" --no-session)
     }
 }
 

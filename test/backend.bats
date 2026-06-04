@@ -79,3 +79,35 @@ load test_helper
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"Supported backends:"*"copilot"* ]]
 }
+
+@test "-b pi selects pi backend" {
+    "$RALPH" init
+    run "$RALPH" build --dry-run -n 1 -b pi
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Backend: pi"* ]]
+    # No permission-flag positional, no stray empty arg between --model and --no-session
+    [[ "$output" == *"[dry-run] Would run: pi -p --mode json --model anthropic/claude-opus-4-8 --no-session"* ]]
+}
+
+@test "dry-run with pi shows default model anthropic/claude-opus-4-8" {
+    "$RALPH" init
+    run "$RALPH" build --dry-run -n 1 -b pi
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Model:   anthropic/claude-opus-4-8"* ]]
+    [[ "$output" == *"--model anthropic/claude-opus-4-8"* ]]
+}
+
+@test "-m flag overrides default model for pi" {
+    "$RALPH" init
+    run "$RALPH" build --dry-run -n 1 -b pi -m custom-pi-model
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Model:   custom-pi-model"* ]]
+    [[ "$output" == *"--model custom-pi-model"* ]]
+}
+
+@test "unknown backend error lists pi among supported backends" {
+    "$RALPH" init
+    run "$RALPH" build --dry-run -n 1 -b unknown
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"Supported backends:"*"pi"* ]]
+}
