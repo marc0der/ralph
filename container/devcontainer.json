@@ -19,7 +19,8 @@
     "NODE_OPTIONS": "--max-old-space-size=4096",
     "CLAUDE_CONFIG_DIR": "/home/node/.claude",
     "CODEX_HOME": "/home/node/.codex",
-    "COPILOT_HOME": "/home/node/.copilot"
+    "COPILOT_HOME": "/home/node/.copilot",
+    "PI_CODING_AGENT_DIR": "/home/node/.pi/agent"
   },
   "mounts": [
     "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind",
