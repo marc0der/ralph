@@ -148,6 +148,28 @@ MOCKEOF
     unset SSH_AUTH_SOCK
 }
 
+# OPENAI_API_KEY is the first provider key forwarded by cmd_sandbox (ralph:391),
+# but its tests were left out when the propagation pattern was introduced. This
+# pair backfills the gap so every `[[ -n "${VAR:-}" ]]` forwarding branch in
+# ralph has matching positive + negative coverage. Slotted before OPENROUTER to
+# keep test order in lock-step with the source order.
+@test "sandbox propagates OPENAI_API_KEY when set" {
+    setup_sandbox_mock
+    unset OPENAI_API_KEY
+    export OPENAI_API_KEY="oai-key-123"
+    run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    grep -q "^OPENAI_API_KEY=oai-key-123$" "$DEVCONTAINER_CALL_LOG"
+}
+
+@test "sandbox does not propagate OPENAI_API_KEY when unset" {
+    setup_sandbox_mock
+    unset OPENAI_API_KEY
+    run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    run ! grep -q "^OPENAI_API_KEY=" "$DEVCONTAINER_CALL_LOG"
+}
+
 @test "sandbox propagates OPENROUTER_API_KEY when set" {
     setup_sandbox_mock
     unset OPENROUTER_API_KEY
