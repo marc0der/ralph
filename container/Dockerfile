@@ -107,6 +107,9 @@ RUN npm install -g @openai/codex
 # GitHub Copilot CLI
 RUN npm install -g @github/copilot
 
+# Pi
+RUN npm install -g @earendil-works/pi-coding-agent
+
 # dev-browser (headless browser for AI agents, uses Playwright/Chromium)
 RUN npm install -g dev-browser \
   && npx playwright install --with-deps chromium
