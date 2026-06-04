@@ -10,7 +10,7 @@ Extends the list in `multi-backend.md`:
 
 - CLI binary: `copilot` (distributed as the `@github/copilot` npm package)
 - Default model: the latest Claude Opus available via Copilot CLI's model registry
-- Runs non-interactively via `copilot -p <prompt>` with `--output-format=json`, `--allow-all` (the bundle equivalent to `--allow-all-tools --allow-all-paths --allow-all-urls`; per the Copilot docs, `--allow-all-tools` is *required* when running programmatically), and `--model <model>`
+- Runs non-interactively via `copilot -p <prompt>` with `--output-format=json`, `--yolo` (Copilot CLI's catch-all "skip every approval" flag; required when running programmatically, since the JSON stream has no way to answer approval prompts), and `--model <model>`
 - The prompt is passed as the value of `-p` / `--prompt`, not via stdin
 - Output is JSONL (one JSON object per line)
 
@@ -48,7 +48,7 @@ A single run may emit multiple `assistant.message` events when tool calls are in
 
 When no `assistant.message` event is present (e.g. the run aborted after tool calls), ralph falls back to a transcript of completed `tool.execution_complete` events (events where `data.success == true`), using `data.result.content` (or `data.result.detailedContent` if `content` is absent) as the per-tool text. This parallels the codex fallback.
 
-Other event types ralph should ignore for response extraction (non-exhaustive): `assistant.turn_start`, `assistant.turn_end`, `assistant.message_delta`, `assistant.reasoning`, `assistant.reasoning_delta`, `assistant.usage`, `tool.execution_start`, `session.idle`, `session.shutdown`, `session.error`, `user.message`, `system.message`, `permission.requested` (this last one should never fire when `--allow-all` is set).
+Other event types ralph should ignore for response extraction (non-exhaustive): `assistant.turn_start`, `assistant.turn_end`, `assistant.message_delta`, `assistant.reasoning`, `assistant.reasoning_delta`, `assistant.usage`, `tool.execution_start`, `session.idle`, `session.shutdown`, `session.error`, `user.message`, `system.message`, `permission.requested` (this last one should never fire when `--yolo` is set).
 
 ## Authentication
 
