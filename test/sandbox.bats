@@ -217,6 +217,14 @@ MOCKEOF
     grep -q "^ANTHROPIC_BASE_URL=https://proxy.example.com$" "$DEVCONTAINER_CALL_LOG"
 }
 
+@test "sandbox does not propagate ANTHROPIC_BASE_URL when unset" {
+    setup_sandbox_mock
+    unset ANTHROPIC_BASE_URL
+    run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    run ! grep -q "^ANTHROPIC_BASE_URL=" "$DEVCONTAINER_CALL_LOG"
+}
+
 @test "sandbox propagates ANTHROPIC_AUTH_TOKEN when set" {
     setup_sandbox_mock
     unset ANTHROPIC_AUTH_TOKEN
@@ -224,6 +232,14 @@ MOCKEOF
     run "$RALPH" sandbox
     [[ "$status" -eq 0 ]]
     grep -q "^ANTHROPIC_AUTH_TOKEN=bearer-token-abc$" "$DEVCONTAINER_CALL_LOG"
+}
+
+@test "sandbox does not propagate ANTHROPIC_AUTH_TOKEN when unset" {
+    setup_sandbox_mock
+    unset ANTHROPIC_AUTH_TOKEN
+    run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    run ! grep -q "^ANTHROPIC_AUTH_TOKEN=" "$DEVCONTAINER_CALL_LOG"
 }
 
 @test "sandbox propagates ANTHROPIC_API_KEY when set" {
