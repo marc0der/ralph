@@ -67,6 +67,21 @@ load test_helper
     [[ "$output" == *"'copilot' CLI not found"* ]]
 }
 
+@test "build -b pi fails when pi is not in PATH" {
+    # Provide init artifacts so iteration calculation succeeds
+    echo "- [ ] **Task one**" > IMPLEMENTATION_PLAN.md
+    touch PROGRESS.md
+    # Pi is preinstalled in the devcontainer image, so we must strip it; on a clean
+    # host this is a no-op but still asserts the error names the right binary.
+    local filtered_path
+    filtered_path=$(echo "$PATH" | tr ':' '\n' | while read -r dir; do
+        [[ -x "$dir/pi" ]] || printf "%s:" "$dir"
+    done)
+    PATH="${filtered_path%:}" run "$RALPH" build -b pi
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"'pi' CLI not found"* ]]
+}
+
 @test "build fails outside a git repo" {
     command -v claude >/dev/null 2>&1 || skip "claude CLI not installed"
     cd "$(mktemp -d)" || return 1
