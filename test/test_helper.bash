@@ -4,6 +4,11 @@ bats_require_minimum_version 1.5.0
 # Path to the ralph script under test
 export RALPH="$BATS_TEST_DIRNAME/../ralph"
 
+# Tests assert ralph's host-side behaviour (e.g. the outside-container warning).
+# When tests run inside the devcontainer DEVCONTAINER=true leaks in and silently
+# flips that branch — unset it so every test sees the same host-side defaults.
+unset DEVCONTAINER
+
 # Create a temporary directory for each test with mock config
 setup() {
     TEST_DIR="$(mktemp -d)"
