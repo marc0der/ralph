@@ -1,6 +1,6 @@
 # ralph
 
-Autonomous AI coding agent loop runner. Runs plan and build phases in a loop, feeding structured prompts to an AI coding agent in headless mode. Supports multiple backends — currently [Claude Code](https://claude.ai/code), [OpenAI Codex](https://openai.com/index/codex/), and [GitHub Copilot CLI](https://github.com/features/copilot).
+Autonomous AI coding agent loop runner. Runs plan and build phases in a loop, feeding structured prompts to an AI coding agent in headless mode. Supports multiple backends — currently [Claude Code](https://claude.ai/code), [OpenAI Codex](https://openai.com/index/codex/), [GitHub Copilot CLI](https://github.com/features/copilot), and [pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent).
 
 ## Background
 
@@ -39,7 +39,7 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `-n`, `--iterations` | Max iterations                                           |
 | `-g`, `--goal`       | Goal injected into the prompt template                   |
 | `-m`, `--model`      | Model to use (default depends on backend)                |
-| `-b`, `--backend`    | Backend to use: `claude`, `codex`, `copilot` (default: `claude`) |
+| `-b`, `--backend`    | Backend to use: `claude`, `codex`, `copilot`, `pi` (default: `claude`) |
 | `--skip-push`        | Don't push after each iteration                          |
 | `--dry-run`          | Print what would be executed without running              |
 | `-h`, `--help`       | Show help                                                |
@@ -58,6 +58,7 @@ ralph build -b codex                                # build using codex backend
 ralph plan -b codex -g "design the auth module"     # plan with codex
 ralph build --dry-run -b codex                      # dry-run with codex
 ralph build -b copilot -n 10                        # 10 iterations with copilot
+ralph build -b pi -n 10                             # 10 iterations with pi
 ralph archive                                       # archive before starting fresh
 ralph init                                          # initialise workspace
 ralph init --prompts                                # also copy prompts for customisation
@@ -90,6 +91,7 @@ Each project gets its own container, automatically reused between sessions. Shel
 | `~/.claude`               | `/home/node/.claude`            | read/write |
 | `~/.codex`                | `/home/node/.codex`             | read/write |
 | `~/.copilot`              | `/home/node/.copilot`           | read/write |
+| `~/.pi`                   | `/home/node/.pi`                | read/write |
 | `~/.gitconfig`            | `/home/node/.gitconfig`         | readonly  |
 | `~/.ssh`                  | `/home/node/.ssh`               | readonly  |
 | `~/.config/gh`            | `/home/node/.config/gh`         | readonly  |
@@ -98,7 +100,7 @@ Each project gets its own container, automatically reused between sessions. Shel
 | `ralph` binary            | `/usr/local/bin/ralph`          | readonly  |
 | ralph config dir           | `/home/node/.config/ralph`      | readonly  |
 
-Optional mounts (`~/.ssh`, `~/.config/gh`, `~/.codex`, `~/.copilot`, SSH agent) are skipped if the source doesn't exist on the host. `OPENAI_API_KEY`, `GH_TOKEN`, and `GITHUB_TOKEN` are forwarded into the container when set on the host.
+Optional mounts (`~/.ssh`, `~/.config/gh`, `~/.codex`, `~/.copilot`, `~/.pi`, SSH agent) are skipped if the source doesn't exist on the host. `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GH_TOKEN`, and `GITHUB_TOKEN` are forwarded into the container when set on the host.
 
 ### SDKMAN
 
@@ -185,6 +187,7 @@ The default model depends on the selected backend:
 - `claude` backend: `opus`
 - `codex` backend: `gpt-5.2-codex`
 - `copilot` backend: `claude-opus-4.7`
+- `pi` backend: `anthropic/claude-opus-4-8`
 
 The `-m` flag overrides the default for whichever backend is active:
 
@@ -222,6 +225,9 @@ Ralph requires the Codex CLI for the `codex` backend. Install it with `npm insta
 
 **`copilot` CLI not installed**
 Ralph requires the GitHub Copilot CLI for the `copilot` backend. Install it with `npm install -g @github/copilot` — ralph will exit with a clear error if it can't find `copilot` in your PATH.
+
+**`pi` CLI not installed**
+Ralph requires the pi CLI for the `pi` backend. Install it with `npm install -g @earendil-works/pi-coding-agent` — ralph will exit with a clear error if it can't find `pi` in your PATH.
 
 **`ralph` not in PATH after install**
 The installer places `ralph` in `~/.local/bin` by default. Ensure this directory is in your PATH:
