@@ -80,8 +80,14 @@ backend_pi() {
     BACKEND_PERMISSION_FLAG=""
     BACKEND_PERMISSION_WARNING="Pi will have unrestricted access to tools (file writes, shell commands, etc)."
     BACKEND_JQ_FLAGS=(-rs)
-    # Placeholder; the two-stage agent_end filter is added by the next plan item.
-    BACKEND_JQ_FILTER='empty'
+    # Two-stage filter over the LAST agent_end event (auto-retry can emit more
+    # than one). Primary: its last role=="assistant" message, joined text of
+    # every type=="text" content item. Fallback: transcript from .messages —
+    # each role=="toolResult" with isError==false, concatenating text content,
+    # prefixed with "$ <command>" for the bash tool (command looked up from the
+    # matching assistant toolCall content item by toolCallId). Empty otherwise.
+    # shellcheck disable=SC2016  # $ae/$calls/$text are jq variables, not shell
+    BACKEND_JQ_FILTER='(map(select(.type == "agent_end")) | last) as $ae | ([($ae.messages // [])[] | select(.role == "assistant")] | last | (.content // []) | map(select(.type == "text") | .text) | join("") | if . == "" then null else . end) // (([($ae.messages // [])[] | select(.role == "assistant") | (.content // [])[] | select(.type == "toolCall") | {key: .id, value: .}] | from_entries) as $calls | [($ae.messages // [])[] | select(.role == "toolResult" and .isError == false) | ((.content // []) | map(select(.type == "text") | .text) | join("")) as $text | if .toolName == "bash" then "$ " + ($calls[.toolCallId].arguments.command // "") + "\n" + $text else $text end] | join("\n") | if . == "" then null else . end) // empty'
     BACKEND_STDIN_PROMPT=true
     # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
     build_backend_cmd() {

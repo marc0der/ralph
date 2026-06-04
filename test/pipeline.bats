@@ -285,6 +285,72 @@ MOCK
     [[ "$output" != *"README.md:1:TODO"* ]]
 }
 
+# --- Pi jq filter tests ---
+
+@test "pi jq filter extracts assistant text from agent_end" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/pi" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"session","version":3,"id":"abc","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp"}'
+echo '{"type":"agent_end","messages":[{"role":"user","content":[{"type":"text","text":"hi"}]},{"role":"assistant","content":[{"type":"text","text":"hello from pi"}]}],"willRetry":false}'
+MOCK
+    chmod +x "$TEST_DIR/bin/pi"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 -b pi --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"hello from pi"* ]]
+}
+
+@test "pi jq filter takes the last agent_end when auto-retry emits two" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/pi" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"session","version":3,"id":"abc","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp"}'
+echo '{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"interim"}]}],"willRetry":true}'
+echo '{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"final answer"}]}],"willRetry":false}'
+MOCK
+    chmod +x "$TEST_DIR/bin/pi"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 -b pi --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"final answer"* ]]
+    [[ "$output" != *"interim"* ]]
+}
+
+@test "pi jq filter falls back to bash tool transcript when no assistant text" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/pi" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"session","version":3,"id":"abc","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp"}'
+echo '{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"toolCall","id":"call1","name":"bash","arguments":{"command":"ls"}}]},{"role":"toolResult","toolCallId":"call1","toolName":"bash","content":[{"type":"text","text":"README.md ralph"}],"isError":false}],"willRetry":false}'
+MOCK
+    chmod +x "$TEST_DIR/bin/pi"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 -b pi --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *'$ ls'* ]]
+    [[ "$output" == *"README.md ralph"* ]]
+}
+
+@test "pi jq filter emits empty when no assistant text and no successful tool results" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/pi" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"session","version":3,"id":"abc","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp"}'
+echo '{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"toolCall","id":"call1","name":"bash","arguments":{"command":"false"}}]},{"role":"toolResult","toolCallId":"call1","toolName":"bash","content":[{"type":"text","text":"command failed"}],"isError":true}],"willRetry":false}'
+MOCK
+    chmod +x "$TEST_DIR/bin/pi"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 -b pi --skip-push
+    [[ "$status" -eq 0 ]]
+    if echo "$output" | grep -q '^\$ '; then return 1; fi
+    [[ "$output" != *"command failed"* ]]
+}
+
 # --- Stdin prompt: codex passes prompt as CLI arg, claude pipes via stdin ---
 
 @test "codex dry-run shows prompt as a positional argument in the command line" {
