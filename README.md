@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/ralph-loop-logo.png" alt="Ralph Loop mascot" width="600">
+</p>
+
 # ralph
 
 Autonomous AI coding agent loop runner. Runs plan and build phases in a loop, feeding structured prompts to an AI coding agent in headless mode. Supports multiple backends — currently [Claude Code](https://claude.ai/code), [OpenAI Codex](https://openai.com/index/codex/), [GitHub Copilot CLI](https://github.com/features/copilot), and [pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent).
