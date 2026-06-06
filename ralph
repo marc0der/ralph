@@ -146,7 +146,7 @@ Options:
   -g, --goal TEXT      Goal to inject into the prompt template
   -m, --model MODEL    Model to use (default depends on backend)
   -b, --backend NAME   Backend to use: claude, codex, copilot, pi (default: claude)
-      --skip-push      Don't push after each iteration
+      --skip-push      Don't push after each build iteration (plan never pushes)
       --dry-run        Print what would be executed without running
   -v, --verbose        Show backend commands, raw output, and exit codes
   -y, --yes            Skip the confirmation when running outside a sandbox
@@ -778,23 +778,26 @@ cmd_loop() {
             echo "$jq_output"
         fi
 
-        # Push changes after each iteration
-        if $dry_run; then
-            echo "[dry-run] Would run: git push origin $current_branch"
-        elif ! $skip_push; then
-            local push_output
-            if ! push_output=$(git push origin "$current_branch" 2>&1); then
-                if echo "$push_output" | grep -q "has no upstream branch"; then
-                    echo "No upstream branch found. Setting upstream..."
-                    git push -u origin "$current_branch"
-                else
-                    echo "Push failed:" >&2
+        # Push changes after each iteration. Plan mode produces no commits
+        # (IMPLEMENTATION_PLAN.md is gitignored), so there is nothing to push.
+        if [[ "$mode" == "build" ]]; then
+            if $dry_run; then
+                echo "[dry-run] Would run: git push origin $current_branch"
+            elif ! $skip_push; then
+                local push_output
+                if ! push_output=$(git push origin "$current_branch" 2>&1); then
+                    if echo "$push_output" | grep -q "has no upstream branch"; then
+                        echo "No upstream branch found. Setting upstream..."
+                        git push -u origin "$current_branch"
+                    else
+                        echo "Push failed:" >&2
+                        echo "$push_output" >&2
+                        exit 1
+                    fi
+                elif $verbose; then
+                    echo "[verbose] Push output:" >&2
                     echo "$push_output" >&2
-                    exit 1
                 fi
-            elif $verbose; then
-                echo "[verbose] Push output:" >&2
-                echo "$push_output" >&2
             fi
         fi
 

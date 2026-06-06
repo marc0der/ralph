@@ -537,3 +537,19 @@ MOCK
     [[ "$output" != *"No changes detected"* ]]
     [[ "$output" == *"Completed 3 iterations"* ]]
 }
+
+@test "plan never pushes even without --skip-push (no remote configured)" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"result","result":"planning"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    # No 'origin' remote exists; if plan attempted a push it would fail.
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan -n 1
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"Push failed"* ]]
+    [[ "$output" == *"Completed 1 iteration"* ]]
+}

@@ -44,7 +44,7 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `-g`, `--goal`       | Goal injected into the prompt template                   |
 | `-m`, `--model`      | Model to use (default depends on backend)                |
 | `-b`, `--backend`    | Backend to use: `claude`, `codex`, `copilot`, `pi` (default: `claude`) |
-| `--skip-push`        | Don't push after each iteration                          |
+| `--skip-push`        | Don't push after each build iteration (plan never pushes) |
 | `--dry-run`          | Print what would be executed without running              |
 | `-h`, `--help`       | Show help                                                |
 
