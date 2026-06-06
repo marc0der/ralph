@@ -137,6 +137,20 @@ done
 exit 0
 MOCKEOF
     chmod +x "$mock_bin/devcontainer"
+    # gh stub: intercept only `gh auth token` so keyring-derivation tests are
+    # independent of the test host's real gh login. MOCK_GH_AUTH_TOKEN drives
+    # logged-in (set) vs logged-out (unset). Inert for any other invocation.
+    cat > "$mock_bin/gh" << 'MOCKEOF'
+#!/usr/bin/env bash
+[[ "$1 $2" == "auth token" ]] || exit 0
+if [[ -n "${MOCK_GH_AUTH_TOKEN:-}" ]]; then
+    printf '%s\n' "$MOCK_GH_AUTH_TOKEN"
+    exit 0
+fi
+echo "not logged into any GitHub hosts" >&2
+exit 1
+MOCKEOF
+    chmod +x "$mock_bin/gh"
     ln -s "$RALPH" "$mock_bin/ralph"
     # RALPH_CONFIG_DIR is exported in setup() (test_helper.bash); BATS runs
     # setup and the test body in the same subshell so the var is visible here.
@@ -338,9 +352,51 @@ MOCKEOF
 
 @test "sandbox does not propagate GH_TOKEN when unset" {
     setup_sandbox_mock
-    unset GH_TOKEN
+    unset GH_TOKEN GITHUB_TOKEN MOCK_GH_AUTH_TOKEN
     run "$RALPH" sandbox
     [[ "$status" -eq 0 ]]
+    # gh stub acts logged-out (MOCK_GH_AUTH_TOKEN unset) → no token forwarded and
+    # the loud warning fires. Asserting both keeps this a true negative regardless
+    # of the test host's real gh login state. Check $output before the next `run`,
+    # which would otherwise overwrite it.
+    [[ "$output" == *"gh is installed but no GitHub token is available"* ]]
+    run ! grep -q "^GH_TOKEN=" "$DEVCONTAINER_CALL_LOG"
+}
+
+@test "sandbox derives GH_TOKEN from gh auth token when env vars unset" {
+    setup_sandbox_mock
+    unset GH_TOKEN GITHUB_TOKEN
+    # Inline env prefix (rather than `export`) keeps the assignment out of the
+    # @test subshell so shellcheck's SC2030/SC2031 stay quiet; ralph still sees it.
+    MOCK_GH_AUTH_TOKEN="derived-xyz" run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    grep -q "^GH_TOKEN=derived-xyz$" "$DEVCONTAINER_CALL_LOG"
+}
+
+@test "sandbox explicit GH_TOKEN wins over derivation" {
+    setup_sandbox_mock
+    unset GH_TOKEN GITHUB_TOKEN
+    GH_TOKEN="explicit-123" MOCK_GH_AUTH_TOKEN="derived-xyz" run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    grep -q "^GH_TOKEN=explicit-123$" "$DEVCONTAINER_CALL_LOG"
+    run ! grep -q "^GH_TOKEN=derived-xyz$" "$DEVCONTAINER_CALL_LOG"
+}
+
+@test "sandbox GITHUB_TOKEN suppresses derivation" {
+    setup_sandbox_mock
+    unset GH_TOKEN GITHUB_TOKEN
+    GITHUB_TOKEN="gh-abc" MOCK_GH_AUTH_TOKEN="derived-xyz" run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    grep -q "^GITHUB_TOKEN=gh-abc$" "$DEVCONTAINER_CALL_LOG"
+    run ! grep -q "^GH_TOKEN=" "$DEVCONTAINER_CALL_LOG"
+}
+
+@test "sandbox warns when gh present but logged out" {
+    setup_sandbox_mock
+    unset GH_TOKEN GITHUB_TOKEN MOCK_GH_AUTH_TOKEN
+    run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"gh is installed but no GitHub token is available"* ]]
     run ! grep -q "^GH_TOKEN=" "$DEVCONTAINER_CALL_LOG"
 }
 
