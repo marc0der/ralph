@@ -406,6 +406,20 @@ cmd_sandbox() {
     if [[ -n "${ANTHROPIC_API_KEY+set}" ]]; then
         ssh_env+=("--remote-env" "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}")
     fi
+    # Derive a GitHub token from the host keyring when none is exported. gh's
+    # secure storage keeps the token in the OS keyring, which the container cannot
+    # reach via the ~/.config/gh bind mount; `gh auth token` reads it on the host so
+    # it can be forwarded as an env var (highest precedence in gh) below.
+    if [[ -z "${GH_TOKEN:-}" && -z "${GITHUB_TOKEN:-}" ]] && command -v gh >/dev/null 2>&1; then
+        local gh_token
+        gh_token="$(gh auth token 2>/dev/null)" || true
+        if [[ -n "$gh_token" ]]; then
+            GH_TOKEN="$gh_token"
+        else
+            echo "Warning: gh is installed but no GitHub token is available (run 'gh auth login'" >&2
+            echo "on the host). The sandbox will start without GitHub CLI authentication." >&2
+        fi
+    fi
     if [[ -n "${GH_TOKEN:-}" ]]; then
         ssh_env+=("--remote-env" "GH_TOKEN=$GH_TOKEN")
     fi
