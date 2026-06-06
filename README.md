@@ -104,7 +104,7 @@ Each project gets its own container, automatically reused between sessions. Shel
 | `ralph` binary            | `/usr/local/bin/ralph`          | readonly  |
 | ralph config dir           | `/home/node/.config/ralph`      | readonly  |
 
-Optional mounts (`~/.ssh`, `~/.config/gh`, `~/.codex`, `~/.copilot`, `~/.pi`, SSH agent) are skipped if the source doesn't exist on the host. `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GH_TOKEN`, and `GITHUB_TOKEN` are forwarded into the container when set on the host.
+Optional mounts (`~/.ssh`, `~/.config/gh`, `~/.codex`, `~/.copilot`, `~/.pi`, SSH agent) are skipped if the source doesn't exist on the host. `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GH_TOKEN`, and `GITHUB_TOKEN` are forwarded into the container when set on the host. When neither `GH_TOKEN` nor `GITHUB_TOKEN` is set, ralph derives the token from `gh auth token` so keyring-stored `gh auth login` sessions propagate into the container (modern `gh` keeps the token in the OS keyring, which the `~/.config/gh` mount alone cannot carry). If `gh` is installed but logged out, ralph prints a warning and starts the sandbox without GitHub CLI authentication.
 
 ### SDKMAN
 
