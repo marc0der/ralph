@@ -70,7 +70,7 @@ ralph init --prompts                                # also copy prompts for cust
 
 ## Sandbox
 
-The sandbox runs your project inside a devcontainer — an isolated environment with Claude Code, Codex CLI, GitHub Copilot CLI, Node.js 20, SDKMAN, Docker CLI, and development tools pre-installed. The active backend runs as a non-root user with its backend-specific permission-bypass flag enabled.
+The sandbox runs your project inside a devcontainer — an isolated environment with Claude Code, Codex CLI, GitHub Copilot CLI, Node.js 20, Bun, uv, SDKMAN, Docker CLI, and development tools pre-installed. The active backend runs as a non-root user with its backend-specific permission-bypass flag enabled.
 
 ### Prerequisites
 

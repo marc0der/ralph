@@ -114,5 +114,14 @@ RUN npm install -g @earendil-works/pi-coding-agent
 RUN npm install -g dev-browser \
   && npx playwright install --with-deps chromium
 
+# Bun (JavaScript/TypeScript runtime, package manager, and test runner)
+RUN curl -fsSL https://bun.sh/install | bash
+ENV BUN_INSTALL=/home/node/.bun
+ENV PATH=$PATH:/home/node/.bun/bin
+
+# uv (Python package and project manager; downloads CPython on demand)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH=$PATH:/home/node/.local/bin
+
 # SDKMAN (no JDK — projects provide their own via .sdkmanrc)
 RUN curl -s "https://get.sdkman.io" | bash
