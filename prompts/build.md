@@ -43,7 +43,7 @@ Run the project's test suite to validate your changes.
 
 Once tests pass:
 
-1. Update `IMPLEMENTATION_PLAN.md` — mark the item complete, clean out stale completed items, add any new findings
+1. Update `IMPLEMENTATION_PLAN.md` — mark the completed item as done (`- [x]`); **never delete it**. The plan is an append-only ledger: completed items stay as a record of what shipped. You may **append** new items if this iteration surfaced follow-up work, but do not remove or rewrite existing ones.
 2. Append an entry to `PROGRESS.md` following the template defined in its header (append-only — never edit previous entries)
 3. Commit the changes by invoking the **`/commit` skill**. Do NOT compose commits manually. Rules for this iteration:
    - **Atomic commits**: if the working tree contains separable concerns **within this item** (e.g. a refactor *and* the feature it enables, or test additions that stand on their own), produce **multiple commits in one skill invocation** — one per concern — instead of a single grab-bag commit.
@@ -61,5 +61,5 @@ Once tests pass:
 - **Implement completely.** Placeholders and stubs waste effort redoing the same work.
 - **Single sources of truth.** Don't duplicate information across files.
 - **Document the why** — in tests, commits, and documentation, capture importance and reasoning.
-- **Keep `IMPLEMENTATION_PLAN.md` current** — future iterations depend on it to avoid duplicating effort.
+- **Keep `IMPLEMENTATION_PLAN.md` current** — mark items done and append new ones, but **never delete**; future iterations depend on it to avoid duplicating effort.
 - For bugs you notice outside the current item, document them as new items in `IMPLEMENTATION_PLAN.md` instead of fixing them inline — a future iteration will pick them up.
