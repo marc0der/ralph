@@ -36,6 +36,7 @@ Look for:
 Create or update `IMPLEMENTATION_PLAN.md`:
 
 - Prioritised bullet list of items yet to be implemented
+- Keep items **fine-grained** — the build loop implements one item per iteration, so each must be completable and verifiable in a single iteration; split anything larger into ordered sub-items
 - Mark items as complete or incomplete
 - Clean out stale completed items
 - If you authored new specs, include tasks to implement them
