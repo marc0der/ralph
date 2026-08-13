@@ -988,10 +988,13 @@ cmd_loop() {
             # interrupts the loop.
             if $metrics_enabled; then
                 local iter_end raw_file head_after_m
-                iter_end=$(date +%s)
+                # Fallbacks keep the never-interrupt-the-loop contract even if
+                # date or git fail mid-run (worst case: zero-length iteration /
+                # activity attributed as noop).
+                iter_end=$(date +%s) || iter_end=$iter_start
                 raw_file="$metrics_dir/$(printf 'iter-%03d' "$iteration").stream.jsonl"
                 printf '%s\n' "$backend_output" > "$raw_file" 2>/dev/null || true
-                head_after_m=$(git rev-parse HEAD)
+                head_after_m=$(git rev-parse HEAD 2>/dev/null) || head_after_m=$head_before
                 if write_iteration_metrics "$metrics_file" "$raw_file" "$mode" \
                     "$current_branch" "$BACKEND_NAME" "$model" "$iteration" \
                     "$iter_start" "$iter_end" "$head_before" "$head_after_m" \
