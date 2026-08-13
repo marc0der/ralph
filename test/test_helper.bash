@@ -11,6 +11,8 @@ unset DEVCONTAINER
 
 # Create a temporary directory for each test with mock config
 setup() {
+    # For tests that manipulate the PATH
+    ORIGINAL_PATH="$PATH"
     TEST_DIR="$(mktemp -d)"
     cd "$TEST_DIR" || return 1
     git init --quiet
@@ -30,6 +32,7 @@ setup() {
 
 # Clean up after each test
 teardown() {
+    PATH="$ORIGINAL_PATH"
     rm -rf "$TEST_DIR"
 }
 

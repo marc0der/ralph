@@ -126,7 +126,7 @@ usage() {
 ralph — autonomous AI coding agent loop runner
 
 Usage:
-  ralph sandbox [--rebuild]
+  ralph sandbox [--rebuild] [--no-inhibit-sleep]
   ralph sandbox clean
   ralph <plan|build> [options]
   ralph init
@@ -144,7 +144,9 @@ Modes:
   archive        Move IMPLEMENTATION_PLAN.md and PROGRESS.md to .ralph/<timestamp>/
 
 Sandbox options:
-      --rebuild        Rebuild the container image from scratch
+      --rebuild            Rebuild the container image from scratch
+      --no-inhibit-sleep   Don't hold the host awake (caffeinate/systemd-inhibit)
+                           for the sandbox session
 
 Init options:
   -p, --prompts      Also copy prompt templates for local customisation
@@ -176,6 +178,7 @@ Examples:
   ralph build --no-retry
   ralph sandbox
   ralph sandbox --rebuild
+  ralph sandbox --no-inhibit-sleep
   ralph sandbox clean
   ralph archive
 EOF
@@ -312,13 +315,16 @@ scaffold() {
 
 cmd_sandbox() {
     local rebuild=false
+    local inhibit_sleep=true
 
-    case "${1:-}" in
-        clean)     sandbox_clean; return ;;
-        --rebuild) rebuild=true ;;
-        "")        ;;
-        *)         echo "Error: unknown sandbox option '$1'" >&2; exit 1 ;;
-    esac
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            clean)              sandbox_clean; return ;;
+            --rebuild)          rebuild=true; shift ;;
+            --no-inhibit-sleep) inhibit_sleep=false; shift ;;
+            *)                  echo "Error: unknown sandbox option '$1'" >&2; exit 1 ;;
+        esac
+    done
 
     if ! command -v devcontainer >/dev/null 2>&1; then
         echo "Error: 'devcontainer' CLI not found in PATH." >&2
@@ -468,6 +474,32 @@ cmd_sandbox() {
     )
     if $rebuild; then
         up_args+=("--remove-existing-container" "--build-no-cache")
+    fi
+
+    # Sleep inhibition — a devcontainer is suspended along with the host, which
+    # stalls a long unattended build mid-iteration. Hold the host awake for the
+    # whole sandbox session (image build/pull included) via the platform's
+    # inhibitor, backgrounded and released on any exit from this function,
+    # including Ctrl-C.
+    local sleep_inhibitor_pid=""
+    if $inhibit_sleep; then
+        if command -v caffeinate >/dev/null 2>&1; then
+            caffeinate -dimsu -w $$ &
+            sleep_inhibitor_pid=$!
+        elif command -v systemd-inhibit >/dev/null 2>&1; then
+            systemd-inhibit --what=idle:sleep --why="ralph sandbox session" sleep infinity &
+            sleep_inhibitor_pid=$!
+        else
+            echo "Warning: no sleep inhibitor found (caffeinate/systemd-inhibit not in PATH)." >&2
+            echo "The host may sleep during a long unattended run, suspending the container." >&2
+        fi
+        # The EXIT trap fires after this function returns, once `local`s are gone
+        # — bake the PID into the trap command as a literal (double-quoted, so it
+        # expands now) rather than referencing the variable name.
+        if [[ -n "$sleep_inhibitor_pid" ]]; then
+            # shellcheck disable=SC2064 # intentional: expand the PID now, before it goes out of scope
+            trap "kill $sleep_inhibitor_pid 2>/dev/null" EXIT
+        fi
     fi
 
     echo "Starting sandbox..."

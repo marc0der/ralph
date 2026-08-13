@@ -29,6 +29,7 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `sandbox`         | Enter a devcontainer shell for the current project                           |
 | `sandbox clean`   | Remove the devcontainer for the current project                              |
 | `sandbox --rebuild` | Rebuild the container image from scratch                                   |
+| `sandbox --no-inhibit-sleep` | Don't hold the host awake for the sandbox session                    |
 | `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` (default: 3 iterations) |
 | `build`           | Pick the next item, implement, test, commit, push (default: 50 iterations)   |
 | `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`). Pass `--prompts` to also copy prompt templates for local customisation |
@@ -53,6 +54,7 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 ```bash
 ralph sandbox                                       # enter devcontainer
 ralph sandbox --rebuild                             # rebuild and enter
+ralph sandbox --no-inhibit-sleep                    # enter without holding the host awake
 ralph sandbox clean                                 # remove the container
 ralph plan                                          # analyse and plan
 ralph plan -g "Migrate to hexagonal architecture"   # plan with a goal
@@ -87,6 +89,8 @@ ralph sandbox clean        # remove the container for this project
 ```
 
 Each project gets its own container, automatically reused between sessions. Shell history persists across container recreations via a Docker volume.
+
+A devcontainer is suspended along with its host, which stalls a long unattended `ralph build` run mid-iteration if the laptop sleeps. `ralph sandbox` holds the host awake for the duration of the session using the platform's sleep inhibitor — `caffeinate` on macOS, `systemd-inhibit` on Linux — releasing it on exit or Ctrl-C. If neither is available, ralph prints a warning and continues. Pass `--no-inhibit-sleep` to opt out.
 
 ### What gets mounted
 

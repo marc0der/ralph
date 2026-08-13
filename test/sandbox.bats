@@ -2,39 +2,51 @@
 
 load test_helper
 
-# Helper: build a PATH that hides a specific command
-path_without() {
-    local cmd="$1"
-    echo "$PATH" | tr ':' '\n' | while read -r dir; do
-        [[ -x "$dir/$cmd" ]] || printf "%s:" "$dir"
+# Make one command unresolvable without breaking anything else that shares its
+# directory. Rebuilds whatever directory the command currently resolves from
+# as symlinks minus itself, then swaps that directory into PATH in place. Loops
+# in case the command exists in more than one PATH directory; no-ops once it's 
+# genuinely unresolvable.
+hide_command() {
+    local name="$1"
+    while command -v "$name" >/dev/null 2>&1; do
+        local real_dir shim_dir entry base
+        real_dir="$(dirname "$(command -v "$name")")"
+        shim_dir="$(mktemp -d "$TEST_DIR/shim-XXXXXX")"
+        # A real /usr/bin can hold 1000+ entries; forking basename+ln once per
+        # file took ~12s here. ${entry##*/} avoids the basename fork entirely,
+        # and one `ln -s ... dir` call links them all in a single fork instead
+        # of one per file (POSIX form — multiple sources, dir as the last
+        # operand — works on both GNU and BSD ln, unlike GNU-only `-t`).
+        local to_link=()
+        for entry in "$real_dir"/*; do
+            [[ -f "$entry" && -x "$entry" ]] || continue
+            base="${entry##*/}"
+            [[ "$base" == "$name" ]] && continue
+            to_link+=("$entry")
+        done
+        [[ ${#to_link[@]} -gt 0 ]] && ln -s "${to_link[@]}" "$shim_dir"
+        PATH="${PATH/$real_dir/$shim_dir}"
     done
 }
 
 @test "sandbox fails when devcontainer CLI is not found" {
-    local filtered_path
-    filtered_path=$(path_without devcontainer)
-    PATH="${filtered_path%:}" run "$RALPH" sandbox
+    hide_command devcontainer
+    run "$RALPH" sandbox
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"'devcontainer' CLI not found"* ]]
 }
 
 @test "sandbox clean fails when docker is not found" {
-    # Skip if docker and bash share a directory (NixOS profile paths)
-    local docker_dir bash_dir
-    docker_dir=$(dirname "$(command -v docker)")
-    bash_dir=$(dirname "$(command -v bash)")
-    [[ "$docker_dir" != "$bash_dir" ]] || skip "cannot isolate docker from bash in PATH"
-    local filtered_path
-    filtered_path=$(path_without docker)
-    PATH="${filtered_path%:}" run "$RALPH" sandbox clean
+    hide_command docker
+    run "$RALPH" sandbox clean
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"'docker' not found"* ]]
 }
 
 @test "sandbox --rebuild fails when devcontainer CLI is not found" {
-    local filtered_path
-    filtered_path=$(path_without devcontainer)
-    PATH="${filtered_path%:}" run "$RALPH" sandbox --rebuild
+    hide_command devcontainer
+    run "$RALPH" sandbox --rebuild
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"'devcontainer' CLI not found"* ]]
 }
@@ -492,6 +504,87 @@ MKDIREOF
     HOME="$fake_home" run "$RALPH" sandbox
     [[ "$status" -eq 0 ]]
     run ! grep -q "target=/home/node/.pi" "$DEVCONTAINER_CALL_LOG"
+}
+
+# ─── sleep inhibitor tests ──────────────────────────────────────────────────
+# Mock caffeinate/systemd-inhibit as long-running processes that log "started"
+# immediately and "killed" when they receive SIGTERM — mirroring how cmd_sandbox
+# actually stops them (kill "$sleep_inhibitor_pid" in the EXIT trap). Backgrounding
+# `sleep infinity` and trapping on the explicit `wait` builtin (rather than a
+# synchronous foreground sleep) makes the mock respond to SIGTERM immediately
+# instead of only after its next command completes.
+write_inhibitor_mock() {
+    local path="$1"
+    local log="$2"
+    cat > "$path" << MOCKEOF
+#!/usr/bin/env bash
+echo "started \$*" >> "$log"
+sleep infinity &
+child=\$!
+trap 'echo "killed" >> "$log"; kill "\$child" 2>/dev/null; exit 0' TERM
+wait "\$child"
+MOCKEOF
+    chmod +x "$path"
+}
+
+@test "sandbox starts and kills caffeinate around the session" {
+    setup_sandbox_mock
+    hide_command systemd-inhibit
+    local mock_bin="$TEST_DIR/mock-bin"
+    local log="$TEST_DIR/caffeinate.log"
+    write_inhibitor_mock "$mock_bin/caffeinate" "$log"
+    run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    grep -q "^started -dimsu -w [0-9]" "$log"
+    grep -q "^killed$" "$log"
+}
+
+@test "sandbox falls back to systemd-inhibit when caffeinate is absent" {
+    setup_sandbox_mock
+    hide_command caffeinate
+    local mock_bin="$TEST_DIR/mock-bin"
+    local log="$TEST_DIR/systemd-inhibit.log"
+    write_inhibitor_mock "$mock_bin/systemd-inhibit" "$log"
+    run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    grep -q "^started --what=idle:sleep" "$log"
+    grep -q "^killed$" "$log"
+}
+
+@test "sandbox warns when no sleep inhibitor is available" {
+    setup_sandbox_mock
+    hide_command caffeinate
+    hide_command systemd-inhibit
+    run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"no sleep inhibitor found"* ]]
+}
+
+@test "sandbox --no-inhibit-sleep skips starting the sleep inhibitor" {
+    setup_sandbox_mock
+    local mock_bin="$TEST_DIR/mock-bin"
+    local log="$TEST_DIR/caffeinate.log"
+    write_inhibitor_mock "$mock_bin/caffeinate" "$log"
+    run "$RALPH" sandbox --no-inhibit-sleep
+    [[ "$status" -eq 0 ]]
+    [[ ! -f "$log" ]]
+}
+
+@test "sandbox --rebuild and --no-inhibit-sleep combine" {
+    setup_sandbox_mock
+    local mock_bin="$TEST_DIR/mock-bin"
+    local log="$TEST_DIR/caffeinate.log"
+    write_inhibitor_mock "$mock_bin/caffeinate" "$log"
+    run "$RALPH" sandbox --rebuild --no-inhibit-sleep
+    [[ "$status" -eq 0 ]]
+    [[ ! -f "$log" ]]
+    grep -q -- "--build-no-cache" "$DEVCONTAINER_CALL_LOG"
+}
+
+@test "usage includes --no-inhibit-sleep" {
+    run "$RALPH" --help
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"--no-inhibit-sleep"* ]]
 }
 
 @test "sandbox hash detection fails when no hashing command exists" {
