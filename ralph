@@ -662,6 +662,7 @@ metrics_summary_suffix() {
 cmd_metrics() {
     local file="${1:-}"
     if [[ -z "$file" ]]; then
+        # shellcheck disable=SC2012  # newest-by-mtime needs ls; paths are ralph-generated (no odd filenames)
         file=$(ls -1t "$ARCHIVE_DIR"/metrics/*/metrics.jsonl 2>/dev/null | head -1 || true)
     fi
     if [[ -z "$file" || ! -f "$file" ]]; then

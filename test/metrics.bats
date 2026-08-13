@@ -33,6 +33,7 @@ MOCK
 }
 
 latest_metrics_file() {
+    # shellcheck disable=SC2012  # newest-by-mtime needs ls; paths are ralph-generated (no odd filenames)
     ls -1t .ralph/metrics/*/metrics.jsonl | head -1
 }
 
