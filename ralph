@@ -124,6 +124,7 @@ Usage:
   ralph init
   ralph clean
   ralph archive
+  ralph metrics [file]
   ralph version
 
 Modes:
@@ -134,6 +135,7 @@ Modes:
   init           Initialise workspace (PROGRESS.md, IMPLEMENTATION_PLAN.md, specs/)
   clean          Delete IMPLEMENTATION_PLAN.md and PROGRESS.md
   archive        Move IMPLEMENTATION_PLAN.md and PROGRESS.md to .ralph/<timestamp>/
+  metrics        Summarise a run's loop metrics (latest run, or a given metrics.jsonl)
 
 Sandbox options:
       --rebuild        Rebuild the container image from scratch
@@ -148,6 +150,7 @@ Options:
   -b, --backend NAME   Backend to use: claude, codex, copilot, pi (default: claude)
       --skip-push      Don't push after each build iteration (plan never pushes)
       --dry-run        Print what would be executed without running
+      --no-metrics     Don't record per-iteration metrics under .ralph/metrics/
   -v, --verbose        Show backend commands, raw output, and exit codes
   -y, --yes            Skip the confirmation when running outside a sandbox
   -h, --help           Show this help message
@@ -552,6 +555,171 @@ truncate_line() {
     fi
 }
 
+# --- Metrics capture ---
+# Each non-dry-run iteration appends one JSON line to
+# .ralph/metrics/<branch>-<run>/metrics.jsonl and retains the raw backend
+# stream alongside (iter-NNN.stream.jsonl). Result-event fields (duration,
+# turns, cost, token usage) are populated for the claude backend; other
+# backends degrade to nulls. A failure here never interrupts the loop.
+
+fmt_duration() {
+    local s="$1"
+    if [[ -z "$s" || "$s" == "null" ]]; then
+        echo "-"
+        return
+    fi
+    if (( s >= 3600 )); then
+        printf '%dh%02dm%02ds' $((s / 3600)) $((s % 3600 / 60)) $((s % 60))
+    elif (( s >= 60 )); then
+        printf '%dm%02ds' $((s / 60)) $((s % 60))
+    else
+        printf '%ds' "$s"
+    fi
+}
+
+# Epoch → ISO 8601 UTC; GNU date first, BSD/macOS fallback.
+iso_utc() {
+    date -u -d "@$1" +%FT%TZ 2>/dev/null || date -u -r "$1" +%FT%TZ
+}
+
+write_iteration_metrics() {
+    local metrics_file="$1" raw_file="$2" mode="$3" branch="$4" backend="$5" model="$6"
+    local iteration="$7" started="$8" ended="$9" head_before="${10}" head_after="${11}" plan_done_before="${12}"
+
+    local commits=0 stat="" files="" ins="" del="" noop=true
+    if [[ "$head_before" != "$head_after" ]]; then
+        noop=false
+        commits=$(git rev-list --count "$head_before..$head_after" 2>/dev/null || echo 0)
+        stat=$(git diff --shortstat "$head_before" "$head_after" 2>/dev/null || true)
+        files=$(sed -nE 's/.* ([0-9]+) files? changed.*/\1/p' <<<"$stat")
+        ins=$(sed -nE 's/.* ([0-9]+) insertions?\(\+\).*/\1/p' <<<"$stat")
+        del=$(sed -nE 's/.* ([0-9]+) deletions?\(-\).*/\1/p' <<<"$stat")
+    fi
+    files=${files:-0}; ins=${ins:-0}; del=${del:-0}
+
+    local plan_done_after=0 plan_delta=0
+    if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
+        plan_done_after=$(grep -c '^\- \[x\]' "IMPLEMENTATION_PLAN.md" || true)
+    fi
+    plan_delta=$(( plan_done_after - plan_done_before ))
+    (( plan_delta < 0 )) && plan_delta=0
+
+    # Backend result-event summary + tool-call histogram (claude stream-json
+    # shape; other backends yield nulls and an empty histogram).
+    local backend_summary
+    backend_summary=$(jq -cs '
+        (map(select(.type == "result")) | last // {}) as $r
+        | { api_s: (if $r.duration_api_ms then ($r.duration_api_ms / 1000 | round) else null end),
+            turns: ($r.num_turns // null),
+            cost_usd: ($r.total_cost_usd // null),
+            tokens: (if $r.usage then {
+                input: ($r.usage.input_tokens // 0),
+                output: ($r.usage.output_tokens // 0),
+                cache_read: ($r.usage.cache_read_input_tokens // 0),
+                cache_write: ($r.usage.cache_creation_input_tokens // 0)
+              } else null end),
+            session_id: ($r.session_id // null),
+            result_status: ($r.subtype // null),
+            tools: ([ .[] | select(.type == "assistant") | .message.content[]?
+                      | select(.type == "tool_use") | .name ]
+                    | group_by(.) | map({key: .[0], value: length}) | from_entries)
+          }' "$raw_file" 2>/dev/null) || backend_summary='{}'
+    [[ -z "$backend_summary" ]] && backend_summary='{}'
+
+    jq -cn \
+        --argjson iteration "$iteration" \
+        --arg mode "$mode" --arg branch "$branch" \
+        --arg backend "$backend" --arg model "$model" \
+        --arg started "$(iso_utc "$started")" \
+        --arg ended "$(iso_utc "$ended")" \
+        --argjson wall_s "$(( ended - started ))" \
+        --argjson commits "$commits" --argjson files "$files" \
+        --argjson insertions "$ins" --argjson deletions "$del" \
+        --argjson noop "$noop" --argjson plan_done "$plan_delta" \
+        --argjson backend_summary "$backend_summary" \
+        '{iteration: $iteration, mode: $mode, branch: $branch, backend: $backend,
+          model: $model, started: $started, ended: $ended, wall_s: $wall_s}
+         + $backend_summary
+         + {git: {commits: $commits, files_changed: $files,
+                  insertions: $insertions, deletions: $deletions, noop: $noop},
+            plan_items_completed: $plan_done}' >> "$metrics_file"
+}
+
+# One-line human summary of the last metrics record (everything after the
+# wall-clock figure, which the caller prefixes via fmt_duration).
+metrics_summary_suffix() {
+    local metrics_file="$1"
+    tail -n 1 "$metrics_file" | jq -r '
+        (if .api_s then " · " + (.api_s | tostring) + "s api" else "" end)
+        + (if .turns then " · " + (.turns | tostring) + " turns" else "" end)
+        + (if .cost_usd then " · $" + (((.cost_usd * 100 | round) / 100) | tostring) else "" end)
+        + " · " + (.git.commits | tostring) + " commits (+" + (.git.insertions | tostring)
+        + "/-" + (.git.deletions | tostring) + ")"
+        + (if (.tools | length) > 0 then " · " + (.tools | to_entries | sort_by(-.value)
+            | map(.key + " " + (.value | tostring)) | join(", ")) else "" end)' 2>/dev/null || true
+}
+
+cmd_metrics() {
+    local file="${1:-}"
+    if [[ -z "$file" ]]; then
+        file=$(ls -1t "$ARCHIVE_DIR"/metrics/*/metrics.jsonl 2>/dev/null | head -1 || true)
+    fi
+    if [[ -z "$file" || ! -f "$file" ]]; then
+        echo "No metrics found under $ARCHIVE_DIR/metrics/." >&2
+        echo "Usage: ralph metrics [path/to/metrics.jsonl]" >&2
+        exit 1
+    fi
+
+    echo "Run: $file"
+    echo ""
+
+    local table
+    table=$({
+        printf 'ITER\tWALL\tAPI\tTURNS\tCOST\tTOK_IN\tTOK_OUT\tCACHE_RD\tCOMMITS\t+/-\tPLAN\tTOP_TOOLS\n'
+        jq -r '
+            def fmtd: if . == null then "-"
+              elif . >= 3600 then "\(. / 3600 | floor)h\(. % 3600 / 60 | floor)m"
+              elif . >= 60 then "\(. / 60 | floor)m\(. % 60)s"
+              else "\(.)s" end;
+            [ .iteration,
+              (.wall_s | fmtd),
+              (.api_s | fmtd),
+              (.turns // "-"),
+              (if .cost_usd then "$\((.cost_usd * 100 | round) / 100)" else "-" end),
+              (.tokens.input // "-"), (.tokens.output // "-"), (.tokens.cache_read // "-"),
+              .git.commits, "+\(.git.insertions)/-\(.git.deletions)",
+              .plan_items_completed,
+              ((.tools // {}) | to_entries | sort_by(-.value) | .[0:3]
+                | map("\(.key):\(.value)") | join(" ") | if . == "" then "-" else . end)
+            ] | @tsv' "$file"
+    })
+    if command -v column >/dev/null 2>&1; then
+        column -t -s $'\t' <<<"$table"
+    else
+        echo "$table"
+    fi
+
+    echo ""
+    jq -rs '
+        def fmtd: if . == null then "-"
+          elif . >= 3600 then "\(. / 3600 | floor)h\(. % 3600 / 60 | floor)m"
+          elif . >= 60 then "\(. / 60 | floor)m\(. % 60)s"
+          else "\(.)s" end;
+        (map(.wall_s) | add) as $wall
+        | (map(.api_s // 0) | add) as $api
+        | (map(.cost_usd // 0) | add) as $cost
+        | "Totals: \(length) iterations · wall \($wall | fmtd) · api \($api | fmtd)"
+          + " · turns \(map(.turns // 0) | add)"
+          + " · cost $\(($cost * 100 | round) / 100)"
+          + " · tokens in \(map(.tokens.input // 0) | add) / out \(map(.tokens.output // 0) | add)"
+          + " (cache read \(map(.tokens.cache_read // 0) | add))"
+          + " · commits \(map(.git.commits) | add)"
+          + " (+\(map(.git.insertions) | add)/-\(map(.git.deletions) | add))"
+          + " · plan items \(map(.plan_items_completed) | add)"
+          + " · noop iterations \([.[] | select(.git.noop)] | length)"
+        ' "$file"
+}
+
 cmd_loop() {
     local mode="$1"
     shift
@@ -565,8 +733,9 @@ cmd_loop() {
     local dry_run=false
     local verbose=false
     local assume_yes=false
+    local no_metrics=false
 
-    ARGS=$(getopt -o n:g:m:b:vyh --long iterations:,goal:,model:,backend:,skip-push,dry-run,verbose,yes,help -n 'ralph' -- "$@")
+    ARGS=$(getopt -o n:g:m:b:vyh --long iterations:,goal:,model:,backend:,skip-push,dry-run,no-metrics,verbose,yes,help -n 'ralph' -- "$@")
     eval set -- "$ARGS"
 
     while true; do
@@ -577,6 +746,7 @@ cmd_loop() {
             -b|--backend)    backend="$2";        shift 2 ;;
             --skip-push)     skip_push=true;      shift ;;
             --dry-run)       dry_run=true;        shift ;;
+            --no-metrics)    no_metrics=true;     shift ;;
             -v|--verbose)    verbose=true;        shift ;;
             -y|--yes)        assume_yes=true;     shift ;;
             -h|--help)       usage ;;
@@ -641,6 +811,20 @@ cmd_loop() {
     # Build the backend command array now that model is resolved
     build_backend_cmd "$model"
 
+    # Metrics capture (on by default for real runs; see --no-metrics)
+    local metrics_enabled=true
+    ($dry_run || $no_metrics) && metrics_enabled=false
+    local metrics_dir="" metrics_file=""
+    if $metrics_enabled; then
+        # PID suffix keeps runs started within the same second distinct
+        metrics_dir="$ARCHIVE_DIR/metrics/${current_branch//\//-}-$(date +%Y%m%d-%H%M%S)-$$"
+        metrics_file="$metrics_dir/metrics.jsonl"
+        if ! mkdir -p "$metrics_dir" 2>/dev/null; then
+            echo "Warning: cannot create $metrics_dir; metrics disabled for this run" >&2
+            metrics_enabled=false
+        fi
+    fi
+
     local line_width=120
     local bar
     bar=$(printf '━%.0s' $(seq 1 "$line_width"))
@@ -653,6 +837,7 @@ cmd_loop() {
     echo "Model:   $model"
     echo "Max:     $max_iterations iterations"
     [[ -n "$goal" ]] && truncate_line "Goal:    $goal" "$line_width"
+    $metrics_enabled && truncate_line "Metrics: $metrics_file" "$line_width"
     echo "$bar"
 
     # Permission handling:
@@ -707,6 +892,13 @@ cmd_loop() {
         # Snapshot HEAD to detect noops
         local head_before
         head_before=$(git rev-parse HEAD)
+
+        # Snapshot metrics baseline for this iteration
+        local iter_start plan_done_before=0
+        iter_start=$(date +%s)
+        if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
+            plan_done_before=$(grep -c '^\- \[x\]' "IMPLEMENTATION_PLAN.md" || true)
+        fi
 
         # Inject {{GOAL}} into prompt using bash substitution
         local prompt
@@ -790,6 +982,25 @@ cmd_loop() {
 
             # Print jq output (unchanged behaviour)
             echo "$jq_output"
+
+            # Record iteration metrics; a failure here warns but never
+            # interrupts the loop.
+            if $metrics_enabled; then
+                local iter_end raw_file head_after_m
+                iter_end=$(date +%s)
+                raw_file="$metrics_dir/$(printf 'iter-%03d' "$iteration").stream.jsonl"
+                printf '%s\n' "$backend_output" > "$raw_file" 2>/dev/null || true
+                head_after_m=$(git rev-parse HEAD)
+                if write_iteration_metrics "$metrics_file" "$raw_file" "$mode" \
+                    "$current_branch" "$BACKEND_NAME" "$model" "$iteration" \
+                    "$iter_start" "$iter_end" "$head_before" "$head_after_m" \
+                    "$plan_done_before"; then
+                    echo ""
+                    truncate_line "Metrics: $(fmt_duration $((iter_end - iter_start))) wall$(metrics_summary_suffix "$metrics_file")" "$line_width"
+                else
+                    echo "Warning: metrics capture failed for iteration $iteration" >&2
+                fi
+            fi
         fi
 
         # Push changes after each iteration. Plan mode produces no commits
@@ -833,12 +1044,16 @@ cmd_loop() {
     done
 
     echo -e "\nCompleted $iteration iterations."
+    if $metrics_enabled && [[ -s "$metrics_file" ]]; then
+        echo "Metrics recorded: $metrics_file (summarise with 'ralph metrics')"
+    fi
 }
 
 # Main dispatch
 case "${1:-}" in
     sandbox)    shift; cmd_sandbox "$@" ;;
     plan|build) cmd_loop "$@" ;;
+    metrics)    shift; cmd_metrics "$@" ;;
     init)       shift; cmd_init "$@" ;;
     clean)      cmd_clean ;;
     archive)    cmd_archive ;;

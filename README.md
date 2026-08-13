@@ -34,6 +34,7 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`). Pass `--prompts` to also copy prompt templates for local customisation |
 | `archive`         | Move `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` to `.ralph/<timestamp>/`    |
 | `clean`           | Delete `IMPLEMENTATION_PLAN.md` and `PROGRESS.md`                           |
+| `metrics`         | Summarise a run's loop metrics: per-iteration table plus totals (latest run, or pass a `metrics.jsonl` path) |
 | `version`         | Print version                                                                |
 
 ### Options (plan and build)
@@ -46,7 +47,12 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `-b`, `--backend`    | Backend to use: `claude`, `codex`, `copilot`, `pi` (default: `claude`) |
 | `--skip-push`        | Don't push after each build iteration (plan never pushes) |
 | `--dry-run`          | Print what would be executed without running              |
+| `--no-metrics`       | Don't record per-iteration metrics under `.ralph/metrics/` |
 | `-h`, `--help`       | Show help                                                |
+
+### Loop metrics
+
+Every real (non-dry-run) `plan` or `build` run records one JSON line per iteration to `.ralph/metrics/<branch>-<timestamp>-<pid>/metrics.jsonl`, alongside the raw backend event stream (`iter-NNN.stream.jsonl`) for deeper analysis. Captured per iteration: wall-clock and API duration, turn count, cost (USD), token usage (input, output, cache read/write), git activity (commits, files changed, insertions/deletions), `IMPLEMENTATION_PLAN.md` items completed, a tool-call histogram, and a noop flag. The loop prints a one-line summary after each iteration, and `ralph metrics` prints the per-iteration table and run totals. Result-event fields are populated for the `claude` backend; other backends record timing and git activity with the rest as nulls. `.ralph/` is gitignored by `ralph init`, so metrics never touch the working tree the loop commits from.
 
 ### Examples
 
