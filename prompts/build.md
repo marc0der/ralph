@@ -34,6 +34,8 @@ Select the single highest-priority incomplete item from `IMPLEMENTATION_PLAN.md`
 
 Run the project's test suite to validate your changes.
 
+- **Keep test output out of your context.** Run suites through a quiet reporter and/or pipe to `tail -30` (e.g. `npm test 2>&1 | tail -30`); read the full log only when diagnosing a failure it names. Accumulated test output is what fills the context window mid-item.
+- **Don't re-run the full suite after every change.** While iterating, run only the narrowest tests covering the code you touched; run the full suite once, when you believe the item is complete.
 - If tests fail, use an **Opus** reasoning subagent to reason about the root cause before attempting fixes
 - If tests unrelated to your work fail, resolve them as part of this increment
 - If functionality is missing, add it per the specifications
