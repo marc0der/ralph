@@ -44,6 +44,7 @@ Run the project's test suite to validate your changes.
 Once tests pass:
 
 1. Update `IMPLEMENTATION_PLAN.md` — mark the completed item as done (`- [x]`); **never delete it**. The plan is an append-only ledger: completed items stay as a record of what shipped. You may **append** new items if this iteration surfaced follow-up work, but do not remove or rewrite existing ones.
+   - **Completion notes are capped at 3 lines**, appended to the item: what shipped, test counts, and any deviation with its tracking reference (e.g. an `OPEN_QUESTIONS.md` id). The plan is a work queue that every future iteration re-reads in full — the narrative, evidence and reasoning belong in `PROGRESS.md` (step 2), not here.
 2. Append an entry to `PROGRESS.md` following the template defined in its header (append-only — never edit previous entries)
 3. Commit the changes by invoking the **`/commit` skill**. Do NOT compose commits manually. Rules for this iteration:
    - **Atomic commits**: if the working tree contains separable concerns **within this item** (e.g. a refactor *and* the feature it enables, or test additions that stand on their own), produce **multiple commits in one skill invocation** — one per concern — instead of a single grab-bag commit.
