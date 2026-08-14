@@ -1,4 +1,4 @@
-FROM node:20
+FROM node:24
 
 ARG TZ
 ENV TZ="$TZ"
@@ -35,7 +35,7 @@ RUN install -m 0755 -d /etc/apt/keyrings \
      https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
      > /etc/apt/sources.list.d/docker.list \
   && apt-get update \
-  && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
+  && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin docker-buildx-plugin \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # git-delta
