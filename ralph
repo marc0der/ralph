@@ -552,6 +552,18 @@ truncate_line() {
     fi
 }
 
+# First incomplete item in IMPLEMENTATION_PLAN.md, stripped of the checkbox
+# prefix and markdown emphasis — the item the build prompt directs the agent
+# to pick next. Empty when the file is absent or every item is complete.
+#
+# Done in a single sed that quits at the first match rather than piping into
+# head: under `set -o pipefail` a head that closes the pipe early makes the
+# whole pipeline non-zero, which would abort the loop on a long plan.
+next_plan_item() {
+    sed -nE '/^- \[ \]/{ s/^- \[ \] *//; s/\*\*//g; p; q; }' \
+        IMPLEMENTATION_PLAN.md 2>/dev/null
+}
+
 cmd_loop() {
     local mode="$1"
     shift
@@ -703,6 +715,21 @@ cmd_loop() {
             "$(printf '%*s' "$pad_left" '' | tr ' ' '=')" \
             "$iter_label" \
             "$(printf '%*s' "$pad_right" '' | tr ' ' '=')"
+
+        # Announce the iteration's target up front — the loop is otherwise
+        # silent until the backend finishes. Build mode works the plan top
+        # down, so the first incomplete entry is what this iteration will
+        # attempt; re-read each iteration because the previous one moves it.
+        if [[ "$mode" == "build" ]]; then
+            local next_item
+            # An unreadable plan must not abort the loop: announcing is a
+            # convenience, so fall back to silence rather than failing.
+            next_item=$(next_plan_item) || next_item=""
+            if [[ -n "$next_item" ]]; then
+                truncate_line "Next:    $next_item" "$line_width"
+                echo ""
+            fi
+        fi
 
         # Snapshot HEAD to detect noops
         local head_before
