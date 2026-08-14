@@ -65,3 +65,19 @@ load test_helper
     [[ "$status" -eq 0 ]]
     [[ "$output" != *"Next:"* ]]
 }
+
+# Regression: the lookup used to pipe into `head -1`, so on a plan long enough
+# for head to close the pipe early, `set -o pipefail` made the pipeline non-zero
+# and the unguarded assignment aborted the loop under `set -e`.
+@test "a long plan announces its first item without aborting the loop" {
+    "$RALPH" init
+    printf -- '- [ ] **First open item**\n' > IMPLEMENTATION_PLAN.md
+    for i in $(seq 1 2000); do
+        printf -- '- [ ] **Filler item %s**\n' "$i" >> IMPLEMENTATION_PLAN.md
+    done
+
+    run "$RALPH" build --dry-run -n 1
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Next:    First open item"* ]]
+    [[ "$output" == *"Completed 1 iterations."* ]]
+}
