@@ -50,7 +50,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 ### Sandbox
 
 Uses the `devcontainer` CLI to manage container lifecycle. Key details:
-- Base image: Node.js 20 with Claude Code, gh, git, zsh, jq, ripgrep, Bun, uv, SDKMAN
+- Base image: Node.js 24 with Claude Code, gh, git, zsh, jq, ripgrep, Bun, uv, SDKMAN
 - Mounts: workspace, `~/.claude`, `~/.gitconfig`, `~/.ssh`, Docker socket, SSH agent, ralph binary
 - Shell history persists via Docker volumes keyed by a hash of the workspace path
 - Runs as `node` user with passwordless sudo
