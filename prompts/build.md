@@ -29,6 +29,7 @@ Select the single highest-priority incomplete item from `IMPLEMENTATION_PLAN.md`
 - Search the codebase before writing new code; the functionality may already exist
 - If specs are inconsistent, use an **Opus** reasoning subagent with ultrathink to update the specs before implementing
 - You may add logging to debug issues
+- **If the item outgrows the iteration, split it instead of grinding.** When the item is still incomplete after roughly 60 turns of work, or accumulated output is crowding your context: bring what you have built to green, insert new fine-grained item(s) for the remainder **directly after the current item** (splitting is the one case where inserting beats appending — the remainder keeps the original's priority), then mark the current item done with a completion note naming the split-out remainder, and proceed to Phase 4 as normal. A fresh iteration on the remainder is faster and cheaper than finishing at the context ceiling.
 
 ## Phase 3: Verify
 
@@ -64,5 +65,5 @@ Once tests pass:
 - **Implement completely.** Placeholders and stubs waste effort redoing the same work.
 - **Single sources of truth.** Don't duplicate information across files.
 - **Document the why** — in tests, commits, and documentation, capture importance and reasoning.
-- **Keep `IMPLEMENTATION_PLAN.md` current** — mark items done and append new ones, but **never delete**; future iterations depend on it to avoid duplicating effort.
+- **Keep `IMPLEMENTATION_PLAN.md` current** — mark items done and append new ones, but **never delete**; future iterations depend on it to avoid duplicating effort. (Remainders of a split item are inserted after their parent rather than appended, so they keep their priority.)
 - For bugs you notice outside the current item, document them as new items in `IMPLEMENTATION_PLAN.md` instead of fixing them inline — a future iteration will pick them up.
