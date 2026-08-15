@@ -27,6 +27,7 @@ setup() {
     echo "# Implementation Plan" > "$RALPH_CONFIG_DIR/templates/IMPLEMENTATION_PLAN.md"
     echo "# Plan prompt" > "$RALPH_CONFIG_DIR/prompts/plan.md"
     echo "# Build prompt" > "$RALPH_CONFIG_DIR/prompts/build.md"
+    echo "# Review prompt" > "$RALPH_CONFIG_DIR/prompts/review.md"
     echo "# commit skill" > "$RALPH_CONFIG_DIR/skills/commit/SKILL.md"
 }
 
