@@ -535,7 +535,7 @@ require_init_artifacts() {
 # Caller must ensure IMPLEMENTATION_PLAN.md exists (see require_init_artifacts).
 calculate_build_iterations() {
     local count
-    count=$(grep -c '^\- \[ \]' "IMPLEMENTATION_PLAN.md" || true)
+    count=$(grep -c '^- \[ \]' "IMPLEMENTATION_PLAN.md" || true)
 
     if [[ "$count" -eq 0 ]]; then
         echo "Error: no incomplete items in IMPLEMENTATION_PLAN.md. Run 'ralph plan' first." >&2
@@ -599,7 +599,7 @@ write_iteration_metrics() {
 
     local plan_done_after=0 plan_delta=0
     if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
-        plan_done_after=$(grep -c '^\- \[x\]' "IMPLEMENTATION_PLAN.md" || true)
+        plan_done_after=$(grep -c '^- \[x\]' "IMPLEMENTATION_PLAN.md" || true)
     fi
     plan_delta=$(( plan_done_after - plan_done_before ))
     (( plan_delta < 0 )) && plan_delta=0
@@ -898,7 +898,7 @@ cmd_loop() {
         local iter_start plan_done_before=0
         iter_start=$(date +%s)
         if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
-            plan_done_before=$(grep -c '^\- \[x\]' "IMPLEMENTATION_PLAN.md" || true)
+            plan_done_before=$(grep -c '^- \[x\]' "IMPLEMENTATION_PLAN.md" || true)
         fi
 
         # Inject {{GOAL}} into prompt using bash substitution
