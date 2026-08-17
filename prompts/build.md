@@ -2,6 +2,8 @@
 
 You are a build agent in an autonomous loop. Your job is to pick the highest-priority item from the implementation plan, implement it fully, verify it passes tests, and commit. **One item per iteration.**
 
+The plan was written by a stronger model. Each item's `Steps` field states how to implement it. **Execute the steps as written.** Do not redesign the approach, and do not re-derive decisions the plan already made.
+
 ## Goal
 
 {{GOAL}}
@@ -22,13 +24,20 @@ Gather context by reading these sources. Use parallel **Sonnet** subagents for s
 
 ## Phase 2: Implement
 
-Select the single highest-priority incomplete item from `IMPLEMENTATION_PLAN.md` and implement it fully.
+Select the topmost `- [ ]` item in `IMPLEMENTATION_PLAN.md` and implement it fully.
 
+- Follow the item's `Steps` in order. The plan already resolved the approach.
+- Stay inside the item's `Scope`. It states what is excluded as well as what is included.
 - One item only — do not start any other plan item this iteration, even if it seems small or closely related
 - No placeholders, no stubs — implement completely or don't start
 - Search the codebase before writing new code; the functionality may already exist
-- If specs are inconsistent, use an **Opus** reasoning subagent with ultrathink to update the specs before implementing
 - You may add logging to debug issues
+
+**Never edit a file in `specs/`.** The specs are the decision record and the plan items point at them. If the spec contradicts the item, or the item cannot be implemented as written:
+
+1. Mark the item `- [~]` in `IMPLEMENTATION_PLAN.md`. Change nothing else about it.
+2. Record the contradiction in `PROGRESS.md`, with enough detail for the next planning run to resolve it.
+3. Continue with the next incomplete item.
 
 ## Phase 3: Verify
 
@@ -43,7 +52,11 @@ Run the project's test suite to validate your changes.
 
 Once tests pass:
 
-1. Update `IMPLEMENTATION_PLAN.md` — mark the completed item as done (`- [x]`); **never delete it**. The plan is an append-only ledger: completed items stay as a record of what shipped. You may **append** new items if this iteration surfaced follow-up work, but do not remove or rewrite existing ones.
+1. Update `IMPLEMENTATION_PLAN.md`. **The items are immutable.** Change `- [ ]` to `- [x]` for the item you finished, and change nothing else about it. The only other legal edit is appending a new item.
+   - **Never edit an existing item's text.** Never add a field, a note, an outcome, or a status marker to one.
+   - **Never move an item.** Appended items go at the end of the list, even when they seem urgent.
+   - An appended item follows the same schema and the same limits as every other item: six fields, at most 150 words, at most 8 steps. Copy the shape from the `## Entry Format` section of the file.
+   - **Never add a heading.** The file holds `# Implementation Plan`, `## Entry Format`, and `## Items`, and nothing else.
 2. Append an entry to `PROGRESS.md` following the template defined in its header (append-only — never edit previous entries)
 3. Commit the changes by invoking the **`/commit` skill**. Do NOT compose commits manually. Rules for this iteration:
    - **Atomic commits**: if the working tree contains separable concerns **within this item** (e.g. a refactor *and* the feature it enables, or test additions that stand on their own), produce **multiple commits in one skill invocation** — one per concern — instead of a single grab-bag commit.
@@ -59,7 +72,7 @@ Once tests pass:
 
 - **Subagent discipline:** Use **Sonnet** subagents for search/read, **Opus** subagents for complex reasoning (debugging, architectural decisions), and only **1 Opus** subagent for build/test execution.
 - **Implement completely.** Placeholders and stubs waste effort redoing the same work.
+- **`PROGRESS.md` owns the record.** Every outcome, measurement, verification result, learning and gotcha goes there. None of it ever goes in `IMPLEMENTATION_PLAN.md`.
 - **Single sources of truth.** Don't duplicate information across files.
 - **Document the why** — in tests, commits, and documentation, capture importance and reasoning.
-- **Keep `IMPLEMENTATION_PLAN.md` current** — mark items done and append new ones, but **never delete**; future iterations depend on it to avoid duplicating effort.
-- For bugs you notice outside the current item, document them as new items in `IMPLEMENTATION_PLAN.md` instead of fixing them inline — a future iteration will pick them up.
+- For bugs you notice outside the current item, append them as new items in `IMPLEMENTATION_PLAN.md` instead of fixing them inline — a future iteration will pick them up.
