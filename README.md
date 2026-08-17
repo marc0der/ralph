@@ -29,7 +29,7 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `sandbox`         | Enter a devcontainer shell for the current project                           |
 | `sandbox clean`   | Remove the devcontainer for the current project                              |
 | `sandbox --rebuild` | Rebuild the container image from scratch                                   |
-| `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` (default: 3 iterations) |
+| `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` (max 3 iterations; exits as soon as a pass changes nothing) |
 | `build`           | Pick the next item, implement, test, commit, push (default: 50 iterations)   |
 | `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`). Pass `--prompts` to also copy prompt templates for local customisation |
 | `archive`         | Move `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` to `.ralph/<timestamp>/`    |
@@ -144,6 +144,39 @@ Ralph iterations create and maintain these files in your project:
 **Note:** `CLAUDE.md` and `AGENTS.md` are your project's own configuration files for Claude Code and Codex respectively — ralph reads them but never creates or modifies them. The prompt templates reference both files so each backend gets relevant project-specific guidance.
 
 `PROMPT_plan.md` and `PROMPT_build.md` are optional project-local prompt overrides (see [Prompt resolution](#prompt-resolution)).
+
+### The implementation plan contract
+
+`specs/` states **what** to build. `IMPLEMENTATION_PLAN.md` states **how** to build it. The plan is a work queue, not a scratchpad — every line in it is an instruction or a pass/fail criterion. Outcomes, evidence and learnings go to `PROGRESS.md`; decisions and their reasoning go to `specs/`.
+
+Each item uses six fields and nothing else:
+
+```markdown
+- [ ] **Retarget the polkit agent to the Sway session**
+  Spec: `specs/plasma-sway-remnants.md` item 3
+  Scope: Add a session-target option. Do not change the Plasma agent.
+  Files: `modules/home/keyring-services.nix`, `hosts/neomorph/home.nix`
+  Steps:
+  1. Add `polkitSessionTarget` to `keyring-services.nix`. Default it to `graphical-session.target`.
+  2. Set `polkitSessionTarget` to `sway-session.target` in `hosts/neomorph/home.nix`.
+  Done when: Two `NRestarts` reads 30 seconds apart return the same number.
+```
+
+- **At most 150 words, 14 lines and 8 steps per item.** An item needing a ninth step is too large for one build iteration and gets split.
+- **Steps name greppable tokens** — symbols, option paths, literal values, files to copy an idiom from. Never line numbers, never pasted code, because an item runs many commits after it is written.
+- **`Done when` must be checkable without a human.** A criterion needing a fresh login or a visual check belongs in the spec's acceptance criteria, not the plan — an item nobody can verify never completes, and the build loop selects it forever.
+- **Items are written in [Simplified Technical English](https://www.asd-ste100.org/)** — one instruction per sentence, 20 words maximum, active imperative present tense.
+
+Markers are `- [ ]` open, `- [x]` shipped, and `- [~]` superseded or blocked. Only `- [ ]` sizes the build loop, so a superseded item neither inflates the iteration count nor counts as shipped work.
+
+The plan phase authors and refines items freely, inserting and reordering to keep position meaningful. **Once the build phase starts, items are immutable** — a build iteration may only tick a checkbox or append a new item at the end. When an item turns out to be wrong or its spec contradicts it, the build agent marks it `- [~]`, records why in `PROGRESS.md`, and moves on; the next planning run writes the replacement.
+
+This split assumes a capable model writes the plan and a cheaper one executes it. Use `-m` to match:
+
+```bash
+ralph plan                       # default model authors the plan
+ralph build -n 10 -m sonnet      # a cheaper model follows the steps
+```
 
 ### Starting a new goal
 

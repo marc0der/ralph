@@ -30,7 +30,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 
 | Command | Purpose |
 |---------|---------|
-| `plan` | Run planning loop (default: 3 iterations) — reads specs/source, produces `IMPLEMENTATION_PLAN.md` |
+| `plan` | Run planning loop (max 3 iterations, exits on convergence) — reads specs/source, produces `IMPLEMENTATION_PLAN.md` |
 | `build` | Run build loop (default: 50 iterations) — picks next task, implements, tests, commits, pushes |
 | `sandbox` | Enter/manage devcontainer (`sandbox`, `sandbox clean`, `sandbox --rebuild`) |
 | `init` | Initialize workspace artifacts and directories |
@@ -45,6 +45,13 @@ Ralph is a single Bash script (`ralph`) with these commands:
 4. Substitute `{{GOAL}}` into prompt via bash parameter expansion
 5. Pipe prompt to the backend command in a loop (e.g., `claude -p` or `codex exec`)
 6. Parse JSON output with jq using backend-specific flags and filters, push changes after each iteration
+7. Detect an early exit. Build mode watches `HEAD` and stops after 2 consecutive noops, unless `-n` was passed. Plan mode never commits, so it fingerprints `IMPLEMENTATION_PLAN.md` plus `specs/` via `plan_state_hash` and stops on the first pass that changes neither; `-n` caps a plan run but never disables the check
+
+### The implementation plan contract
+
+`specs/` states *what* to build; `IMPLEMENTATION_PLAN.md` states *how*. Both prompts enforce a closed six-field item schema (title, `Spec`, `Scope`, `Files`, `Steps`, `Done when`), a cap of 150 words / 14 lines / 8 steps per item, and Simplified Technical English. The plan file holds exactly three headings and never carries outcomes, evidence or status — those belong in `PROGRESS.md`.
+
+Items are mutable during the plan phase and immutable during the build phase, where the only legal edits are ticking a checkbox and appending a new item. Markers are `- [ ]`, `- [x]`, and `- [~]` (superseded or blocked). `calculate_build_iterations` counts only `^- \[ \]`, so `[~]` items neither size the build loop nor count as shipped work. When changing these rules, keep `prompts/plan.md`, `prompts/build.md` and `templates/IMPLEMENTATION_PLAN.md` in agreement — the prompts win on any disagreement.
 
 ### Sandbox
 
