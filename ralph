@@ -537,12 +537,24 @@ require_init_artifacts() {
     fi
 }
 
+# The part of the plan that holds real items. The '## Entry Format' section
+# carries a template entry at column zero, which must never count as work.
+# Plans without that heading are read whole, so older plans still work.
+plan_items_body() {
+    local file="${1:-IMPLEMENTATION_PLAN.md}"
+    if grep -q '^## Items$' "$file" 2>/dev/null; then
+        sed -n '/^## Items$/,$p' "$file"
+    else
+        cat "$file"
+    fi
+}
+
 # Calculate build iterations from IMPLEMENTATION_PLAN.md.
 # Counts incomplete items (- [ ]) and adds 20% headroom (rounded up, minimum 1).
 # Caller must ensure IMPLEMENTATION_PLAN.md exists (see require_init_artifacts).
 calculate_build_iterations() {
     local count
-    count=$(grep -c '^- \[ \]' "IMPLEMENTATION_PLAN.md" || true)
+    count=$(plan_items_body | grep -c '^- \[ \]' || true)
 
     if [[ "$count" -eq 0 ]]; then
         echo "Error: no incomplete items in IMPLEMENTATION_PLAN.md. Run 'ralph plan' first." >&2
