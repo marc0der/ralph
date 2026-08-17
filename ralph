@@ -96,6 +96,20 @@ backend_pi() {
     }
 }
 
+# --- Utilities ---
+
+# Hash stdin. Linux ships md5sum, macOS ships md5.
+md5_hash() {
+    if command -v md5sum &>/dev/null; then
+        md5sum | cut -d' ' -f1
+    elif command -v md5 &>/dev/null; then
+        md5
+    else
+        echo "Error: no md5sum or md5 command found — install coreutils" >&2
+        return 1
+    fi
+}
+
 resolve_backend() {
     local name="$1"
     local found=false
@@ -432,14 +446,7 @@ cmd_sandbox() {
 
     # Shell history volume (deterministic per workspace)
     local workspace_hash
-    if command -v md5sum &>/dev/null; then
-        workspace_hash=$(echo -n "$PWD" | md5sum | cut -c1-12)
-    elif command -v md5 &>/dev/null; then
-        workspace_hash=$(echo -n "$PWD" | md5 | cut -c1-12)
-    else
-        echo "Error: no md5sum or md5 command found — install coreutils" >&2
-        return 1
-    fi
+    workspace_hash=$(echo -n "$PWD" | md5_hash | cut -c1-12) || return 1
     mounts+=("type=volume,source=ralph-history-${workspace_hash},target=/commandhistory")
 
     local mount_flags=()
