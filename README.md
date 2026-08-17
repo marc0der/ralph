@@ -32,13 +32,14 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `sandbox --no-inhibit-sleep` | Don't hold the host awake for the sandbox session                    |
 | `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` (default: 3 iterations) |
 | `build`           | Pick the next item, implement, test, commit, push (default: 50 iterations)   |
+| `review`          | Review the branch diff against specs and guardrails, write `REVIEW.md` — changes nothing else (default: 1 iteration) |
 | `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`). Pass `--prompts` to also copy prompt templates for local customisation |
 | `archive`         | Move `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` to `.ralph/<timestamp>/`    |
 | `clean`           | Delete `IMPLEMENTATION_PLAN.md` and `PROGRESS.md`                           |
 | `metrics`         | Summarise a run's loop metrics: per-iteration table plus totals (latest run, or pass a `metrics.jsonl` path) |
 | `version`         | Print version                                                                |
 
-### Options (plan and build)
+### Options (plan, build and review)
 
 | Flag                 | Description                                              |
 |----------------------|----------------------------------------------------------|
@@ -46,10 +47,14 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `-g`, `--goal`       | Goal injected into the prompt template                   |
 | `-m`, `--model`      | Model to use (default depends on backend)                |
 | `-b`, `--backend`    | Backend to use: `claude`, `codex`, `copilot`, `pi` (default: `claude`) |
-| `--skip-push`        | Don't push after each build iteration (plan never pushes) |
+| `--skip-push`        | Don't push after each build iteration (plan and review never push) |
 | `--dry-run`          | Print what would be executed without running              |
 | `--no-metrics`       | Don't record per-iteration metrics under `.ralph/metrics/` |
 | `-h`, `--help`       | Show help                                                |
+
+### Review
+
+`ralph review` runs a single read-only verification pass over the current branch: it diffs against the merge base with the default branch, maps every substantive change back to a spec or plan item, flags over-engineering (speculative abstraction, single-caller indirection, pattern duplication), and checks test integrity (weakened, deleted, or missing tests) and guardrail conformance. The output is `REVIEW.md` — verdict, traceability table, severity-ordered findings, and questions for the author — and nothing else: no source edits, no commits, no pushes. Use `-g` to narrow the focus or name a different diff base, and `-n` to run more than one pass. `REVIEW.md` is local-only (gitignored by `ralph init`), like the other loop artifacts.
 
 ### Loop metrics
 
@@ -71,6 +76,8 @@ ralph plan -b codex -g "design the auth module"     # plan with codex
 ralph build --dry-run -b codex                      # dry-run with codex
 ralph build -b copilot -n 10                        # 10 iterations with copilot
 ralph build -b pi -n 10                             # 10 iterations with pi
+ralph review                                        # review the branch, write REVIEW.md
+ralph review -g "Focus on FT-001 rule coverage"     # review with a focus
 ralph archive                                       # archive before starting fresh
 ralph init                                          # initialise workspace
 ralph init --prompts                                # also copy prompts for customisation
@@ -128,8 +135,8 @@ sdk env install
 
 Ralph looks for prompts in this order:
 
-1. **Project-local** — `PROMPT_plan.md` / `PROMPT_build.md` in the working directory
-2. **Installed defaults** — `~/.config/ralph/prompts/plan.md` / `build.md`
+1. **Project-local** — `PROMPT_plan.md` / `PROMPT_build.md` / `PROMPT_review.md` in the working directory
+2. **Installed defaults** — `~/.config/ralph/prompts/plan.md` / `build.md` / `review.md`
 
 The default prompts reference Anthropic model names (Sonnet, Opus) for subagent selection. If you're using a non-Claude backend, run `ralph init --prompts` to copy the defaults into your project and edit them to suit your backend.
 
@@ -143,11 +150,12 @@ Ralph iterations create and maintain these files in your project:
 | `AGENTS.md`              | Operational guardrails for the Codex backend — equivalent of `CLAUDE.md` for codex projects |
 | `IMPLEMENTATION_PLAN.md` | Prioritised task list — shared state between iterations       |
 | `PROGRESS.md`            | Append-only log of what each iteration did, learned, and broke|
+| `REVIEW.md`              | Output of `ralph review` — verdict, traceability, findings    |
 | `specs/`                 | Feature specifications driving the work                       |
 
 **Note:** `CLAUDE.md` and `AGENTS.md` are your project's own configuration files for Claude Code and Codex respectively — ralph reads them but never creates or modifies them. The prompt templates reference both files so each backend gets relevant project-specific guidance.
 
-`PROMPT_plan.md` and `PROMPT_build.md` are optional project-local prompt overrides (see [Prompt resolution](#prompt-resolution)).
+`PROMPT_plan.md`, `PROMPT_build.md` and `PROMPT_review.md` are optional project-local prompt overrides (see [Prompt resolution](#prompt-resolution)).
 
 ### Starting a new goal
 

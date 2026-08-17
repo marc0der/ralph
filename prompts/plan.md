@@ -27,6 +27,7 @@ Look for:
 - TODOs, placeholders, and minimal/stub implementations
 - Skipped or flaky tests
 - Inconsistent patterns across the codebase
+- Over-engineering: speculative abstraction or configurability no spec asks for, single-caller indirection, several patterns solving the same concern — simplification work belongs in the plan as first-class items
 - Missing elements needed to achieve the goal
 
 **Never assume something is missing.** Confirm with a code search before flagging it. If an element is genuinely missing, author its specification at `specs/FILENAME.md`.

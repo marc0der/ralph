@@ -6,8 +6,10 @@ CONFIG_DIR="${RALPH_CONFIG_DIR:-$HOME/.config/ralph}"
 
 # Default cap for plan mode (build mode calculates from the plan)
 PLAN_DEFAULT_CAP=3
+# Review is a single read-only pass by default; use -n to run more
+REVIEW_DEFAULT_CAP=1
 
-ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md PROMPT_plan.md PROMPT_build.md)
+ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md REVIEW.md PROMPT_plan.md PROMPT_build.md PROMPT_review.md)
 ARCHIVE_DIR=".ralph"
 
 # Rate-limit / usage-limit retry defaults (see cmd_loop's retry wrapper).
@@ -128,7 +130,7 @@ ralph — autonomous AI coding agent loop runner
 Usage:
   ralph sandbox [--rebuild] [--no-inhibit-sleep]
   ralph sandbox clean
-  ralph <plan|build> [options]
+  ralph <plan|build|review> [options]
   ralph init
   ralph clean
   ralph archive
@@ -140,6 +142,7 @@ Modes:
   sandbox clean  Remove the devcontainer for the current project
   plan           Analyse specs and source, create/update IMPLEMENTATION_PLAN.md
   build          Pick the next item, implement, test, commit, push
+  review         Review the branch diff against specs, write REVIEW.md (changes nothing else)
   init           Initialise workspace (PROGRESS.md, IMPLEMENTATION_PLAN.md, specs/)
   clean          Delete IMPLEMENTATION_PLAN.md and PROGRESS.md
   archive        Move IMPLEMENTATION_PLAN.md and PROGRESS.md to .ralph/<timestamp>/
@@ -154,7 +157,7 @@ Init options:
   -p, --prompts      Also copy prompt templates for local customisation
 
 Options:
-  -n, --iterations N   Max iterations (plan default: 3, build default: 50)
+  -n, --iterations N   Max iterations (plan default: 3, build default: from plan, review default: 1)
   -g, --goal TEXT      Goal to inject into the prompt template
   -m, --model MODEL    Model to use (default depends on backend)
   -b, --backend NAME   Backend to use: claude, codex, copilot, pi (default: claude)
@@ -179,6 +182,8 @@ Examples:
   ralph build --iterations 5 --goal "Add PATCH endpoint"
   ralph build --max-retries-per-iteration 3
   ralph build --no-retry
+  ralph review
+  ralph review -g "Focus on FT-001 business-rule coverage"
   ralph sandbox
   ralph sandbox --rebuild
   ralph sandbox --no-inhibit-sleep
@@ -283,7 +288,7 @@ cmd_init() {
     fi
     # Ensure file ends with a newline before appending
     [[ -s .gitignore && $(tail -c1 .gitignore) != "" ]] && echo >> .gitignore
-    local ignore_entries=("IMPLEMENTATION_PLAN.md" "PROGRESS.md" ".ralph/" "PROMPT_plan.md" "PROMPT_build.md")
+    local ignore_entries=("IMPLEMENTATION_PLAN.md" "PROGRESS.md" "REVIEW.md" ".ralph/" "PROMPT_plan.md" "PROMPT_build.md" "PROMPT_review.md")
     for entry in "${ignore_entries[@]}"; do
         if ! grep -qxF "$entry" .gitignore; then
             echo "$entry" >> .gitignore
@@ -299,7 +304,7 @@ cmd_init() {
             echo "Run the installer first: ./install.sh"
             exit 1
         fi
-        for file in plan.md build.md; do
+        for file in plan.md build.md review.md; do
             scaffold "PROMPT_${file}" "$prompts_dir/$file"
         done
     fi
@@ -563,6 +568,10 @@ require_init_artifacts() {
     case "$mode" in
         plan)  required=(IMPLEMENTATION_PLAN.md) ;;
         build) required=(IMPLEMENTATION_PLAN.md PROGRESS.md) ;;
+        # Review scaffolds nothing: it writes REVIEW.md afresh and reads the
+        # plan/progress files only if they happen to exist. Return before the
+        # loop below — expanding an empty array trips set -u on bash < 4.4.
+        *)     return 0 ;;
     esac
 
     local missing=()
@@ -923,8 +932,9 @@ cmd_loop() {
     # Resolve iteration count from defaults/heuristics when -n wasn't passed.
     if ! $hard_override; then
         case "$mode" in
-            plan)  max_iterations=$PLAN_DEFAULT_CAP ;;
-            build) max_iterations=$(calculate_build_iterations) ;;
+            plan)   max_iterations=$PLAN_DEFAULT_CAP ;;
+            build)  max_iterations=$(calculate_build_iterations) ;;
+            review) max_iterations=$REVIEW_DEFAULT_CAP ;;
         esac
     fi
 
@@ -1216,8 +1226,8 @@ cmd_loop() {
             fi
         fi
 
-        # Push changes after each iteration. Plan mode produces no commits
-        # (IMPLEMENTATION_PLAN.md is gitignored), so there is nothing to push.
+        # Push changes after each iteration. Plan and review modes produce no
+        # commits (their artifacts are gitignored), so there is nothing to push.
         if [[ "$mode" == "build" ]]; then
             if $dry_run; then
                 echo "[dry-run] Would run: git push origin $current_branch"
@@ -1264,8 +1274,8 @@ cmd_loop() {
 
 # Main dispatch
 case "${1:-}" in
-    sandbox)    shift; cmd_sandbox "$@" ;;
-    plan|build) cmd_loop "$@" ;;
+    sandbox)           shift; cmd_sandbox "$@" ;;
+    plan|build|review) cmd_loop "$@" ;;
     metrics)    shift; cmd_metrics "$@" ;;
     init)       shift; cmd_init "$@" ;;
     clean)      cmd_clean ;;

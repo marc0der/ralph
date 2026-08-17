@@ -27,6 +27,9 @@ Select the single highest-priority incomplete item from `IMPLEMENTATION_PLAN.md`
 - One item only — do not start any other plan item this iteration, even if it seems small or closely related
 - No placeholders, no stubs — implement completely or don't start
 - Search the codebase before writing new code; the functionality may already exist
+- **Follow the dominant existing pattern** for the concern you are touching (routing, validation, data access, error handling, testing). Find a prior example and match its shape; introduce a new pattern only when the specs make the existing one impossible
+- **No speculative generality.** Build exactly what the current item's spec requires: no extra configuration options, parameters, extension points, or "while I'm here" flexibility without a spec behind them
+- **Prefer duplication over premature abstraction.** Do not introduce a new abstraction layer for fewer than three concrete uses; two similar blocks of plain code are cheaper to review than one clever indirection
 - If specs are inconsistent, use an **Opus** reasoning subagent with ultrathink to update the specs before implementing
 - You may add logging to debug issues
 - **If the item outgrows the iteration, split it instead of grinding.** When the item is still incomplete after roughly 60 turns of work, or accumulated output is crowding your context: bring what you have built to green, insert new fine-grained item(s) for the remainder **directly after the current item** (splitting is the one case where inserting beats appending — the remainder keeps the original's priority), then mark the current item done with a completion note naming the split-out remainder, and proceed to Phase 4 as normal. A fresh iteration on the remainder is faster and cheaper than finishing at the context ceiling.
@@ -42,9 +45,18 @@ Run the project's test suite to validate your changes.
 - If functionality is missing, add it per the specifications
 - **Blocking Backpressure**: If the item involves frontend user interaction or workflows, verify with `dev-browser --headless` against `http://localhost:3000`.
 
-## Phase 4: Finalise
+## Phase 4: Simplify
 
-Once tests pass:
+Once tests pass, re-read the full diff for this item as a reviewer would, and remove anything that makes it harder to check than it needs to be:
+
+- Unused branches, parameters, and dead configuration
+- Indirection with a single caller; abstractions the item didn't need
+- Bespoke helpers that duplicate the standard library or an existing utility
+- A second way of doing something the codebase already does one way
+
+Tests must stay green throughout: if a simplification breaks a test, revert the simplification, never the test. If nothing needs simplifying, move on — do not churn working code for style's sake.
+
+## Phase 5: Finalise
 
 1. Update `IMPLEMENTATION_PLAN.md` — mark the completed item as done (`- [x]`); **never delete it**. The plan is an append-only ledger: completed items stay as a record of what shipped. You may **append** new items if this iteration surfaced follow-up work, but do not remove or rewrite existing ones.
    - **Completion notes are capped at 3 lines**, appended to the item: what shipped, test counts, and any deviation with its tracking reference (e.g. an `OPEN_QUESTIONS.md` id). The plan is a work queue that every future iteration re-reads in full — the narrative, evidence and reasoning belong in `PROGRESS.md` (step 2), not here.
@@ -62,6 +74,7 @@ Once tests pass:
 ## Constraints
 
 - **Subagent discipline:** Use **Sonnet** subagents for search/read, **Opus** subagents for complex reasoning (debugging, architectural decisions), and only **1 Opus** subagent for build/test execution.
+- **Boring code wins.** The output is reviewed by a human; the best implementation is the one that looks obvious in review. Cleverness that saves lines but costs comprehension is a defect, not a contribution.
 - **Implement completely.** Placeholders and stubs waste effort redoing the same work.
 - **Single sources of truth.** Don't duplicate information across files.
 - **Document the why** — in tests, commits, and documentation, capture importance and reasoning.
