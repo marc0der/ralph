@@ -565,6 +565,25 @@ calculate_build_iterations() {
     echo $(( (count * 6 + 4) / 5 ))
 }
 
+# Fingerprint the artifacts a plan iteration is allowed to change.
+# Plan mode never commits (IMPLEMENTATION_PLAN.md is gitignored), so HEAD cannot
+# detect progress. A pass that leaves this hash unchanged has converged.
+plan_state_hash() {
+    {
+        if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
+            cat "IMPLEMENTATION_PLAN.md"
+        fi
+        if [[ -d "specs" ]]; then
+            # Hash names as well as contents so adding or removing a spec counts
+            # as a change. LC_ALL=C keeps the order stable across platforms.
+            find specs -type f | LC_ALL=C sort | while IFS= read -r spec; do
+                echo "$spec"
+                cat "$spec"
+            done
+        fi
+    } 2>/dev/null | md5_hash
+}
+
 truncate_line() {
     local text="$1" max="$2"
     if [[ ${#text} -gt $max ]]; then
@@ -604,6 +623,7 @@ iso_utc() {
 write_iteration_metrics() {
     local metrics_file="$1" raw_file="$2" mode="$3" branch="$4" backend="$5" model="$6"
     local iteration="$7" started="$8" ended="$9" head_before="${10}" head_after="${11}" plan_done_before="${12}"
+    local plan_noop="${13:-}"
 
     local commits=0 stat="" files="" ins="" del="" noop=true
     if [[ "$head_before" != "$head_after" ]]; then
@@ -616,9 +636,15 @@ write_iteration_metrics() {
     fi
     files=${files:-0}; ins=${ins:-0}; del=${del:-0}
 
+    # Plan iterations never commit, so HEAD cannot describe them. The caller
+    # passes a verdict derived from the plan artifacts instead.
+    if [[ -n "$plan_noop" ]]; then
+        noop=$plan_noop
+    fi
+
     local plan_done_after=0 plan_delta=0
     if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
-        plan_done_after=$(grep -c '^- \[x\]' "IMPLEMENTATION_PLAN.md" || true)
+        plan_done_after=$(plan_items_body | grep -c '^- \[x\]' || true)
     fi
     plan_delta=$(( plan_done_after - plan_done_before ))
     (( plan_delta < 0 )) && plan_delta=0
@@ -909,15 +935,19 @@ cmd_loop() {
             "$iter_label" \
             "$(printf '%*s' "$pad_right" '' | tr ' ' '=')"
 
-        # Snapshot HEAD to detect noops
-        local head_before
+        # Snapshot HEAD to detect noops. Plan mode never commits, so it
+        # fingerprints the artifacts it is allowed to change instead.
+        local head_before plan_state_before="" plan_state_after=""
         head_before=$(git rev-parse HEAD)
+        if [[ "$mode" == "plan" ]]; then
+            plan_state_before=$(plan_state_hash)
+        fi
 
         # Snapshot metrics baseline for this iteration
         local iter_start plan_done_before=0
         iter_start=$(date +%s)
         if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
-            plan_done_before=$(grep -c '^- \[x\]' "IMPLEMENTATION_PLAN.md" || true)
+            plan_done_before=$(plan_items_body | grep -c '^- \[x\]' || true)
         fi
 
         # Inject {{GOAL}} into prompt using bash substitution
@@ -1003,6 +1033,18 @@ cmd_loop() {
             # Print jq output (unchanged behaviour)
             echo "$jq_output"
 
+            # Fingerprint the plan artifacts after the pass. Plan mode uses this
+            # instead of HEAD for both the metrics noop flag and convergence.
+            local plan_noop=""
+            if [[ "$mode" == "plan" ]]; then
+                plan_state_after=$(plan_state_hash)
+                if [[ "$plan_state_before" == "$plan_state_after" ]]; then
+                    plan_noop=true
+                else
+                    plan_noop=false
+                fi
+            fi
+
             # Record iteration metrics; a failure here warns but never
             # interrupts the loop.
             if $metrics_enabled; then
@@ -1017,7 +1059,7 @@ cmd_loop() {
                 if write_iteration_metrics "$metrics_file" "$raw_file" "$mode" \
                     "$current_branch" "$BACKEND_NAME" "$model" "$iteration" \
                     "$iter_start" "$iter_end" "$head_before" "$head_after_m" \
-                    "$plan_done_before"; then
+                    "$plan_done_before" "$plan_noop"; then
                     echo ""
                     truncate_line "Metrics: $(fmt_duration $((iter_end - iter_start))) wall$(metrics_summary_suffix "$metrics_file")" "$line_width"
                 else
@@ -1049,19 +1091,29 @@ cmd_loop() {
             fi
         fi
 
-        # Noop detection: exit early after 2 consecutive noops (build mode only, unless -n was passed).
-        # Plan mode doesn't produce commits (IMPLEMENTATION_PLAN.md is gitignored), so HEAD never advances.
-        if [[ "$mode" == "build" ]] && ! $hard_override && ! $dry_run; then
-            local head_after
-            head_after=$(git rev-parse HEAD)
-            if [[ "$head_before" == "$head_after" ]]; then
-                consecutive_noops=$((consecutive_noops + 1))
-                if [[ $consecutive_noops -ge 2 ]]; then
-                    echo -e "\nNo changes detected for 2 consecutive iterations — exiting early."
+        # Early exit. Build mode watches HEAD and tolerates one noop; -n overrides it.
+        # Plan mode never commits (IMPLEMENTATION_PLAN.md is gitignored), so it
+        # watches the plan artifacts instead. A pass that changes nothing has
+        # converged, and there is no second-chance iteration to wait for: -n caps
+        # a plan run but never disables the check.
+        if ! $dry_run; then
+            if [[ "$mode" == "plan" ]]; then
+                if [[ "$plan_state_before" == "$plan_state_after" ]]; then
+                    echo -e "\nPlan converged — pass $iteration changed nothing. Exiting early."
                     break
                 fi
-            else
-                consecutive_noops=0
+            elif ! $hard_override; then
+                local head_after
+                head_after=$(git rev-parse HEAD)
+                if [[ "$head_before" == "$head_after" ]]; then
+                    consecutive_noops=$((consecutive_noops + 1))
+                    if [[ $consecutive_noops -ge 2 ]]; then
+                        echo -e "\nNo changes detected for 2 consecutive iterations — exiting early."
+                        break
+                    fi
+                else
+                    consecutive_noops=0
+                fi
             fi
         fi
     done
