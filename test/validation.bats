@@ -144,6 +144,17 @@ load test_helper
     [[ "$output" == *"Max:     2 iterations"* ]]
 }
 
+@test "build tolerates trailing whitespace on the Items heading" {
+    # A stray space must not send counting back to the whole-file fallback,
+    # which would re-count the Entry Format exemplar.
+    "$RALPH" init
+    sed -i.bak 's/^## Items$/## Items /' IMPLEMENTATION_PLAN.md && rm -f IMPLEMENTATION_PLAN.md.bak
+    printf -- '- [ ] **Real task**\n' >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" build --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Max:     2 iterations"* ]]
+}
+
 @test "build -n overrides calculated iterations" {
     echo "- [ ] **Task one**" > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md

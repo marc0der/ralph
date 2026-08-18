@@ -588,6 +588,51 @@ MOCK
     [[ "$output" == *"Completed 2 iterations"* ]]
 }
 
+@test "plan counts an edit to a symlinked spec as progress" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin" "$TEST_DIR/external"
+    echo "# external spec" > "$TEST_DIR/external/linked.md"
+    ln -s "$TEST_DIR/external/linked.md" specs/linked.md
+    # find without -L skips symlinks, which would make edits here invisible and
+    # let the loop declare convergence while work is still landing.
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+CALL_LOG="$TEST_DIR/call_count"
+count=0
+[[ -f "\$CALL_LOG" ]] && count=\$(cat "\$CALL_LOG")
+count=\$((count + 1))
+echo "\$count" > "\$CALL_LOG"
+if [[ "\$count" -eq 1 ]]; then
+    echo "edited on pass 1" >> "$TEST_DIR/external/linked.md"
+fi
+echo '{"type":"result","result":"planning"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Plan converged — pass 2 changed nothing"* ]]
+}
+
+@test "plan survives an unreadable spec file" {
+    [[ "$EUID" -ne 0 ]] || skip "root bypasses file permissions"
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    # A spec the loop cannot read must not abort the run under set -e/pipefail.
+    echo "# secret" > specs/unreadable.md
+    chmod 000 specs/unreadable.md
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"result","result":"planning"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    chmod 644 specs/unreadable.md
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Plan converged"* ]]
+}
+
 @test "plan convergence exit still applies when -n is passed" {
     "$RALPH" init
     mkdir -p "$TEST_DIR/bin"

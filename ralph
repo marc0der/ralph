@@ -542,8 +542,8 @@ require_init_artifacts() {
 # Plans without that heading are read whole, so older plans still work.
 plan_items_body() {
     local file="${1:-IMPLEMENTATION_PLAN.md}"
-    if grep -q '^## Items$' "$file" 2>/dev/null; then
-        sed -n '/^## Items$/,$p' "$file"
+    if grep -qE '^## Items[[:space:]]*$' "$file" 2>/dev/null; then
+        sed -n '/^## Items[[:space:]]*$/,$p' "$file"
     else
         cat "$file"
     fi
@@ -576,9 +576,10 @@ plan_state_hash() {
         if [[ -d "specs" ]]; then
             # Hash names as well as contents so adding or removing a spec counts
             # as a change. LC_ALL=C keeps the order stable across platforms.
-            find specs -type f | LC_ALL=C sort | while IFS= read -r spec; do
+            # -L follows symlinked specs; an unreadable one must not abort the run.
+            find -L specs -type f | LC_ALL=C sort | while IFS= read -r spec; do
                 echo "$spec"
-                cat "$spec"
+                cat -- "$spec" || true
             done
         fi
     } 2>/dev/null | md5_hash

@@ -22,7 +22,10 @@ setup() {
     export RALPH_CONFIG_DIR="$TEST_DIR/.ralph-config"
     mkdir -p "$RALPH_CONFIG_DIR/templates" "$RALPH_CONFIG_DIR/prompts" "$RALPH_CONFIG_DIR/skills/commit"
     echo "# Progress" > "$RALPH_CONFIG_DIR/templates/PROGRESS.md"
-    echo "# Implementation Plan" > "$RALPH_CONFIG_DIR/templates/IMPLEMENTATION_PLAN.md"
+    # Use the real plan template, not a stub: it carries the '## Items' heading
+    # and a column-zero exemplar entry, and item counting depends on both.
+    cp "$BATS_TEST_DIRNAME/../templates/IMPLEMENTATION_PLAN.md" \
+        "$RALPH_CONFIG_DIR/templates/IMPLEMENTATION_PLAN.md"
     echo "# Plan prompt" > "$RALPH_CONFIG_DIR/prompts/plan.md"
     echo "# Build prompt" > "$RALPH_CONFIG_DIR/prompts/build.md"
     echo "# commit skill" > "$RALPH_CONFIG_DIR/skills/commit/SKILL.md"
