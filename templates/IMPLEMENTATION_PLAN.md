@@ -34,7 +34,7 @@ Markers:
 
 - `- [ ]` open
 - `- [x]` shipped
-- `- [~]` superseded or blocked; a replacement item takes its place in the list
+- `- [~]` superseded or blocked; never delete it — add a replacement item instead
 
 Anchor every marker at column zero. Never nest one item under another.
 

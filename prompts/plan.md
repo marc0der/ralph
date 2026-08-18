@@ -86,7 +86,8 @@ An item nobody can verify never completes. The build loop then selects it foreve
 - Refine any open item freely. Keep every revision inside the limits above.
 - Insert a new item at its correct position. Position is priority.
 - Reorder open items when you discover a dependency.
-- Never move an item marked `[x]` or `[~]`. Never insert an item above one.
+- Never move an item marked `[x]` or `[~]`.
+- Place new and reordered items below closed items when priority allows. A dependency may force an open item above a closed one. The closed item stays where it is.
 - Never delete an item. Mark it `[~]` and write its replacement.
 - Resolve every item marked `[~]`. Read its `PROGRESS.md` entry. Write a replacement item, or leave it superseded.
 
