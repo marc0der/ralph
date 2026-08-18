@@ -66,6 +66,7 @@ Each item uses these six fields, in this order, and no others:
 - `Steps` carry the how. Name symbols, option paths, attribute names, literal values, and files to copy an idiom from.
 - **Never cite line numbers. Never paste code.** Every named token must be greppable, because the item runs many commits after you write it.
 - `Files` lists paths only.
+- `Spec` cites a spec file plus an item number or a section name.
 
 ### Markers
 
@@ -115,14 +116,17 @@ sway-session.target from hosts/neomorph/home.nix. Excludes any change to Plasma'
 own agent.
 ```
 
-Correct — 22 words, four sentences, one instruction each:
+Correct — the same work as one complete item, short sentences, one instruction each:
 
 ```
-Spec: `specs/plasma-sway-remnants.md` item 3
-Scope: Add a session-target option. Do not change the Plasma agent.
-Steps:
-1. Add `polkitSessionTarget` to `keyring-services.nix`. Default it to `graphical-session.target`.
-2. Set `polkitSessionTarget` to `sway-session.target` in `hosts/neomorph/home.nix`.
+- [ ] **Add a polkit session-target option**
+  Spec: `specs/plasma-sway-remnants.md` item 3
+  Scope: Add a session-target option. Do not change the Plasma agent.
+  Files: `modules/home/keyring-services.nix`, `hosts/neomorph/home.nix`
+  Steps:
+  1. Add `polkitSessionTarget` to `keyring-services.nix`. Default it to `graphical-session.target`.
+  2. Set `polkitSessionTarget` to `sway-session.target` in `hosts/neomorph/home.nix`.
+  Done when: The build passes and `polkitSessionTarget` resolves to `sway-session.target` on neomorph.
 ```
 
 ## Unresolved decisions

@@ -1,7 +1,5 @@
 # Implementation Plan
 
-**Prioritised list of work items. Order is priority — the build agent picks the top incomplete item.**
-
 ## Entry Format
 
 This file holds three sections: this title, `## Entry Format`, and `## Items`. Never add another heading.
@@ -19,7 +17,9 @@ Each entry uses these six fields, in this order, and no others:
 
 Rules:
 
+- Order is priority. The build agent picks the top incomplete item.
 - The spec states what to build. The item states how to build it.
+- Cite a spec file plus an item number or a section name in `Spec`.
 - Write at most 150 words and 14 lines per item. Write at most 10 words per title.
 - Write at most 2 sentences for `Scope`. Write at most 2 sentences for `Done when`.
 - Write at most 8 steps. Write one action per step. Write at most 20 words per step.
