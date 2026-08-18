@@ -17,6 +17,7 @@ Gather context by reading these sources. Use parallel **Sonnet** subagents for s
 - **Operational guardrails** — read `AGENTS.md` or `CLAUDE.md` (if present) for build commands, conventions, and project rules
 - **Specifications** — read everything in `specs/`
 - **Implementation plan** — read `IMPLEMENTATION_PLAN.md` to find the highest-priority incomplete item
+- **Progress log** — read `PROGRESS.md` (if present) for learnings and gotchas from earlier iterations
 - **Application source** — read build files and source code to understand structure, dependencies, and architecture
 - **Tests** — read test sources to understand existing coverage and patterns
 

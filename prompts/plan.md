@@ -17,6 +17,7 @@ Gather context by reading these sources. Use parallel **Sonnet** subagents to re
 - **Operational guardrails** — read `AGENTS.md` or `CLAUDE.md` (if present) for build commands, conventions, and project rules
 - **Specifications** — read everything in `specs/`
 - **Existing plan** — read `IMPLEMENTATION_PLAN.md` (if present) to understand progress so far
+- **Progress log** — read `PROGRESS.md` (if present) for outcomes, blockers, and the reasons items were marked `[~]`
 - **Application source** — read build files and source code to understand structure, dependencies, and architecture
 - **Tests** — read test sources to understand existing coverage and test patterns
 
@@ -87,6 +88,7 @@ An item nobody can verify never completes. The build loop then selects it foreve
 - Reorder open items when you discover a dependency.
 - Never move an item marked `[x]` or `[~]`. Never insert an item above one.
 - Never delete an item. Mark it `[~]` and write its replacement.
+- Resolve every item marked `[~]`. Read its `PROGRESS.md` entry. Write a replacement item, or leave it superseded.
 
 ### Never write these in the plan
 
