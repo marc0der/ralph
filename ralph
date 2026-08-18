@@ -12,6 +12,10 @@ REVIEW_DEFAULT_CAP=1
 ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md REVIEW.md PROMPT_plan.md PROMPT_build.md PROMPT_review.md)
 ARCHIVE_DIR=".ralph"
 
+# IMPLEMENTATION_PLAN.md is an index of one-line entries; the detail for each
+# item lives in its own file under TASK_DIR, linked from its index entry.
+TASK_DIR="plan"
+
 # Rate-limit / usage-limit retry defaults (see cmd_loop's retry wrapper).
 # This caps retries of a single iteration that keeps hitting a token/usage
 # limit even though each occurrence reports a valid, parseable reset time —
@@ -141,11 +145,14 @@ Modes:
   sandbox        Enter a devcontainer shell for the current project
   sandbox clean  Remove the devcontainer for the current project
   plan           Analyse specs and source, create/update IMPLEMENTATION_PLAN.md
+                 and the per-task files it links to under plan/
   build          Pick the next item, implement, test, commit, push
   review         Review the branch diff against specs, write REVIEW.md (changes nothing else)
-  init           Initialise workspace (PROGRESS.md, IMPLEMENTATION_PLAN.md, specs/)
-  clean          Delete IMPLEMENTATION_PLAN.md and PROGRESS.md
-  archive        Move IMPLEMENTATION_PLAN.md and PROGRESS.md to .ralph/<timestamp>/
+  init           Initialise workspace (PROGRESS.md, IMPLEMENTATION_PLAN.md,
+                 specs/, plan/)
+  clean          Delete IMPLEMENTATION_PLAN.md, PROGRESS.md and plan/ task files
+  archive        Move IMPLEMENTATION_PLAN.md, PROGRESS.md and plan/ task files
+                 to .ralph/<timestamp>/
   metrics        Summarise a run's loop metrics (latest run, or a given metrics.jsonl)
 
 Sandbox options:
@@ -198,6 +205,17 @@ cmd_version() {
     exit 0
 }
 
+# True when TASK_DIR holds at least one task file.
+has_task_files() {
+    local task
+    for task in "$TASK_DIR"/*.md; do
+        if [[ -f "$task" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 cmd_clean() {
     local found=false
     for file in "${ARTIFACTS[@]}"; do
@@ -208,6 +226,16 @@ cmd_clean() {
             found=true
         fi
     done
+
+    local task
+    for task in "$TASK_DIR"/*.md; do
+        [[ -f "$task" ]] || continue
+        rm "$task"
+        echo "Deleted: $task"
+        found=true
+    done
+    # The directory itself stays — like specs/, it is workspace scaffolding.
+
     $found || echo "Nothing to clean."
 }
 
@@ -220,6 +248,10 @@ cmd_archive() {
             break
         fi
     done
+
+    if ! $found && has_task_files; then
+        found=true
+    fi
 
     if ! $found; then
         echo "Nothing to archive."
@@ -237,6 +269,14 @@ cmd_archive() {
             mv "$file" "$dest/"
             echo "Archived: $file -> $dest/$file"
         fi
+    done
+
+    local task
+    for task in "$TASK_DIR"/*.md; do
+        [[ -f "$task" ]] || continue
+        mkdir -p "$dest/$TASK_DIR"
+        mv "$task" "$dest/$TASK_DIR/"
+        echo "Archived: $task -> $dest/$task"
     done
 }
 
@@ -272,6 +312,14 @@ cmd_init() {
         echo "Created: specs/"
     fi
 
+    # Per-task detail files linked from IMPLEMENTATION_PLAN.md's index entries.
+    if [[ -d "$TASK_DIR" ]]; then
+        echo "Skipped: $TASK_DIR/ already exists"
+    else
+        mkdir -p "$TASK_DIR"
+        echo "Created: $TASK_DIR/"
+    fi
+
     # Bundled Claude Code skills (e.g. /commit) — scaffold into project-local .claude/skills/
     local skills_dir="$CONFIG_DIR/skills"
     if [[ -f "$skills_dir/commit/SKILL.md" ]]; then
@@ -288,7 +336,7 @@ cmd_init() {
     fi
     # Ensure file ends with a newline before appending
     [[ -s .gitignore && $(tail -c1 .gitignore) != "" ]] && echo >> .gitignore
-    local ignore_entries=("IMPLEMENTATION_PLAN.md" "PROGRESS.md" "REVIEW.md" ".ralph/" "PROMPT_plan.md" "PROMPT_build.md" "PROMPT_review.md")
+    local ignore_entries=("IMPLEMENTATION_PLAN.md" "PROGRESS.md" "REVIEW.md" "$TASK_DIR/" ".ralph/" "PROMPT_plan.md" "PROMPT_build.md" "PROMPT_review.md")
     for entry in "${ignore_entries[@]}"; do
         if ! grep -qxF "$entry" .gitignore; then
             echo "$entry" >> .gitignore
@@ -680,15 +728,21 @@ format_duration() {
 }
 
 # First incomplete item in IMPLEMENTATION_PLAN.md, stripped of the checkbox
-# prefix and markdown emphasis — the item the build prompt directs the agent
-# to pick next. Empty when the file is absent or every item is complete.
+# prefix, markdown emphasis, and the trailing link to its task file — the item
+# the build prompt directs the agent to pick next. Empty when the file is absent
+# or every item is complete.
 #
 # Done in a single sed that quits at the first match rather than piping into
 # head: under `set -o pipefail` a head that closes the pipe early makes the
 # whole pipeline non-zero, which would abort the loop on a long plan.
 next_plan_item() {
-    sed -nE '/^- \[ \]/{ s/^- \[ \] *//; s/\*\*//g; p; q; }' \
-        IMPLEMENTATION_PLAN.md 2>/dev/null
+    sed -nE '/^- \[ \]/{
+        s/^- \[ \] *//
+        s/\*\*//g
+        s/[[:space:]]*(→|->)?[[:space:]]*\[[^]]*\]\([^)]*\)[[:space:]]*$//
+        p
+        q
+    }' IMPLEMENTATION_PLAN.md 2>/dev/null
 }
 
 # --- Metrics capture ---

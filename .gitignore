@@ -12,6 +12,7 @@ Thumbs.db
 # Ralph artifacts (generated in target projects)
 IMPLEMENTATION_PLAN.md
 !templates/IMPLEMENTATION_PLAN.md
+plan/
 PROGRESS.md
 .ralph/
 PROMPT_plan.md

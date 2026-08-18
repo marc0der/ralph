@@ -25,6 +25,28 @@ load test_helper
     [[ "$output" != *"Next:    \*\*"* ]]
 }
 
+# Index entries carry a trailing link to the item's task file. That is noise in
+# a one-line announcement, so it is stripped along with the emphasis markers.
+@test "announcement strips the trailing link to the task file" {
+    "$RALPH" init
+    printf -- '- [ ] **Add PATCH endpoint** — accept partial updates. → [002-patch.md](plan/002-patch.md)\n' > IMPLEMENTATION_PLAN.md
+
+    run "$RALPH" build --dry-run -n 1
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Next:    Add PATCH endpoint — accept partial updates."* ]]
+    [[ "$output" != *"plan/002-patch.md"* ]]
+}
+
+@test "announcement strips a bare task-file link with no arrow" {
+    "$RALPH" init
+    printf -- '- [ ] **Wire up auth** [003-auth.md](plan/003-auth.md)\n' > IMPLEMENTATION_PLAN.md
+
+    run "$RALPH" build --dry-run -n 1
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Next:    Wire up auth"* ]]
+    [[ "$output" != *"003-auth.md"* ]]
+}
+
 @test "only the first incomplete item is announced" {
     "$RALPH" init
     printf -- '- [ ] **First open**\n- [ ] **Second open**\n' > IMPLEMENTATION_PLAN.md

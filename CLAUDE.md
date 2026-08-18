@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is Ralph?
 
-Ralph is an autonomous AI coding agent loop runner. It runs iterative plan/build cycles using a configurable backend (Claude Code, OpenAI Codex, GitHub Copilot CLI, or pi) in headless mode, with shared artifacts (`IMPLEMENTATION_PLAN.md`, `PROGRESS.md`) as handoffs between iterations. All execution happens inside isolated devcontainers.
+Ralph is an autonomous AI coding agent loop runner. It runs iterative plan/build cycles using a configurable backend (Claude Code, OpenAI Codex, GitHub Copilot CLI, or pi) in headless mode, with shared artifacts (`IMPLEMENTATION_PLAN.md` plus the per-task files under `plan/` it indexes, and `PROGRESS.md`) as handoffs between iterations. All execution happens inside isolated devcontainers.
 
 ## Commands
 
@@ -31,7 +31,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 
 | Command | Purpose |
 |---------|---------|
-| `plan` | Run planning loop (default: 3 iterations) — reads specs/source, produces `IMPLEMENTATION_PLAN.md` |
+| `plan` | Run planning loop (default: 3 iterations) — reads specs/source, produces `IMPLEMENTATION_PLAN.md` and the `plan/NNN-slug.md` task files it links to |
 | `build` | Run build loop (default: 50 iterations) — picks next task, implements, tests, commits, pushes |
 | `sandbox` | Enter/manage devcontainer (`sandbox`, `sandbox clean`, `sandbox --rebuild`) |
 | `init` | Initialize workspace artifacts and directories |
@@ -60,7 +60,7 @@ Uses the `devcontainer` CLI to manage container lifecycle. Key details:
 `install.sh` places files at:
 - `~/.local/bin/ralph` — CLI binary
 - `~/.config/ralph/prompts/` — default plan/build prompt templates
-- `~/.config/ralph/templates/` — artifact templates (PROGRESS.md)
+- `~/.config/ralph/templates/` — artifact templates (PROGRESS.md, IMPLEMENTATION_PLAN.md)
 - `~/.config/ralph/container/` — devcontainer config + Dockerfile
 - `~/.config/ralph/skills/` — bundled Claude Code skills (e.g. `commit`) scaffolded into `<workspace>/.claude/skills/` by `ralph init`
 

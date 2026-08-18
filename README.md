@@ -10,7 +10,7 @@ Autonomous AI coding agent loop runner. Runs plan and build phases in a loop, fe
 
 Ralph implements the [Ralph Wiggum pattern](https://github.com/ghuntley/how-to-ralph-wiggum) — a technique for running AI coding agents in autonomous loops where each iteration picks up where the last left off. The name comes from Ralph Wiggum's famous line *"I'm helping!"*, which captures the spirit of an agent that cheerfully works through a task list one item at a time, without needing hand-holding between steps.
 
-The pattern works in two phases: **plan** (analyse the codebase against specifications and produce a prioritised implementation plan) and **build** (pick the next item, implement it, run tests, commit, repeat). A shared `IMPLEMENTATION_PLAN.md` acts as the handoff between iterations, giving each fresh Claude session the context it needs to continue. An append-only `PROGRESS.md` log captures what each iteration did, what it learned, and what broke — providing a breadcrumb trail for both the human and future iterations.
+The pattern works in two phases: **plan** (analyse the codebase against specifications and produce a prioritised implementation plan) and **build** (pick the next item, implement it, run tests, commit, repeat). A shared `IMPLEMENTATION_PLAN.md` acts as the handoff between iterations, giving each fresh Claude session the context it needs to continue. The plan is split for context economy: `IMPLEMENTATION_PLAN.md` is an index of one-line entries, each linking to a task file under `plan/` that holds the detail, so an iteration reads the whole queue but only the one task it is about to implement. An append-only `PROGRESS.md` log captures what each iteration did, what it learned, and what broke — providing a breadcrumb trail for both the human and future iterations.
 
 ## Install
 
@@ -30,12 +30,12 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `sandbox clean`   | Remove the devcontainer for the current project                              |
 | `sandbox --rebuild` | Rebuild the container image from scratch                                   |
 | `sandbox --no-inhibit-sleep` | Don't hold the host awake for the sandbox session                    |
-| `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` (default: 3 iterations) |
+| `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` and the task files under `plan/` (default: 3 iterations) |
 | `build`           | Pick the next item, implement, test, commit, push (default: 50 iterations)   |
 | `review`          | Review the branch diff against specs and guardrails, write `REVIEW.md` — changes nothing else (default: 1 iteration) |
-| `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`). Pass `--prompts` to also copy prompt templates for local customisation |
-| `archive`         | Move `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` to `.ralph/<timestamp>/`    |
-| `clean`           | Delete `IMPLEMENTATION_PLAN.md` and `PROGRESS.md`                           |
+| `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`, `plan/`). Pass `--prompts` to also copy prompt templates for local customisation |
+| `archive`         | Move `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and `plan/` task files to `.ralph/<timestamp>/` |
+| `clean`           | Delete `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and `plan/` task files       |
 | `metrics`         | Summarise a run's loop metrics: per-iteration table plus totals (latest run, or pass a `metrics.jsonl` path) |
 | `version`         | Print version                                                                |
 
@@ -148,7 +148,8 @@ Ralph iterations create and maintain these files in your project:
 |--------------------------|---------------------------------------------------------------|
 | `CLAUDE.md`              | Operational guardrails for the Claude backend — build commands, conventions, project rules. Read by every iteration to orient the agent. You maintain this file; ralph does not create or modify it |
 | `AGENTS.md`              | Operational guardrails for the Codex backend — equivalent of `CLAUDE.md` for codex projects |
-| `IMPLEMENTATION_PLAN.md` | Prioritised task list — shared state between iterations       |
+| `IMPLEMENTATION_PLAN.md` | Prioritised index of work items, one line each — shared state between iterations |
+| `plan/`                  | One `NNN-slug.md` task file per plan item, holding its scope, files and verification criteria |
 | `PROGRESS.md`            | Append-only log of what each iteration did, learned, and broke|
 | `REVIEW.md`              | Output of `ralph review` — verdict, traceability, findings    |
 | `specs/`                 | Feature specifications driving the work                       |
@@ -156,6 +157,37 @@ Ralph iterations create and maintain these files in your project:
 **Note:** `CLAUDE.md` and `AGENTS.md` are your project's own configuration files for Claude Code and Codex respectively — ralph reads them but never creates or modifies them. The prompt templates reference both files so each backend gets relevant project-specific guidance.
 
 `PROMPT_plan.md`, `PROMPT_build.md` and `PROMPT_review.md` are optional project-local prompt overrides (see [Prompt resolution](#prompt-resolution)).
+
+### Plan layout
+
+Every build iteration re-reads the plan in full, so the plan is deliberately split in two: a small index that is always read, and per-task detail that is only read when it is about to be worked on.
+
+`IMPLEMENTATION_PLAN.md` holds one line per item, in priority order:
+
+```markdown
+- [x] **Add PATCH endpoint** — accept partial updates on `/items/{id}`. → [001-patch-endpoint.md](plan/001-patch-endpoint.md)
+- [ ] **Wire up token refresh** — refresh expiring sessions without a re-login. → [002-token-refresh.md](plan/002-token-refresh.md)
+```
+
+Each entry links to `plan/NNN-slug.md`, which carries the scope, the files involved, the "done when" criteria, and — once the item ships — the build agent's completion notes:
+
+```markdown
+# 002. Wire up token refresh
+
+**Status:** Not started
+
+## Scope
+...
+
+## Done when
+...
+```
+
+Numbers are allocated in order and never reused. Completed items and their task files are never deleted — the plan is an append-only ledger of what shipped.
+
+Completion notes live in the task file, capped at about three lines, with the fuller narrative going to `PROGRESS.md`. What they never go in is the index — that's the file every iteration re-reads in full, so it stays one line per item however much history accumulates behind it.
+
+**Note:** `ralph init` adds `plan/` to `.gitignore`, since task files are loop-local state. If your project already has a tracked `plan/` directory, rename one of them before running ralph — `clean` and `archive` only ever touch files matching the `NNN-slug.md` pattern, but the gitignore entry would still hide your own new files from git.
 
 ### Starting a new goal
 
@@ -183,7 +215,7 @@ The build phase commits via the `/commit` skill bundled with ralph and scaffolde
 - **Atomic** — separable concerns become separate commits, even within a single build iteration
 - **Selective staging** — only the paths belonging to the current commit are staged; never `git add -A`
 - **Optional short body** — up to 3 bulleted lines summarising what was implemented, only when the subject isn't self-explanatory
-- Loop-local artifacts (`IMPLEMENTATION_PLAN.md`, `PROGRESS.md`, `PROMPT_*.md`, `.ralph/`) are never staged
+- Loop-local artifacts (`IMPLEMENTATION_PLAN.md`, `plan/`, `PROGRESS.md`, `PROMPT_*.md`, `.ralph/`) are never staged
 
 The scaffolded skill lives in your project's `.claude/skills/` and is not gitignored by `ralph init` — commit it to share with your team, or edit it locally if you want different conventions.
 
@@ -261,7 +293,7 @@ export PATH="$HOME/.local/bin:$PATH"
 If `git push` fails due to diverged history, pull and resolve conflicts manually, then re-run `ralph build` to continue.
 
 **Resuming after a failed iteration**
-Just re-run `ralph build`. It picks up from the current state of `IMPLEMENTATION_PLAN.md` — no special recovery step is needed.
+Just re-run `ralph build`. It picks up from the current state of `IMPLEMENTATION_PLAN.md` and the task files under `plan/` — no special recovery step is needed.
 
 **Sandbox container is stale or broken**
 Remove it and start fresh:

@@ -42,6 +42,28 @@ load test_helper
     [[ "$output" == *"Archived: PROGRESS.md"* ]]
 }
 
+@test "archive moves per-task files to .ralph/<timestamp>/plan/" {
+    "$RALPH" init
+    printf '# 001. Thing\n' > plan/001-thing.md
+    run "$RALPH" archive
+    [[ "$status" -eq 0 ]]
+    [[ ! -f "plan/001-thing.md" ]]
+    local archive_dir
+    archive_dir=$(find .ralph -mindepth 1 -maxdepth 1 -type d | head -1)
+    [[ -f "${archive_dir}/plan/001-thing.md" ]]
+    [[ "$output" == *"Archived: plan/001-thing.md"* ]]
+}
+
+# A plan/ holding task files is enough to archive, even with the index gone
+@test "archive runs when only per-task files remain" {
+    mkdir -p plan
+    printf '# 001. Thing\n' > plan/001-thing.md
+    run "$RALPH" archive
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"Nothing to archive."* ]]
+    [[ ! -f "plan/001-thing.md" ]]
+}
+
 @test "archive preserves local prompt templates" {
     "$RALPH" init --prompts
     run "$RALPH" archive

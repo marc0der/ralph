@@ -20,11 +20,29 @@ load test_helper
     [[ -d "specs" ]]
 }
 
+# IMPLEMENTATION_PLAN.md is only an index of one-line entries; each entry links
+# to a task file here, so the directory has to exist before 'ralph plan' runs.
+@test "init creates plan/ directory for per-task files" {
+    run "$RALPH" init
+    [[ "$status" -eq 0 ]]
+    [[ -d "plan" ]]
+}
+
+@test "init does not recreate or overwrite an existing plan/ directory" {
+    mkdir -p plan
+    echo "# mine" > plan/notes.md
+    run "$RALPH" init
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Skipped: plan/ already exists"* ]]
+    grep -q "# mine" plan/notes.md
+}
+
 @test "init creates .gitignore when it does not exist" {
     run "$RALPH" init
     [[ "$status" -eq 0 ]]
     [[ -f ".gitignore" ]]
     grep -qxF "IMPLEMENTATION_PLAN.md" .gitignore
+    grep -qxF "plan/" .gitignore
     grep -qxF "PROGRESS.md" .gitignore
     grep -qxF ".ralph/" .gitignore
     grep -qxF "PROMPT_plan.md" .gitignore
@@ -36,6 +54,7 @@ load test_helper
     run "$RALPH" init
     [[ "$status" -eq 0 ]]
     grep -qxF "IMPLEMENTATION_PLAN.md" .gitignore
+    grep -qxF "plan/" .gitignore
     grep -qxF "PROGRESS.md" .gitignore
     grep -qxF ".ralph/" .gitignore
     grep -qxF "PROMPT_plan.md" .gitignore
@@ -68,6 +87,7 @@ load test_helper
     [[ "$output" == *"Skipped: PROGRESS.md already exists"* ]]
     [[ "$output" == *"Skipped: IMPLEMENTATION_PLAN.md already exists"* ]]
     [[ "$output" == *"Skipped: specs/ already exists"* ]]
+    [[ "$output" == *"Skipped: plan/ already exists"* ]]
     [[ "$output" == *"Skipped: .claude/skills/commit/SKILL.md already exists"* ]]
 }
 
