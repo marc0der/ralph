@@ -32,7 +32,7 @@ Look for:
 - Inconsistent patterns across the codebase
 - Missing elements needed to achieve the goal
 
-**Never assume something is missing.** Confirm with a code search before flagging it. If an element is genuinely missing, author its specification at `specs/FILENAME.md`.
+**Never assume something is missing.** Confirm with a code search before flagging it. A confirmed gap between a spec and the code becomes a plan item. Work that no spec covers needs a spec first: author one at `specs/FILENAME.md`, then write items to implement it.
 
 Your analysis is working material, not output. Only items reach `IMPLEMENTATION_PLAN.md`. Never record the searches you ran, the state you observed, or the evidence you gathered.
 
@@ -145,5 +145,5 @@ Do not add sections. Do not restate current state. Do not re-verify items you al
 
 - **Plan only. Do NOT implement anything.**
 - Never assume functionality is missing — confirm with code search first
-- Author a spec at `specs/FILENAME.md` for anything genuinely missing, then write items to implement it
+- Author a spec at `specs/FILENAME.md` only for work no existing spec covers, then write items to implement it
 - The plan is a work queue. Every line in it is an instruction or a pass/fail criterion
