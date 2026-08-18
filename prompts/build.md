@@ -27,6 +27,8 @@ Gather context by reading these sources. If your harness supports subagents, use
 
 Select the topmost `- [ ]` item in `IMPLEMENTATION_PLAN.md` and implement it fully.
 
+If no `- [ ]` item exists, change nothing, commit nothing, and report `no open items`.
+
 - Follow the item's `Steps` in order. The plan already resolved the approach.
 - Stay inside the item's `Scope`. It states what is excluded as well as what is included. Failing tests are the one exception: see Phase 3.
 - One item only — do not start any other plan item this iteration, even if it seems small or closely related
@@ -46,14 +48,12 @@ Run the project's test suite to validate your changes.
 
 - If tests fail, reason about the root cause with your strongest reasoning model before attempting fixes
 - If tests unrelated to your work fail, resolve them as part of this increment. This overrides the item's `Scope`, because a red suite blocks every later iteration
-- If functionality is missing, add it per the specifications
-- **Blocking Backpressure**: If the item involves frontend user interaction or workflows, verify with `dev-browser --headless` against `http://localhost:3000`.
 
 ## Phase 4: Finalise
 
 Once tests pass:
 
-1. Update `IMPLEMENTATION_PLAN.md`. **The items are immutable.** Change `- [ ]` to `- [x]` for the item you finished, and change nothing else about it. Exactly three edits are legal in this phase: tick a checkbox, mark an item `- [~]` per Phase 2, and append a new item.
+1. Update `IMPLEMENTATION_PLAN.md`. **The items are immutable.** Change `- [ ]` to `- [x]` for the item you finished, and change nothing else about it. Only three kinds of edit are legal in this phase: tick a checkbox, mark an item `- [~]` per Phase 2, and append a new item.
    - **Never edit an existing item's text.** Never add a field, a note, an outcome, or a status marker to one.
    - **Never move an item.** Appended items go at the end of the list, even when they seem urgent.
    - An appended item follows the same schema and the same limits as every other item: six fields, at most 150 words, at most 8 steps. Copy the shape from the `## Entry Format` section of the file.
@@ -76,4 +76,4 @@ Once tests pass:
 - **`PROGRESS.md` owns the record.** Every outcome, measurement, verification result, learning and gotcha goes there. None of it ever goes in `IMPLEMENTATION_PLAN.md`.
 - **Single sources of truth.** Don't duplicate information across files.
 - **Document the why** — in tests, commits, and documentation, capture importance and reasoning.
-- For bugs you notice outside the current item, append them as new items in `IMPLEMENTATION_PLAN.md` instead of fixing them inline — a future iteration will pick them up.
+- For bugs you notice outside the current item, append them as new items in `IMPLEMENTATION_PLAN.md` instead of fixing them inline — a future iteration will pick them up. A test failing right now is the exception: Phase 3 says fix it in this increment.
