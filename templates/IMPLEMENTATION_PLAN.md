@@ -26,6 +26,7 @@ Rules:
 - Split any item that needs a ninth step. That item is too large for one iteration.
 - Name symbols, option paths, literal values, and files to copy an idiom from.
 - Never cite line numbers. Never paste code. Every named token must be greppable.
+- List paths only in `Files`.
 - Write every field in Simplified Technical English. Use active voice and present tense.
 - Record no rationale, no evidence, no history, and no status. `PROGRESS.md` holds those.
 
@@ -33,6 +34,8 @@ Markers:
 
 - `- [ ]` open
 - `- [x]` shipped
-- `- [~]` superseded or blocked; its replacement is appended to the end of the list
+- `- [~]` superseded or blocked; a replacement item takes its place in the list
+
+Anchor every marker at column zero. Never nest one item under another.
 
 ## Items

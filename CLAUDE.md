@@ -52,7 +52,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 
 `specs/` states *what* to build; `IMPLEMENTATION_PLAN.md` states *how*. Both prompts enforce a closed six-field item schema (title, `Spec`, `Scope`, `Files`, `Steps`, `Done when`), a cap of 150 words / 14 lines / 8 steps per item, and Simplified Technical English. The plan file holds exactly three headings and never carries outcomes, evidence or status — those belong in `PROGRESS.md`.
 
-Items are mutable during the plan phase and immutable during the build phase, where the only legal edits are ticking a checkbox and appending a new item. Markers are `- [ ]`, `- [x]`, and `- [~]` (superseded or blocked). `calculate_build_iterations` counts only `^- \[ \]`, so `[~]` items neither size the build loop nor count as shipped work. When changing these rules, keep `prompts/plan.md`, `prompts/build.md` and `templates/IMPLEMENTATION_PLAN.md` in agreement — the prompts win on any disagreement.
+Items are mutable during the plan phase and immutable during the build phase, where the only legal edits are ticking a checkbox, marking an item `- [~]`, and appending a new item. Markers are `- [ ]`, `- [x]`, and `- [~]` (superseded or blocked). `calculate_build_iterations` counts only `^- \[ \]`, so `[~]` items neither size the build loop nor count as shipped work. When changing these rules, keep `prompts/plan.md`, `prompts/build.md` and `templates/IMPLEMENTATION_PLAN.md` in agreement — the prompts win on any disagreement.
 
 ### Sandbox
 

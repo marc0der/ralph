@@ -27,7 +27,7 @@ Gather context by reading these sources. Use parallel **Sonnet** subagents for s
 Select the topmost `- [ ]` item in `IMPLEMENTATION_PLAN.md` and implement it fully.
 
 - Follow the item's `Steps` in order. The plan already resolved the approach.
-- Stay inside the item's `Scope`. It states what is excluded as well as what is included.
+- Stay inside the item's `Scope`. It states what is excluded as well as what is included. Failing tests are the one exception: see Phase 3.
 - One item only — do not start any other plan item this iteration, even if it seems small or closely related
 - No placeholders, no stubs — implement completely or don't start
 - Search the codebase before writing new code; the functionality may already exist
@@ -44,7 +44,7 @@ Select the topmost `- [ ]` item in `IMPLEMENTATION_PLAN.md` and implement it ful
 Run the project's test suite to validate your changes.
 
 - If tests fail, use an **Opus** reasoning subagent to reason about the root cause before attempting fixes
-- If tests unrelated to your work fail, resolve them as part of this increment
+- If tests unrelated to your work fail, resolve them as part of this increment. This overrides the item's `Scope`, because a red suite blocks every later iteration
 - If functionality is missing, add it per the specifications
 - **Blocking Backpressure**: If the item involves frontend user interaction or workflows, verify with `dev-browser --headless` against `http://localhost:3000`.
 
@@ -52,7 +52,7 @@ Run the project's test suite to validate your changes.
 
 Once tests pass:
 
-1. Update `IMPLEMENTATION_PLAN.md`. **The items are immutable.** Change `- [ ]` to `- [x]` for the item you finished, and change nothing else about it. The only other legal edit is appending a new item.
+1. Update `IMPLEMENTATION_PLAN.md`. **The items are immutable.** Change `- [ ]` to `- [x]` for the item you finished, and change nothing else about it. Exactly three edits are legal in this phase: tick a checkbox, mark an item `- [~]` per Phase 2, and append a new item.
    - **Never edit an existing item's text.** Never add a field, a note, an outcome, or a status marker to one.
    - **Never move an item.** Appended items go at the end of the list, even when they seem urgent.
    - An appended item follows the same schema and the same limits as every other item: six fields, at most 150 words, at most 8 steps. Copy the shape from the `## Entry Format` section of the file.
