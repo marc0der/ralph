@@ -29,7 +29,7 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `sandbox`         | Enter a devcontainer shell for the current project                           |
 | `sandbox clean`   | Remove the devcontainer for the current project                              |
 | `sandbox --rebuild` | Rebuild the container image from scratch                                   |
-| `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` (max 3 iterations; exits as soon as a pass changes nothing) |
+| `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` (max 6 iterations; exits as soon as a pass changes nothing) |
 | `build`           | Pick the next item, implement, test, commit, push (default: 50 iterations)   |
 | `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`). Pass `--prompts` to also copy prompt templates for local customisation |
 | `archive`         | Move `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` to `.ralph/<timestamp>/`    |
@@ -41,7 +41,7 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 
 | Flag                 | Description                                              |
 |----------------------|----------------------------------------------------------|
-| `-n`, `--iterations` | Max iterations                                           |
+| `-n`, `--iterations` | Max iterations. In build mode this also disables the noop exit; in plan mode it caps the run but never disables the convergence exit |
 | `-g`, `--goal`       | Goal injected into the prompt template                   |
 | `-m`, `--model`      | Model to use (default depends on backend)                |
 | `-b`, `--backend`    | Backend to use: `claude`, `codex`, `copilot`, `pi` (default: `claude`) |

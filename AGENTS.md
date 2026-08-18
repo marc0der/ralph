@@ -30,7 +30,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 
 | Command | Purpose |
 |---------|---------|
-| `plan` | Run planning loop (max 3 iterations, exits on convergence) — reads specs/source, produces `IMPLEMENTATION_PLAN.md` |
+| `plan` | Run planning loop (max 6 iterations, exits on convergence) — reads specs/source, produces `IMPLEMENTATION_PLAN.md` |
 | `build` | Run build loop (default: 50 iterations) — picks next task, implements, tests, commits, pushes |
 | `sandbox` | Enter/manage devcontainer (`sandbox`, `sandbox clean`, `sandbox --rebuild`) |
 | `init` | Initialize workspace artifacts and directories |

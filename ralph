@@ -4,8 +4,9 @@ set -euo pipefail
 VERSION="0.1.0"
 CONFIG_DIR="${RALPH_CONFIG_DIR:-$HOME/.config/ralph}"
 
-# Default cap for plan mode (build mode calculates from the plan)
-PLAN_DEFAULT_CAP=3
+# Safety-net cap for plan mode; a plan run normally ends on convergence,
+# well before this (build mode calculates its own count from the plan)
+PLAN_DEFAULT_CAP=6
 
 ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md PROMPT_plan.md PROMPT_build.md)
 ARCHIVE_DIR=".ralph"
@@ -158,7 +159,10 @@ Init options:
   -p, --prompts      Also copy prompt templates for local customisation
 
 Options:
-  -n, --iterations N   Max iterations (plan default: 3, build default: 50)
+  -n, --iterations N   Max iterations (plan default: 6, build: calculated from
+                       the plan). In build mode this also disables the noop
+                       exit; in plan mode it caps the run but never disables
+                       the convergence exit
   -g, --goal TEXT      Goal to inject into the prompt template
   -m, --model MODEL    Model to use (default depends on backend)
   -b, --backend NAME   Backend to use: claude, codex, copilot, pi (default: claude)
