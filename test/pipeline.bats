@@ -2,6 +2,14 @@
 
 load test_helper
 
+# Give the plan one item so a converging pass is treated as convergence rather
+# than as the empty-plan failure. Tests that are about what the fingerprint
+# covers, or about flags, need an item present so that check never fires and
+# masks what they actually assert.
+seed_plan_item() {
+    printf -- '- [ ] **Seeded item** — x. → [001-x.md](plan/001-x.md)\n' >> IMPLEMENTATION_PLAN.md
+}
+
 # --- Verbose flag acceptance ---
 
 @test "--verbose flag is accepted without error (build, dry-run)" {
@@ -523,6 +531,9 @@ MOCK
 
 @test "plan exits on the first pass that changes nothing" {
     "$RALPH" init
+    # An item to converge on: an empty plan that changes nothing is a planning
+    # failure, not convergence (see the empty-plan tests below).
+    printf -- '- [ ] **Existing item** — x. → [001-x.md](plan/001-x.md)\n' >> IMPLEMENTATION_PLAN.md
     mkdir -p "$TEST_DIR/bin"
     # Plan iterations never commit (IMPLEMENTATION_PLAN.md is gitignored), so
     # convergence is measured against the plan artifacts, not HEAD.
@@ -536,6 +547,68 @@ MOCK
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Plan converged — pass 1 changed nothing"* ]]
     [[ "$output" == *"Completed 1 iterations"* ]]
+}
+
+# A backend that answers without planning — "the plan looks complete to me" —
+# leaves the fingerprint unchanged against an empty plan. That is
+# indistinguishable from real convergence by the hash alone, and reporting it as
+# success exits 0 with nothing for 'ralph build' to pick up.
+@test "plan fails when it converges on an empty plan" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"result","subtype":"success","result":"The plan looks complete to me."}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"holds no items"* ]]
+    [[ "$output" != *"Plan converged"* ]]
+}
+
+# The counterpart: every item shipped is a finished plan, not a failed one, so
+# the check counts entries of any marker rather than open ones.
+@test "plan converges on a plan whose items are all shipped" {
+    "$RALPH" init
+    printf -- '- [x] **Shipped** — done. → [001-x.md](plan/001-x.md)\n' >> IMPLEMENTATION_PLAN.md
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"result","result":"no gaps found"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Plan converged"* ]]
+}
+
+# The empty-plan check must not fire when a pass is still doing work: a run that
+# writes its first item on pass 2 has to survive pass 1.
+@test "plan continues to a later pass that writes the first item" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+CALL_LOG="$TEST_DIR/call_count"
+count=0
+[[ -f "\$CALL_LOG" ]] && count=\$(cat "\$CALL_LOG")
+count=\$((count + 1))
+echo "\$count" > "\$CALL_LOG"
+if [[ "\$count" -eq 1 ]]; then
+    mkdir -p specs && echo "# researched" > specs/notes.md
+elif [[ "\$count" -eq 2 ]]; then
+    echo '- [ ] **First real item** — x. → [001-x.md](plan/001-x.md)' >> IMPLEMENTATION_PLAN.md
+fi
+echo '{"type":"result","result":"planning"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Plan converged — pass 3 changed nothing"* ]]
 }
 
 @test "plan continues while passes keep changing the plan" {
@@ -564,6 +637,7 @@ MOCK
 
 @test "plan counts a spec-only edit as progress" {
     "$RALPH" init
+    seed_plan_item
     mkdir -p "$TEST_DIR/bin"
     # Touches nothing but specs/ on pass 1. The plan file is unchanged, so this
     # only continues if specs/ is part of the convergence fingerprint.
@@ -590,6 +664,7 @@ MOCK
 
 @test "plan counts a task-file-only edit as progress" {
     "$RALPH" init
+    seed_plan_item
     mkdir -p "$TEST_DIR/bin"
     # The index is one line per item, so a pass that refines an item's scope or
     # steps rewrites its plan/ task file and nothing else. Fingerprinting the
@@ -618,6 +693,7 @@ MOCK
 
 @test "plan counts a new task file as progress" {
     "$RALPH" init
+    seed_plan_item
     mkdir -p "$TEST_DIR/bin"
     # Names as well as contents: adding a task file must count even before the
     # index entry that links to it lands.
@@ -644,6 +720,7 @@ MOCK
 
 @test "plan counts an edit to a symlinked spec as progress" {
     "$RALPH" init
+    seed_plan_item
     mkdir -p "$TEST_DIR/bin" "$TEST_DIR/external"
     echo "# external spec" > "$TEST_DIR/external/linked.md"
     ln -s "$TEST_DIR/external/linked.md" specs/linked.md
@@ -671,6 +748,7 @@ MOCK
 @test "plan survives an unreadable spec file" {
     [[ "$EUID" -ne 0 ]] || skip "root bypasses file permissions"
     "$RALPH" init
+    seed_plan_item
     mkdir -p "$TEST_DIR/bin"
     # A spec the loop cannot read must not abort the run under set -e/pipefail.
     echo "# secret" > specs/unreadable.md
@@ -689,6 +767,7 @@ MOCK
 
 @test "plan convergence exit still applies when -n is passed" {
     "$RALPH" init
+    seed_plan_item
     mkdir -p "$TEST_DIR/bin"
     # -n caps a plan run but must not disable convergence, unlike build mode.
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
@@ -705,6 +784,7 @@ MOCK
 
 @test "plan never pushes even without --skip-push (no remote configured)" {
     "$RALPH" init
+    seed_plan_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash

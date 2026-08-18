@@ -126,10 +126,23 @@ load test_helper
     [[ "$output" == *"no incomplete items"* ]]
 }
 
-@test "build ignores the Entry Format template entry" {
-    # The scaffolded plan carries an example entry at column zero. Counting it
-    # would send the build loop off to implement the template itself.
+# Each of these plants a column-zero checkbox in the prose above '## Items'.
+# The shipped template indents its own exemplar, so without a decoy these tests
+# pass even with the section scoping removed entirely — they would assert
+# nothing. The decoy stands in for any checkbox that reaches that half of the
+# file: a reworded header, a hand-written plan, or an agent pasting an example
+# back at column zero.
+plant_decoy_above_items() {
+    local decoy='- [ ] **Decoy above the Items heading**'
+    awk -v d="$decoy" '/^## Items[[:space:]]*$/ && !done { print d; print ""; done = 1 } { print }' \
+        IMPLEMENTATION_PLAN.md > IMPLEMENTATION_PLAN.md.tmp
+    mv IMPLEMENTATION_PLAN.md.tmp IMPLEMENTATION_PLAN.md
+}
+
+@test "build ignores checkboxes above the Items heading" {
+    # Counting them would send the build loop off to implement the template.
     "$RALPH" init
+    plant_decoy_above_items
     run "$RALPH" build
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"no incomplete items"* ]]
@@ -137,22 +150,47 @@ load test_helper
 
 @test "build counts only items below the Items heading" {
     "$RALPH" init
+    plant_decoy_above_items
     printf -- '- [ ] **Real task**\n' >> IMPLEMENTATION_PLAN.md
     run "$RALPH" build --dry-run
     [[ "$status" -eq 0 ]]
-    # 1 real item + 20% headroom = 2, not 4 (which would include the example).
+    # 1 real item + 20% headroom = 2, not 3 (which would include the decoy).
     [[ "$output" == *"Max:     2 iterations"* ]]
+}
+
+@test "build announces an item below the heading, not a decoy above it" {
+    # next_plan_item shares the same scoping; without it the loop announces —
+    # and directs the agent at — whatever checkbox appears first in the file.
+    "$RALPH" init
+    plant_decoy_above_items
+    printf -- '- [ ] **Real task**\n' >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" build --dry-run -n 1
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Next:    Real task"* ]]
+    [[ "$output" != *"Decoy"* ]]
 }
 
 @test "build tolerates trailing whitespace on the Items heading" {
     # A stray space must not send counting back to the whole-file fallback,
-    # which would re-count the Entry Format exemplar.
+    # which would re-count everything above the heading.
     "$RALPH" init
+    plant_decoy_above_items
     sed -i.bak 's/^## Items$/## Items /' IMPLEMENTATION_PLAN.md && rm -f IMPLEMENTATION_PLAN.md.bak
     printf -- '- [ ] **Real task**\n' >> IMPLEMENTATION_PLAN.md
     run "$RALPH" build --dry-run
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Max:     2 iterations"* ]]
+}
+
+# The other half of the function: a plan with no '## Items' heading is read
+# whole, so hand-written and pre-split plans still count.
+@test "build counts every item in a plan with no Items heading" {
+    "$RALPH" init
+    printf -- '- [ ] **One**\n- [ ] **Two**\n' > IMPLEMENTATION_PLAN.md
+    run "$RALPH" build --dry-run
+    [[ "$status" -eq 0 ]]
+    # 2 items + 20% headroom = 3
+    [[ "$output" == *"Max:     3 iterations"* ]]
 }
 
 @test "build -n overrides calculated iterations" {

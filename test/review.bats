@@ -50,6 +50,28 @@ latest_metrics_line() {
     [[ "$output" == *"Completed 2 iterations."* ]]
 }
 
+# Review is read-only by design: it writes REVIEW.md and never commits, so every
+# iteration is a noop by HEAD. A HEAD-based noop exit would therefore cut a
+# multi-pass review short for behaving correctly — it stopped at 2 of 4 when the
+# noop branch caught every mode that was not `plan`.
+#
+# The default cap of 1 hides this, and -n cannot expose it either: passing -n
+# sets hard_override, which disables the noop branch before the mode is even
+# checked. So the run has to reach a multi-pass default, which this does by
+# running a copy of the script with REVIEW_DEFAULT_CAP patched up.
+@test "review runs every default pass and never exits early on noops" {
+    create_review_backend
+    sed 's/^REVIEW_DEFAULT_CAP=1$/REVIEW_DEFAULT_CAP=4/' "$RALPH" > "$TEST_DIR/ralph-cap4"
+    chmod +x "$TEST_DIR/ralph-cap4"
+    # Guard against the sed silently missing, which would make this vacuous.
+    grep -q '^REVIEW_DEFAULT_CAP=4$' "$TEST_DIR/ralph-cap4"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$TEST_DIR/ralph-cap4" review -y
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"No changes detected"* ]]
+    [[ "$output" == *"Completed 4 iterations."* ]]
+}
+
 @test "review dry-run shows the prompt and no push" {
     run "$RALPH" review --dry-run
     [[ "$status" -eq 0 ]]

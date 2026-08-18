@@ -121,6 +121,9 @@ MOCK
 
 @test "plan iteration that changes nothing records noop=true" {
     "$RALPH" init
+    # One item present: a converging pass against an empty plan is a planning
+    # failure and exits before metrics assert anything.
+    printf -- '- [ ] **Seeded item** — x. → [001-x.md](plan/001-x.md)\n' >> IMPLEMENTATION_PLAN.md
     create_noop_backend
 
     PATH="$TEST_DIR/bin:$PATH" "$RALPH" plan -n 1 --skip-push -y

@@ -64,7 +64,7 @@ Create `plan/` if it does not already exist.
 
 ### File shape
 
-`IMPLEMENTATION_PLAN.md` holds exactly three sections: `# Implementation Plan`, `## Entry Format`, and `## Items`. **Never add another heading.** The plan is a work queue, not a report. It carries no preamble, no build log, no current-state summary, and no questions.
+`IMPLEMENTATION_PLAN.md` holds exactly three top-level sections: `# Implementation Plan`, `## Entry Format`, and `## Items`. **Never add another `##` heading, and never delete or rewrite the scaffolded `## Entry Format` section** — it documents the format you are writing to, subsections included. The plan is a work queue, not a report. It carries no preamble, no build log, no current-state summary, and no questions.
 
 ### Task file format
 

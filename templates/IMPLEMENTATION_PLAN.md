@@ -23,7 +23,7 @@ start at column 0.)
 `NNN` is a zero-padded sequence number, allocated in order and never reused. The
 link target must be the item's task file.
 
-Rules:
+### Index rules
 
 - Order is priority. The build agent picks the top incomplete item.
 - Write at most 10 words per title. Write one line per entry.
@@ -38,7 +38,7 @@ Markers, matching the `**Status:**` in the task file:
 
 Anchor every marker at column zero. Never nest one item under another.
 
-## Task File Format
+### Task files
 
 Each `plan/NNN-short-slug.md` holds the detail for exactly one item, in these
 fields, in this order, and no others:
@@ -76,7 +76,7 @@ with its tracking reference. Keep it to a few lines — the narrative belongs in
 `PROGRESS.md`._
 ````
 
-Rules:
+Task file rules:
 
 - The spec states what to build. The task file states how to build it.
 - Cite a spec file plus an item number or a section name in `Spec`.

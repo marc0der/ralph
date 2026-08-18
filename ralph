@@ -645,9 +645,16 @@ require_init_artifacts() {
     fi
 }
 
-# The part of the plan that holds real items. The '## Entry Format' section
-# carries a template entry at column zero, which must never count as work.
-# Plans without that heading are read whole, so older plans still work.
+# The part of the plan that holds real items — everything below '## Items'.
+#
+# The scaffolded '## Entry Format' section documents the entry shape by example.
+# This template indents its exemplar so it does not match '^- \[', but that is a
+# property of the template's formatting, not a guarantee: a reworded header, a
+# hand-written plan, or an agent pasting an example back at column zero would
+# each put a checkbox above '## Items'. Scoping the read to the items section
+# means counting never depends on how the prose above it happens to be laid out.
+#
+# Plans without the heading are read whole, so older and hand-written plans work.
 plan_items_body() {
     local file="IMPLEMENTATION_PLAN.md"
     if grep -qE '^## Items[[:space:]]*$' "$file" 2>/dev/null; then
@@ -1381,18 +1388,39 @@ cmd_loop() {
             fi
         fi
 
-        # Early exit. Build mode watches HEAD and tolerates one noop; -n overrides it.
+        # Early exit, per mode.
+        #
+        # Build mode watches HEAD and tolerates one noop; -n overrides it.
+        #
         # Plan mode never commits (IMPLEMENTATION_PLAN.md is gitignored), so it
         # watches the plan artifacts instead. A pass that changes nothing has
         # converged, and there is no second-chance iteration to wait for: -n caps
         # a plan run but never disables the check.
+        #
+        # Review mode has no early exit at all. It is read-only by design — it
+        # writes REVIEW.md and never commits — so every iteration is a noop by
+        # HEAD, and a HEAD-based check would cut a multi-pass review short for
+        # doing exactly what it is supposed to do. Each condition below names its
+        # mode explicitly rather than treating one as the default.
+        #
+        # Convergence requires at least one item to converge on. A pass that
+        # changes nothing against an empty plan is a planning failure — the
+        # backend answered without doing the work — and is indistinguishable
+        # from real convergence by the fingerprint alone. Failing here stops a
+        # run that would otherwise report success and leave 'ralph build' with
+        # nothing to do.
         if ! $dry_run; then
             if [[ "$mode" == "plan" ]]; then
                 if [[ "$plan_state_before" == "$plan_state_after" ]]; then
+                    if [[ "$(plan_items_body | grep -c '^- \[' || true)" -eq 0 ]]; then
+                        echo "Error: pass $iteration changed nothing and IMPLEMENTATION_PLAN.md holds no items." >&2
+                        echo "The planning agent produced no plan. Check the backend output above; re-run 'ralph plan' once the cause is fixed." >&2
+                        exit 1
+                    fi
                     echo -e "\nPlan converged — pass $iteration changed nothing. Exiting early."
                     break
                 fi
-            elif ! $hard_override; then
+            elif [[ "$mode" == "build" ]] && ! $hard_override; then
                 local head_after
                 head_after=$(git rev-parse HEAD)
                 if [[ "$head_before" == "$head_after" ]]; then
