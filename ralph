@@ -4,8 +4,9 @@ set -euo pipefail
 VERSION="0.1.0"
 CONFIG_DIR="${RALPH_CONFIG_DIR:-$HOME/.config/ralph}"
 
-# Default cap for plan mode (build mode calculates from the plan)
-PLAN_DEFAULT_CAP=3
+# Safety-net cap for plan mode; a plan run normally ends on convergence,
+# well before this (build mode calculates its own count from the plan)
+PLAN_DEFAULT_CAP=6
 # Review is a single read-only pass by default; use -n to run more
 REVIEW_DEFAULT_CAP=1
 
@@ -110,6 +111,20 @@ backend_pi() {
     }
 }
 
+# --- Utilities ---
+
+# Hash stdin. Linux ships md5sum, macOS ships md5.
+md5_hash() {
+    if command -v md5sum &>/dev/null; then
+        md5sum | cut -d' ' -f1
+    elif command -v md5 &>/dev/null; then
+        md5
+    else
+        echo "Error: no md5sum or md5 command found — install coreutils" >&2
+        return 1
+    fi
+}
+
 resolve_backend() {
     local name="$1"
     local found=false
@@ -164,7 +179,10 @@ Init options:
   -p, --prompts      Also copy prompt templates for local customisation
 
 Options:
-  -n, --iterations N   Max iterations (plan default: 3, build default: from plan, review default: 1)
+  -n, --iterations N   Max iterations (plan default: 6, build: calculated from
+                       the plan, review default: 1). In build mode this also
+                       disables the noop exit; in plan mode it caps the run but
+                       never disables the convergence exit
   -g, --goal TEXT      Goal to inject into the prompt template
   -m, --model MODEL    Model to use (default depends on backend)
   -b, --backend NAME   Backend to use: claude, codex, copilot, pi (default: claude)
@@ -506,14 +524,7 @@ cmd_sandbox() {
 
     # Shell history volume (deterministic per workspace)
     local workspace_hash
-    if command -v md5sum &>/dev/null; then
-        workspace_hash=$(echo -n "$PWD" | md5sum | cut -c1-12)
-    elif command -v md5 &>/dev/null; then
-        workspace_hash=$(echo -n "$PWD" | md5 | cut -c1-12)
-    else
-        echo "Error: no md5sum or md5 command found — install coreutils" >&2
-        return 1
-    fi
+    workspace_hash=$(echo -n "$PWD" | md5_hash | cut -c1-12) || return 1
     mounts+=("type=volume,source=ralph-history-${workspace_hash},target=/commandhistory")
 
     local mount_flags=()
@@ -634,12 +645,24 @@ require_init_artifacts() {
     fi
 }
 
+# The part of the plan that holds real items. The '## Entry Format' section
+# carries a template entry at column zero, which must never count as work.
+# Plans without that heading are read whole, so older plans still work.
+plan_items_body() {
+    local file="${1:-IMPLEMENTATION_PLAN.md}"
+    if grep -qE '^## Items[[:space:]]*$' "$file" 2>/dev/null; then
+        sed -n '/^## Items[[:space:]]*$/,$p' "$file"
+    else
+        cat "$file"
+    fi
+}
+
 # Calculate build iterations from IMPLEMENTATION_PLAN.md.
 # Counts incomplete items (- [ ]) and adds 20% headroom (rounded up, minimum 1).
 # Caller must ensure IMPLEMENTATION_PLAN.md exists (see require_init_artifacts).
 calculate_build_iterations() {
     local count
-    count=$(grep -c '^\- \[ \]' "IMPLEMENTATION_PLAN.md" || true)
+    count=$(plan_items_body | grep -c '^- \[ \]' || true)
 
     if [[ "$count" -eq 0 ]]; then
         echo "Error: no incomplete items in IMPLEMENTATION_PLAN.md. Run 'ralph plan' first." >&2
@@ -648,6 +671,38 @@ calculate_build_iterations() {
 
     # 20% headroom, rounded up: ceil(count * 1.2)
     echo $(( (count * 6 + 4) / 5 ))
+}
+
+# Fingerprint the artifacts a plan iteration is allowed to change.
+# Plan mode never commits (IMPLEMENTATION_PLAN.md is gitignored), so HEAD cannot
+# detect progress. A pass that leaves this hash unchanged has converged.
+#
+# TASK_DIR is hashed alongside the index: the index is one line per item, so a
+# pass that only rewrites an item's scope or verification criteria changes a
+# task file and nothing else. Hashing the index alone would read that as
+# convergence and stop the run mid-plan.
+plan_state_hash() {
+    {
+        if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
+            cat "IMPLEMENTATION_PLAN.md"
+        fi
+        if [[ -d "$TASK_DIR" ]]; then
+            # Names as well as contents, so adding or removing a task file counts.
+            find -L "$TASK_DIR" -type f -name '*.md' | LC_ALL=C sort | while IFS= read -r task; do
+                echo "$task"
+                cat -- "$task" || true
+            done
+        fi
+        if [[ -d "specs" ]]; then
+            # Hash names as well as contents so adding or removing a spec counts
+            # as a change. LC_ALL=C keeps the order stable across platforms.
+            # -L follows symlinked specs; an unreadable one must not abort the run.
+            find -L specs -type f | LC_ALL=C sort | while IFS= read -r spec; do
+                echo "$spec"
+                cat -- "$spec" || true
+            done
+        fi
+    } 2>/dev/null | md5_hash
 }
 
 truncate_line() {
@@ -736,13 +791,13 @@ format_duration() {
 # head: under `set -o pipefail` a head that closes the pipe early makes the
 # whole pipeline non-zero, which would abort the loop on a long plan.
 next_plan_item() {
-    sed -nE '/^- \[ \]/{
+    plan_items_body 2>/dev/null | sed -nE '/^- \[ \]/{
         s/^- \[ \] *//
         s/\*\*//g
         s/[[:space:]]*(→|->)?[[:space:]]*\[[^]]*\]\([^)]*\)[[:space:]]*$//
         p
         q
-    }' IMPLEMENTATION_PLAN.md 2>/dev/null
+    }'
 }
 
 # --- Metrics capture ---
@@ -775,6 +830,7 @@ iso_utc() {
 write_iteration_metrics() {
     local metrics_file="$1" raw_file="$2" mode="$3" branch="$4" backend="$5" model="$6"
     local iteration="$7" started="$8" ended="$9" head_before="${10}" head_after="${11}" plan_done_before="${12}"
+    local plan_noop="${13:-}"
 
     local commits=0 stat="" files="" ins="" del="" noop=true
     if [[ "$head_before" != "$head_after" ]]; then
@@ -787,9 +843,15 @@ write_iteration_metrics() {
     fi
     files=${files:-0}; ins=${ins:-0}; del=${del:-0}
 
+    # Plan iterations never commit, so HEAD cannot describe them. The caller
+    # passes a verdict derived from the plan artifacts instead.
+    if [[ -n "$plan_noop" ]]; then
+        noop=$plan_noop
+    fi
+
     local plan_done_after=0 plan_delta=0
     if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
-        plan_done_after=$(grep -c '^\- \[x\]' "IMPLEMENTATION_PLAN.md" || true)
+        plan_done_after=$(plan_items_body | grep -c '^- \[x\]' || true)
     fi
     plan_delta=$(( plan_done_after - plan_done_before ))
     (( plan_delta < 0 )) && plan_delta=0
@@ -1110,15 +1172,19 @@ cmd_loop() {
             fi
         fi
 
-        # Snapshot HEAD to detect noops
-        local head_before
+        # Snapshot HEAD to detect noops. Plan mode never commits, so it
+        # fingerprints the artifacts it is allowed to change instead.
+        local head_before plan_state_before="" plan_state_after=""
         head_before=$(git rev-parse HEAD)
+        if [[ "$mode" == "plan" ]]; then
+            plan_state_before=$(plan_state_hash)
+        fi
 
         # Snapshot metrics baseline for this iteration
         local iter_start plan_done_before=0
         iter_start=$(date +%s)
         if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
-            plan_done_before=$(grep -c '^\- \[x\]' "IMPLEMENTATION_PLAN.md" || true)
+            plan_done_before=$(plan_items_body | grep -c '^- \[x\]' || true)
         fi
 
         # Inject {{GOAL}} into prompt using bash substitution
@@ -1257,6 +1323,18 @@ cmd_loop() {
             # Print jq output (unchanged behaviour)
             echo "$jq_output"
 
+            # Fingerprint the plan artifacts after the pass. Plan mode uses this
+            # instead of HEAD for both the metrics noop flag and convergence.
+            local plan_noop=""
+            if [[ "$mode" == "plan" ]]; then
+                plan_state_after=$(plan_state_hash)
+                if [[ "$plan_state_before" == "$plan_state_after" ]]; then
+                    plan_noop=true
+                else
+                    plan_noop=false
+                fi
+            fi
+
             # Record iteration metrics; a failure here warns but never
             # interrupts the loop.
             if $metrics_enabled; then
@@ -1271,7 +1349,7 @@ cmd_loop() {
                 if write_iteration_metrics "$metrics_file" "$raw_file" "$mode" \
                     "$current_branch" "$BACKEND_NAME" "$model" "$iteration" \
                     "$iter_start" "$iter_end" "$head_before" "$head_after_m" \
-                    "$plan_done_before"; then
+                    "$plan_done_before" "$plan_noop"; then
                     echo ""
                     truncate_line "Metrics: $(fmt_duration $((iter_end - iter_start))) wall$(metrics_summary_suffix "$metrics_file")" "$line_width"
                 else
@@ -1303,19 +1381,29 @@ cmd_loop() {
             fi
         fi
 
-        # Noop detection: exit early after 2 consecutive noops (build mode only, unless -n was passed).
-        # Plan mode doesn't produce commits (IMPLEMENTATION_PLAN.md is gitignored), so HEAD never advances.
-        if [[ "$mode" == "build" ]] && ! $hard_override && ! $dry_run; then
-            local head_after
-            head_after=$(git rev-parse HEAD)
-            if [[ "$head_before" == "$head_after" ]]; then
-                consecutive_noops=$((consecutive_noops + 1))
-                if [[ $consecutive_noops -ge 2 ]]; then
-                    echo -e "\nNo changes detected for 2 consecutive iterations — exiting early."
+        # Early exit. Build mode watches HEAD and tolerates one noop; -n overrides it.
+        # Plan mode never commits (IMPLEMENTATION_PLAN.md is gitignored), so it
+        # watches the plan artifacts instead. A pass that changes nothing has
+        # converged, and there is no second-chance iteration to wait for: -n caps
+        # a plan run but never disables the check.
+        if ! $dry_run; then
+            if [[ "$mode" == "plan" ]]; then
+                if [[ "$plan_state_before" == "$plan_state_after" ]]; then
+                    echo -e "\nPlan converged — pass $iteration changed nothing. Exiting early."
                     break
                 fi
-            else
-                consecutive_noops=0
+            elif ! $hard_override; then
+                local head_after
+                head_after=$(git rev-parse HEAD)
+                if [[ "$head_before" == "$head_after" ]]; then
+                    consecutive_noops=$((consecutive_noops + 1))
+                    if [[ $consecutive_noops -ge 2 ]]; then
+                        echo -e "\nNo changes detected for 2 consecutive iterations — exiting early."
+                        break
+                    fi
+                else
+                    consecutive_noops=0
+                fi
             fi
         fi
     done

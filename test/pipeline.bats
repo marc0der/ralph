@@ -521,11 +521,11 @@ MOCK
     [[ "$output" == *"Completed 3 iterations"* ]]
 }
 
-@test "plan runs full iteration count even when no commits occur" {
+@test "plan exits on the first pass that changes nothing" {
     "$RALPH" init
     mkdir -p "$TEST_DIR/bin"
-    # Plan iterations never commit (IMPLEMENTATION_PLAN.md is gitignored),
-    # so noop detection must not apply in plan mode.
+    # Plan iterations never commit (IMPLEMENTATION_PLAN.md is gitignored), so
+    # convergence is measured against the plan artifacts, not HEAD.
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
 echo '{"type":"result","result":"planning"}'
@@ -534,8 +534,173 @@ MOCK
 
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
     [[ "$status" -eq 0 ]]
-    [[ "$output" != *"No changes detected"* ]]
+    [[ "$output" == *"Plan converged — pass 1 changed nothing"* ]]
+    [[ "$output" == *"Completed 1 iterations"* ]]
+}
+
+@test "plan continues while passes keep changing the plan" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    # Appends an item on passes 1 and 2, then goes quiet on pass 3.
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+CALL_LOG="$TEST_DIR/call_count"
+count=0
+[[ -f "\$CALL_LOG" ]] && count=\$(cat "\$CALL_LOG")
+count=\$((count + 1))
+echo "\$count" > "\$CALL_LOG"
+if [[ "\$count" -le 2 ]]; then
+    echo "- [ ] **Task \$count**" >> IMPLEMENTATION_PLAN.md
+fi
+echo '{"type":"result","result":"planning"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Plan converged — pass 3 changed nothing"* ]]
     [[ "$output" == *"Completed 3 iterations"* ]]
+}
+
+@test "plan counts a spec-only edit as progress" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    # Touches nothing but specs/ on pass 1. The plan file is unchanged, so this
+    # only continues if specs/ is part of the convergence fingerprint.
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+CALL_LOG="$TEST_DIR/call_count"
+count=0
+[[ -f "\$CALL_LOG" ]] && count=\$(cat "\$CALL_LOG")
+count=\$((count + 1))
+echo "\$count" > "\$CALL_LOG"
+if [[ "\$count" -eq 1 ]]; then
+    mkdir -p specs
+    echo "# New spec" > specs/new-thing.md
+fi
+echo '{"type":"result","result":"planning"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Plan converged — pass 2 changed nothing"* ]]
+    [[ "$output" == *"Completed 2 iterations"* ]]
+}
+
+@test "plan counts a task-file-only edit as progress" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    # The index is one line per item, so a pass that refines an item's scope or
+    # steps rewrites its plan/ task file and nothing else. Fingerprinting the
+    # index alone would read that as convergence and stop the run mid-plan.
+    printf -- '- [ ] **A** — do a thing. → [001-a.md](plan/001-a.md)\n' >> IMPLEMENTATION_PLAN.md
+    printf '# 001. A\n\n**Status:** Not started\n\n## Scope\n\nOriginal scope.\n' > plan/001-a.md
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+CALL_LOG="$TEST_DIR/call_count"
+count=0
+[[ -f "\$CALL_LOG" ]] && count=\$(cat "\$CALL_LOG")
+count=\$((count + 1))
+echo "\$count" > "\$CALL_LOG"
+if [[ "\$count" -eq 1 ]]; then
+    printf '# 001. A\n\n**Status:** Not started\n\n## Scope\n\nRevised scope.\n' > plan/001-a.md
+fi
+echo '{"type":"result","result":"planning"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Plan converged — pass 2 changed nothing"* ]]
+    [[ "$output" == *"Completed 2 iterations"* ]]
+}
+
+@test "plan counts a new task file as progress" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    # Names as well as contents: adding a task file must count even before the
+    # index entry that links to it lands.
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+CALL_LOG="$TEST_DIR/call_count"
+count=0
+[[ -f "\$CALL_LOG" ]] && count=\$(cat "\$CALL_LOG")
+count=\$((count + 1))
+echo "\$count" > "\$CALL_LOG"
+if [[ "\$count" -eq 1 ]]; then
+    mkdir -p plan
+    echo '# 002. New' > plan/002-new.md
+fi
+echo '{"type":"result","result":"planning"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Plan converged — pass 2 changed nothing"* ]]
+    [[ "$output" == *"Completed 2 iterations"* ]]
+}
+
+@test "plan counts an edit to a symlinked spec as progress" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin" "$TEST_DIR/external"
+    echo "# external spec" > "$TEST_DIR/external/linked.md"
+    ln -s "$TEST_DIR/external/linked.md" specs/linked.md
+    # find without -L skips symlinks, which would make edits here invisible and
+    # let the loop declare convergence while work is still landing.
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+CALL_LOG="$TEST_DIR/call_count"
+count=0
+[[ -f "\$CALL_LOG" ]] && count=\$(cat "\$CALL_LOG")
+count=\$((count + 1))
+echo "\$count" > "\$CALL_LOG"
+if [[ "\$count" -eq 1 ]]; then
+    echo "edited on pass 1" >> "$TEST_DIR/external/linked.md"
+fi
+echo '{"type":"result","result":"planning"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Plan converged — pass 2 changed nothing"* ]]
+}
+
+@test "plan survives an unreadable spec file" {
+    [[ "$EUID" -ne 0 ]] || skip "root bypasses file permissions"
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    # A spec the loop cannot read must not abort the run under set -e/pipefail.
+    echo "# secret" > specs/unreadable.md
+    chmod 000 specs/unreadable.md
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"result","result":"planning"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    chmod 644 specs/unreadable.md
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Plan converged"* ]]
+}
+
+@test "plan convergence exit still applies when -n is passed" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    # -n caps a plan run but must not disable convergence, unlike build mode.
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"result","result":"planning"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan -n 12 --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Plan converged — pass 1 changed nothing"* ]]
+    [[ "$output" == *"Completed 1 iterations"* ]]
 }
 
 @test "plan never pushes even without --skip-push (no remote configured)" {

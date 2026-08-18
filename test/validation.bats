@@ -126,6 +126,35 @@ load test_helper
     [[ "$output" == *"no incomplete items"* ]]
 }
 
+@test "build ignores the Entry Format template entry" {
+    # The scaffolded plan carries an example entry at column zero. Counting it
+    # would send the build loop off to implement the template itself.
+    "$RALPH" init
+    run "$RALPH" build
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"no incomplete items"* ]]
+}
+
+@test "build counts only items below the Items heading" {
+    "$RALPH" init
+    printf -- '- [ ] **Real task**\n' >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" build --dry-run
+    [[ "$status" -eq 0 ]]
+    # 1 real item + 20% headroom = 2, not 4 (which would include the example).
+    [[ "$output" == *"Max:     2 iterations"* ]]
+}
+
+@test "build tolerates trailing whitespace on the Items heading" {
+    # A stray space must not send counting back to the whole-file fallback,
+    # which would re-count the Entry Format exemplar.
+    "$RALPH" init
+    sed -i.bak 's/^## Items$/## Items /' IMPLEMENTATION_PLAN.md && rm -f IMPLEMENTATION_PLAN.md.bak
+    printf -- '- [ ] **Real task**\n' >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" build --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Max:     2 iterations"* ]]
+}
+
 @test "build -n overrides calculated iterations" {
     echo "- [ ] **Task one**" > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md

@@ -30,7 +30,7 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `sandbox clean`   | Remove the devcontainer for the current project                              |
 | `sandbox --rebuild` | Rebuild the container image from scratch                                   |
 | `sandbox --no-inhibit-sleep` | Don't hold the host awake for the sandbox session                    |
-| `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` and the task files under `plan/` (default: 3 iterations) |
+| `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` and the task files under `plan/` (max 6 iterations; exits as soon as a pass changes nothing) |
 | `build`           | Pick the next item, implement, test, commit, push (default: 50 iterations)   |
 | `review`          | Review the branch diff against specs and guardrails, write `REVIEW.md` — changes nothing else (default: 1 iteration) |
 | `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`, `plan/`). Pass `--prompts` to also copy prompt templates for local customisation |
@@ -43,7 +43,7 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 
 | Flag                 | Description                                              |
 |----------------------|----------------------------------------------------------|
-| `-n`, `--iterations` | Max iterations                                           |
+| `-n`, `--iterations` | Max iterations. In build mode this also disables the noop exit; in plan mode it caps the run but never disables the convergence exit |
 | `-g`, `--goal`       | Goal injected into the prompt template                   |
 | `-m`, `--model`      | Model to use (default depends on backend)                |
 | `-b`, `--backend`    | Backend to use: `claude`, `codex`, `copilot`, `pi` (default: `claude`) |
@@ -188,6 +188,39 @@ Numbers are allocated in order and never reused. Completed items and their task 
 Completion notes live in the task file, capped at about three lines, with the fuller narrative going to `PROGRESS.md`. What they never go in is the index — that's the file every iteration re-reads in full, so it stays one line per item however much history accumulates behind it.
 
 **Note:** `ralph init` adds `plan/` to `.gitignore`, since task files are loop-local state. If your project already has a tracked `plan/` directory, rename one of them before running ralph — `clean` and `archive` only ever touch files matching the `NNN-slug.md` pattern, but the gitignore entry would still hide your own new files from git.
+
+### The implementation plan contract
+
+`specs/` states **what** to build. `IMPLEMENTATION_PLAN.md` states **how** to build it. The plan is a work queue, not a scratchpad — every line in it is an instruction or a pass/fail criterion. Outcomes, evidence and learnings go to `PROGRESS.md`; decisions and their reasoning go to `specs/`.
+
+Each item uses six fields and nothing else:
+
+```markdown
+- [ ] **Retarget the polkit agent to the Sway session**
+  Spec: `specs/plasma-sway-remnants.md` item 3
+  Scope: Add a session-target option. Do not change the Plasma agent.
+  Files: `modules/home/keyring-services.nix`, `hosts/neomorph/home.nix`
+  Steps:
+  1. Add `polkitSessionTarget` to `keyring-services.nix`. Default it to `graphical-session.target`.
+  2. Set `polkitSessionTarget` to `sway-session.target` in `hosts/neomorph/home.nix`.
+  Done when: Two `NRestarts` reads 30 seconds apart return the same number.
+```
+
+- **At most 150 words, 14 lines and 8 steps per item.** An item needing a ninth step is too large for one build iteration and gets split.
+- **Steps name greppable tokens** — symbols, option paths, literal values, files to copy an idiom from. Never line numbers, never pasted code, because an item runs many commits after it is written.
+- **`Done when` must be checkable without a human.** A criterion needing a fresh login or a visual check belongs in the spec's acceptance criteria, not the plan — an item nobody can verify never completes, and the build loop selects it forever.
+- **Items are written in [Simplified Technical English](https://www.asd-ste100.org/)** — one instruction per sentence, 20 words maximum, active imperative present tense.
+
+Markers are `- [ ]` open, `- [x]` shipped, and `- [~]` superseded or blocked. Only `- [ ]` sizes the build loop, so a superseded item neither inflates the iteration count nor counts as shipped work.
+
+The plan phase authors and refines items freely, inserting and reordering to keep position meaningful. **Once the build phase starts, items are immutable** — a build iteration may only tick a checkbox or append a new item at the end. When an item turns out to be wrong or its spec contradicts it, the build agent marks it `- [~]`, records why in `PROGRESS.md`, and moves on; the next planning run writes the replacement.
+
+This split assumes a capable model writes the plan and a cheaper one executes it. Use `-m` to match:
+
+```bash
+ralph plan                       # default model authors the plan
+ralph build -n 10 -m sonnet      # a cheaper model follows the steps
+```
 
 ### Starting a new goal
 
