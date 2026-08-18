@@ -12,7 +12,7 @@ The specifications state **what** to build. The implementation plan states **how
 
 ## Phase 1: Understand
 
-Gather context by reading these sources. Use parallel **Sonnet** subagents to read specs, source, and tests concurrently.
+Gather context by reading these sources. If your harness supports subagents, use fast ones to read specs, source, and tests in parallel.
 
 - **Operational guardrails** — read `AGENTS.md` or `CLAUDE.md` (if present) for build commands, conventions, and project rules
 - **Specifications** — read everything in `specs/`
@@ -23,7 +23,7 @@ Gather context by reading these sources. Use parallel **Sonnet** subagents to re
 
 ## Phase 2: Analyse
 
-Use an **Opus** reasoning subagent to analyse and synthesise findings. Compare the source code and tests against the specifications.
+Analyse and synthesise the findings with your strongest reasoning model, in a subagent if your harness supports one. Compare the source code and tests against the specifications.
 
 Look for:
 - Gaps between specs and implementation

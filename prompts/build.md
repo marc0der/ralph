@@ -12,7 +12,7 @@ The plan was written by a stronger model. Each item's `Steps` field states how t
 
 ## Phase 1: Understand
 
-Gather context by reading these sources. Use parallel **Sonnet** subagents for search and read operations.
+Gather context by reading these sources. If your harness supports subagents, use fast ones for search and read operations.
 
 - **Operational guardrails** — read `AGENTS.md` or `CLAUDE.md` (if present) for build commands, conventions, and project rules
 - **Specifications** — read everything in `specs/`
@@ -44,7 +44,7 @@ Select the topmost `- [ ]` item in `IMPLEMENTATION_PLAN.md` and implement it ful
 
 Run the project's test suite to validate your changes.
 
-- If tests fail, use an **Opus** reasoning subagent to reason about the root cause before attempting fixes
+- If tests fail, reason about the root cause with your strongest reasoning model before attempting fixes
 - If tests unrelated to your work fail, resolve them as part of this increment. This overrides the item's `Scope`, because a red suite blocks every later iteration
 - If functionality is missing, add it per the specifications
 - **Blocking Backpressure**: If the item involves frontend user interaction or workflows, verify with `dev-browser --headless` against `http://localhost:3000`.
@@ -71,7 +71,7 @@ Once tests pass:
 
 ## Constraints
 
-- **Subagent discipline:** Use **Sonnet** subagents for search/read, **Opus** subagents for complex reasoning (debugging, architectural decisions), and only **1 Opus** subagent for build/test execution.
+- **Subagent discipline:** If your harness supports subagents, use fast ones for search and read operations, and your strongest reasoning model for debugging and architectural decisions. Never run build or test commands in more than one subagent at a time.
 - **Implement completely.** Placeholders and stubs waste effort redoing the same work.
 - **`PROGRESS.md` owns the record.** Every outcome, measurement, verification result, learning and gotcha goes there. None of it ever goes in `IMPLEMENTATION_PLAN.md`.
 - **Single sources of truth.** Don't duplicate information across files.
