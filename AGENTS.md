@@ -30,7 +30,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 
 | Command | Purpose |
 |---------|---------|
-| `plan` | Run planning loop (default: 3 iterations) — reads specs/source, produces `IMPLEMENTATION_PLAN.md` and the `plan/NNN-slug.md` task files it links to |
+| `plan` | Run planning loop (max 6 iterations, exits on convergence) — reads specs/source, produces `IMPLEMENTATION_PLAN.md` and the `plan/NNN-slug.md` task files it links to |
 | `build` | Run build loop (default: 50 iterations) — picks next task, implements, tests, commits, pushes |
 | `sandbox` | Enter/manage devcontainer (`sandbox`, `sandbox clean`, `sandbox --rebuild`) |
 | `init` | Initialize workspace artifacts and directories |
@@ -45,6 +45,13 @@ Ralph is a single Bash script (`ralph`) with these commands:
 4. Substitute `{{GOAL}}` into prompt via bash parameter expansion
 5. Pipe prompt to the backend command in a loop (e.g., `claude -p` or `codex exec`)
 6. Parse JSON output with jq using backend-specific flags and filters, push changes after each iteration
+7. Detect an early exit, per mode. Build mode watches `HEAD` and stops after 2 consecutive noops, unless `-n` was passed. Plan mode never commits, so it fingerprints `IMPLEMENTATION_PLAN.md`, `plan/` and `specs/` via `plan_state_hash` and stops on the first pass that changes none of them; `-n` caps a plan run but never disables the check, and a converging pass against an empty plan is a failure rather than convergence. Review mode has no early exit: it is read-only, so every iteration is a noop by `HEAD` and any HEAD-based check would cut a multi-pass review short. Each branch names its mode explicitly — none is the default
+
+### The implementation plan contract
+
+`specs/` states *what* to build; the plan states *how*. The plan is two artifacts: `IMPLEMENTATION_PLAN.md` is an index of one-line entries, each linking to a task file at `plan/NNN-slug.md` that holds the detail. Both prompts enforce a closed field schema on the task file (title, `**Status:**`, `Spec`, `Scope`, `Files`, `Steps`, `Done when`, `Completion notes`), a cap of 150 words / 8 steps per task file, and Simplified Technical English. `IMPLEMENTATION_PLAN.md` holds exactly three headings; neither artifact carries outcomes or evidence — those belong in `PROGRESS.md`.
+
+Items are mutable during the plan phase and immutable during the build phase, where the only legal edits are ticking a checkbox, marking an entry `- [~]`, appending a new item (index entry plus task file), and filling in the finished item's completion notes. Markers are `- [ ]`, `- [x]`, and `- [~]` (superseded or blocked), each matching the `**Status:**` in its task file. `calculate_build_iterations` counts only `^- \[ \]` below `## Items`, so `[~]` items and the template's example entry neither size the build loop nor count as shipped work. `plan_state_hash` fingerprints the index, `plan/` and `specs/` together, so a pass that only rewrites a task file is not mistaken for convergence. Convergence also requires the plan to hold at least one entry: a pass that changes nothing against an empty plan is a planning failure — the backend answered without doing the work — and exits non-zero rather than reporting success. When changing these rules, keep `prompts/plan.md`, `prompts/build.md` and `templates/IMPLEMENTATION_PLAN.md` in agreement — the prompts win on any disagreement.
 
 ### Sandbox
 

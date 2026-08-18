@@ -97,6 +97,43 @@ latest_metrics_file() {
     [[ $(jq -r '.git.commits' <<<"$line") == "0" ]]
 }
 
+@test "plan iteration that edits the plan records noop=false" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    # Plan mode never commits, so the noop flag must come from the plan
+    # artifacts rather than from HEAD.
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+echo "- [ ] **Task one**" >> IMPLEMENTATION_PLAN.md
+echo '{"type":"result","subtype":"success","duration_ms":500,"duration_api_ms":400,"num_turns":2,"result":"Planned.","session_id":"s3","total_cost_usd":0.01,"usage":{"input_tokens":10,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":5}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" plan -n 1 --skip-push -y
+
+    local line
+    line=$(tail -1 "$(latest_metrics_file)")
+    [[ $(jq -r '.mode' <<<"$line") == "plan" ]]
+    [[ $(jq -r '.git.noop' <<<"$line") == "false" ]]
+    [[ $(jq -r '.git.commits' <<<"$line") == "0" ]]
+}
+
+@test "plan iteration that changes nothing records noop=true" {
+    "$RALPH" init
+    # One item present: a converging pass against an empty plan is a planning
+    # failure and exits before metrics assert anything.
+    printf -- '- [ ] **Seeded item** — x. → [001-x.md](plan/001-x.md)\n' >> IMPLEMENTATION_PLAN.md
+    create_noop_backend
+
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" plan -n 1 --skip-push -y
+
+    local line
+    line=$(tail -1 "$(latest_metrics_file)")
+    [[ $(jq -r '.mode' <<<"$line") == "plan" ]]
+    [[ $(jq -r '.git.noop' <<<"$line") == "true" ]]
+}
+
 @test "degraded backend output still records a metrics line with nulls" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
