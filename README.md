@@ -163,7 +163,7 @@ Ralph iterations create and maintain these files in your project:
 
 `ralph init` does **not** touch `.gitignore` by default. Use `--gitignore` to add the build artefacts to `.gitignore`.
 
-- **Committed** — All the files needed to resume a run are committed, useful if you want other people on your team to pick up where you left off.
+- **Committed** — All the files needed to resume a run are committed, useful if you want other people on your team to be able to resume ralph iterations from where you left off.
 - **Ignored** — If you only want code that is produced by ralph to go in the repo and no ralph files to keep it clean.
 
 ### Plan layout
