@@ -7,9 +7,23 @@ CONFIG_DIR="${RALPH_CONFIG_DIR:-$HOME/.config/ralph}"
 # Safety-net cap for plan mode; a plan run normally ends on convergence,
 # well before this (build mode calculates its own count from the plan)
 PLAN_DEFAULT_CAP=6
+# Review is a single read-only pass by default; use -n to run more
+REVIEW_DEFAULT_CAP=1
 
-ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md PROMPT_plan.md PROMPT_build.md)
+ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md REVIEW.md PROMPT_plan.md PROMPT_build.md PROMPT_review.md)
 ARCHIVE_DIR=".ralph"
+
+# IMPLEMENTATION_PLAN.md is an index of one-line entries; the detail for each
+# item lives in its own file under TASK_DIR, linked from its index entry.
+TASK_DIR="plan"
+
+# Rate-limit / usage-limit retry defaults (see cmd_loop's retry wrapper).
+# This caps retries of a single iteration that keeps hitting a token/usage
+# limit even though each occurrence reports a valid, parseable reset time —
+# it is not a generic error-retry count (see the helpers below for why).
+DEFAULT_RETRIES_WHEN_TOKENS_USED=5
+RETRY_RESET_BUFFER_SECONDS=30
+RETRY_RESET_MAX_WAIT_SECONDS=$((60 * 60 * 5 + 60 * 30))  # 5.5 hours (30m buffer past Anthropic's 5h window)
 
 # --- Backend definitions ---
 # Each backend_<name> function sets well-known variables and defines
@@ -111,6 +125,16 @@ md5_hash() {
     fi
 }
 
+# Fail clearly when an option that takes a value is given none at all.
+# A value that merely looks like a flag is left alone: the option's own
+# validation reports it better than a generic parser message would.
+require_option_value() {
+    if [[ $# -lt 2 ]]; then
+        echo "Error: option '$1' requires a value" >&2
+        exit 1
+    fi
+}
+
 resolve_backend() {
     local name="$1"
     local found=false
@@ -133,9 +157,9 @@ usage() {
 ralph — autonomous AI coding agent loop runner
 
 Usage:
-  ralph sandbox [--rebuild]
+  ralph sandbox [--rebuild] [--no-inhibit-sleep]
   ralph sandbox clean
-  ralph <plan|build> [options]
+  ralph <plan|build|review> [options]
   ralph init
   ralph clean
   ralph archive
@@ -146,23 +170,33 @@ Modes:
   sandbox        Enter a devcontainer shell for the current project
   sandbox clean  Remove the devcontainer for the current project
   plan           Analyse specs and source, create/update IMPLEMENTATION_PLAN.md
+                 and the per-task files it links to under plan/
   build          Pick the next item, implement, test, commit, push
-  init           Initialise workspace (PROGRESS.md, IMPLEMENTATION_PLAN.md, specs/)
-  clean          Delete IMPLEMENTATION_PLAN.md and PROGRESS.md
-  archive        Move IMPLEMENTATION_PLAN.md and PROGRESS.md to .ralph/<timestamp>/
+  review         Review the branch diff against specs, write REVIEW.md (changes nothing else)
+  init           Initialise workspace (PROGRESS.md, IMPLEMENTATION_PLAN.md,
+                 specs/, plan/)
+  clean          Delete IMPLEMENTATION_PLAN.md, PROGRESS.md and plan/ task files
+  archive        Move IMPLEMENTATION_PLAN.md, PROGRESS.md and plan/ task files
+                 to .ralph/<timestamp>/
   metrics        Summarise a run's loop metrics (latest run, or a given metrics.jsonl)
 
 Sandbox options:
-      --rebuild        Rebuild the container image from scratch
+      --rebuild            Rebuild the container image from scratch
+      --no-inhibit-sleep   Don't hold the host awake (caffeinate/systemd-inhibit)
+                           for the sandbox session
 
 Init options:
   -p, --prompts      Also copy prompt templates for local customisation
+      --gitignore    Also add the loop artifacts (IMPLEMENTATION_PLAN.md,
+                     PROGRESS.md, REVIEW.md, plan/, .ralph/) to .gitignore.
+                     Off by default — whether the plan is loop-local state or a
+                     committed audit trail is the project's call
 
 Options:
   -n, --iterations N   Max iterations (plan default: 6, build: calculated from
-                       the plan). In build mode this also disables the noop
-                       exit; in plan mode it caps the run but never disables
-                       the convergence exit
+                       the plan, review default: 1). In build mode this also
+                       disables the noop exit; in plan mode it caps the run but
+                       never disables the convergence exit
   -g, --goal TEXT      Goal to inject into the prompt template
   -m, --model MODEL    Model to use (default depends on backend)
   -b, --backend NAME   Backend to use: claude, codex, copilot, pi (default: claude)
@@ -171,6 +205,11 @@ Options:
       --no-metrics     Don't record per-iteration metrics under .ralph/metrics/
   -v, --verbose        Show backend commands, raw output, and exit codes
   -y, --yes            Skip the confirmation when running outside a sandbox
+      --max-retries-per-iteration N
+                       Max retries on a repeating token/usage limit within a
+                       single iteration, each with a parseable reset time
+                       (default: 5)
+      --no-retry       Fail immediately on any backend error, no retry
   -h, --help           Show this help message
 
 Examples:
@@ -180,8 +219,13 @@ Examples:
   ralph build -n 10 -m sonnet
   ralph build -b codex
   ralph build --iterations 5 --goal "Add PATCH endpoint"
+  ralph build --max-retries-per-iteration 3
+  ralph build --no-retry
+  ralph review
+  ralph review -g "Focus on FT-001 business-rule coverage"
   ralph sandbox
   ralph sandbox --rebuild
+  ralph sandbox --no-inhibit-sleep
   ralph sandbox clean
   ralph archive
 EOF
@@ -191,6 +235,17 @@ EOF
 cmd_version() {
     echo "ralph $VERSION"
     exit 0
+}
+
+# True when TASK_DIR holds at least one task file.
+has_task_files() {
+    local task
+    for task in "$TASK_DIR"/*.md; do
+        if [[ -f "$task" ]]; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 cmd_clean() {
@@ -203,6 +258,16 @@ cmd_clean() {
             found=true
         fi
     done
+
+    local task
+    for task in "$TASK_DIR"/*.md; do
+        [[ -f "$task" ]] || continue
+        rm "$task"
+        echo "Deleted: $task"
+        found=true
+    done
+    # The directory itself stays — like specs/, it is workspace scaffolding.
+
     $found || echo "Nothing to clean."
 }
 
@@ -215,6 +280,10 @@ cmd_archive() {
             break
         fi
     done
+
+    if ! $found && has_task_files; then
+        found=true
+    fi
 
     if ! $found; then
         echo "Nothing to archive."
@@ -233,14 +302,24 @@ cmd_archive() {
             echo "Archived: $file -> $dest/$file"
         fi
     done
+
+    local task
+    for task in "$TASK_DIR"/*.md; do
+        [[ -f "$task" ]] || continue
+        mkdir -p "$dest/$TASK_DIR"
+        mv "$task" "$dest/$TASK_DIR/"
+        echo "Archived: $task -> $dest/$task"
+    done
 }
 
 cmd_init() {
     local with_prompts=false
+    local with_gitignore=false
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -p|--prompts) with_prompts=true; shift ;;
+            -p|--prompts)   with_prompts=true; shift ;;
+            --gitignore)    with_gitignore=true; shift ;;
             *) echo "Error: unknown init option '$1'"; exit 1 ;;
         esac
     done
@@ -267,6 +346,14 @@ cmd_init() {
         echo "Created: specs/"
     fi
 
+    # Per-task detail files linked from IMPLEMENTATION_PLAN.md's index entries.
+    if [[ -d "$TASK_DIR" ]]; then
+        echo "Skipped: $TASK_DIR/ already exists"
+    else
+        mkdir -p "$TASK_DIR"
+        echo "Created: $TASK_DIR/"
+    fi
+
     # Bundled Claude Code skills (e.g. /commit) — scaffold into project-local .claude/skills/
     local skills_dir="$CONFIG_DIR/skills"
     if [[ -f "$skills_dir/commit/SKILL.md" ]]; then
@@ -276,20 +363,9 @@ cmd_init() {
         echo "Warning: commit skill not found at $skills_dir/commit/SKILL.md"
     fi
 
-    # Add ralph artifacts to .gitignore
-    if [[ ! -f ".gitignore" ]]; then
-        touch .gitignore
-        echo "Created: .gitignore"
+    if $with_gitignore; then
+        gitignore_artifacts
     fi
-    # Ensure file ends with a newline before appending
-    [[ -s .gitignore && $(tail -c1 .gitignore) != "" ]] && echo >> .gitignore
-    local ignore_entries=("IMPLEMENTATION_PLAN.md" "PROGRESS.md" ".ralph/" "PROMPT_plan.md" "PROMPT_build.md")
-    for entry in "${ignore_entries[@]}"; do
-        if ! grep -qxF "$entry" .gitignore; then
-            echo "$entry" >> .gitignore
-            echo "Added to .gitignore: $entry"
-        fi
-    done
 
     # Optional: copy prompt templates for local customisation
     if $with_prompts; then
@@ -299,10 +375,38 @@ cmd_init() {
             echo "Run the installer first: ./install.sh"
             exit 1
         fi
-        for file in plan.md build.md; do
+        for file in plan.md build.md review.md; do
             scaffold "PROMPT_${file}" "$prompts_dir/$file"
         done
     fi
+}
+
+gitignore_artifacts() {
+    local entries=("IMPLEMENTATION_PLAN.md" "PROGRESS.md" "REVIEW.md" "$TASK_DIR/" ".ralph/")
+
+    local missing=() entry
+    for entry in "${entries[@]}"; do
+        grep -qxF "$entry" .gitignore 2>/dev/null || missing+=("$entry")
+    done
+
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        echo "Skipped: .gitignore already ignores the loop artifacts"
+        return
+    fi
+
+    if [[ ! -f ".gitignore" ]]; then
+        touch .gitignore
+        echo "Created: .gitignore"
+    fi
+    # Ensure the file ends with a newline before appending
+    [[ -s .gitignore && $(tail -c1 .gitignore) != "" ]] && echo >> .gitignore
+    [[ -s .gitignore ]] && printf '\n' >> .gitignore
+
+    echo "# Ralph loop artifacts" >> .gitignore
+    for entry in "${missing[@]}"; do
+        echo "$entry" >> .gitignore
+        echo "Added to .gitignore: $entry"
+    done
 }
 
 scaffold() {
@@ -318,13 +422,16 @@ scaffold() {
 
 cmd_sandbox() {
     local rebuild=false
+    local inhibit_sleep=true
 
-    case "${1:-}" in
-        clean)     sandbox_clean; return ;;
-        --rebuild) rebuild=true ;;
-        "")        ;;
-        *)         echo "Error: unknown sandbox option '$1'" >&2; exit 1 ;;
-    esac
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            clean)              sandbox_clean; return ;;
+            --rebuild)          rebuild=true; shift ;;
+            --no-inhibit-sleep) inhibit_sleep=false; shift ;;
+            *)                  echo "Error: unknown sandbox option '$1'" >&2; exit 1 ;;
+        esac
+    done
 
     if ! command -v devcontainer >/dev/null 2>&1; then
         echo "Error: 'devcontainer' CLI not found in PATH." >&2
@@ -469,6 +576,32 @@ cmd_sandbox() {
         up_args+=("--remove-existing-container" "--build-no-cache")
     fi
 
+    # Sleep inhibition — a devcontainer is suspended along with the host, which
+    # stalls a long unattended build mid-iteration. Hold the host awake for the
+    # whole sandbox session (image build/pull included) via the platform's
+    # inhibitor, backgrounded and released on any exit from this function,
+    # including Ctrl-C.
+    local sleep_inhibitor_pid=""
+    if $inhibit_sleep; then
+        if command -v caffeinate >/dev/null 2>&1; then
+            caffeinate -dimsu -w $$ &
+            sleep_inhibitor_pid=$!
+        elif command -v systemd-inhibit >/dev/null 2>&1; then
+            systemd-inhibit --what=idle:sleep --why="ralph sandbox session" sleep infinity &
+            sleep_inhibitor_pid=$!
+        else
+            echo "Warning: no sleep inhibitor found (caffeinate/systemd-inhibit not in PATH)." >&2
+            echo "The host may sleep during a long unattended run, suspending the container." >&2
+        fi
+        # The EXIT trap fires after this function returns, once `local`s are gone
+        # — bake the PID into the trap command as a literal (double-quoted, so it
+        # expands now) rather than referencing the variable name.
+        if [[ -n "$sleep_inhibitor_pid" ]]; then
+            # shellcheck disable=SC2064 # intentional: expand the PID now, before it goes out of scope
+            trap "kill $sleep_inhibitor_pid 2>/dev/null" EXIT
+        fi
+    fi
+
     echo "Starting sandbox..."
     devcontainer up "${up_args[@]}"
 
@@ -527,6 +660,10 @@ require_init_artifacts() {
     case "$mode" in
         plan)  required=(IMPLEMENTATION_PLAN.md) ;;
         build) required=(IMPLEMENTATION_PLAN.md PROGRESS.md) ;;
+        # Review scaffolds nothing: it writes REVIEW.md afresh and reads the
+        # plan/progress files only if they happen to exist. Return before the
+        # loop below — expanding an empty array trips set -u on bash < 4.4.
+        *)     return 0 ;;
     esac
 
     local missing=()
@@ -541,11 +678,18 @@ require_init_artifacts() {
     fi
 }
 
-# The part of the plan that holds real items. The '## Entry Format' section
-# carries a template entry at column zero, which must never count as work.
-# Plans without that heading are read whole, so older plans still work.
+# The part of the plan that holds real items — everything below '## Items'.
+#
+# The scaffolded '## Entry Format' section documents the entry shape by example.
+# This template indents its exemplar so it does not match '^- \[', but that is a
+# property of the template's formatting, not a guarantee: a reworded header, a
+# hand-written plan, or an agent pasting an example back at column zero would
+# each put a checkbox above '## Items'. Scoping the read to the items section
+# means counting never depends on how the prose above it happens to be laid out.
+#
+# Plans without the heading are read whole, so older and hand-written plans work.
 plan_items_body() {
-    local file="${1:-IMPLEMENTATION_PLAN.md}"
+    local file="IMPLEMENTATION_PLAN.md"
     if grep -qE '^## Items[[:space:]]*$' "$file" 2>/dev/null; then
         sed -n '/^## Items[[:space:]]*$/,$p' "$file"
     else
@@ -572,10 +716,22 @@ calculate_build_iterations() {
 # Fingerprint the artifacts a plan iteration is allowed to change.
 # Plan mode never commits (IMPLEMENTATION_PLAN.md is gitignored), so HEAD cannot
 # detect progress. A pass that leaves this hash unchanged has converged.
+#
+# TASK_DIR is hashed alongside the index: the index is one line per item, so a
+# pass that only rewrites an item's scope or verification criteria changes a
+# task file and nothing else. Hashing the index alone would read that as
+# convergence and stop the run mid-plan.
 plan_state_hash() {
     {
         if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
             cat "IMPLEMENTATION_PLAN.md"
+        fi
+        if [[ -d "$TASK_DIR" ]]; then
+            # Names as well as contents, so adding or removing a task file counts.
+            find -L "$TASK_DIR" -type f -name '*.md' | LC_ALL=C sort | while IFS= read -r task; do
+                echo "$task"
+                cat -- "$task" || true
+            done
         fi
         if [[ -d "specs" ]]; then
             # Hash names as well as contents so adding or removing a spec counts
@@ -589,6 +745,26 @@ plan_state_hash() {
     } 2>/dev/null | md5_hash
 }
 
+# Paths a build iteration changed, excluding the loop's own bookkeeping.
+#
+# A build iteration always rewrites IMPLEMENTATION_PLAN.md and PROGRESS.md, and
+# `ralph init` no longer gitignores them, so a project that commits its artifacts
+# advances HEAD every pass. A bare HEAD comparison would then read a stalled loop
+# as progress and never exit early. Ask the narrower question instead: did this
+# iteration change anything other than the plan and the log?
+#
+# Empty output means no source progress, whether or not HEAD moved.
+build_progress_paths() {
+    local before="$1" after="$2"
+    [[ "$before" == "$after" ]] && return 0
+    git diff --name-only "$before" "$after" -- . \
+        ":(exclude)IMPLEMENTATION_PLAN.md" \
+        ":(exclude)PROGRESS.md" \
+        ":(exclude)REVIEW.md" \
+        ":(exclude)${TASK_DIR}/" \
+        ":(exclude).ralph/"
+}
+
 truncate_line() {
     local text="$1" max="$2"
     if [[ ${#text} -gt $max ]]; then
@@ -596,6 +772,92 @@ truncate_line() {
     else
         echo "$text"
     fi
+}
+
+# --- Rate-limit / usage-limit retry helpers ---
+#
+# Backend CLIs (at least Claude Code, see anthropics/claude-code#35540) exit
+# non-zero for every failure type — transient rate limits, usage-limit
+# exhaustion, and genuine errors alike — so detection has to be content-based
+# rather than exit-code-based.
+#
+# Deliberately no blind exponential-backoff fallback: if the output is
+# classified as rate-limited but no reset time can be parsed out of it, that
+# is a gap in detection, not a case to paper over with a guessed wait. It
+# fails loudly instead, so the gap gets fixed rather than hidden.
+
+# True if the combined backend stdout/stderr looks like a rate-limit or
+# usage-limit failure rather than a genuine error.
+is_rate_limit_failure() {
+    local text="${1,,}"
+    [[ "$text" == *"usage limit"* ]] && return 0
+    [[ "$text" == *"rate_limit_error"* ]] && return 0
+    [[ "$text" == *"rate limit"* ]] && return 0
+    [[ "$text" == *"overloaded_error"* ]] && return 0
+    return 1
+}
+
+# Extracts a reset epoch (seconds) from a "...|<epoch>" style message, if
+# present. Claude Code's own usage-limit messages carry the reset time this
+# way (seen verbatim in its auto-filed bug report titles, e.g.
+# "Claude AI usage limit reached|1754298000"). Echoes nothing if absent.
+extract_reset_epoch() {
+    local text="$1"
+    if [[ "$text" =~ \|([0-9]{10,13}) ]]; then
+        local raw="${BASH_REMATCH[1]}"
+        if [[ ${#raw} -ge 13 ]]; then
+            echo $(( raw / 1000 ))
+        else
+            echo "$raw"
+        fi
+    fi
+}
+
+# Seconds to wait before retrying, given a reset epoch (capped against a
+# garbage or far-future parse). Caller must ensure reset_epoch is non-empty.
+compute_retry_wait() {
+    local reset_epoch="$1"
+    local now wait
+    now=$(date +%s)
+    wait=$(( reset_epoch - now + RETRY_RESET_BUFFER_SECONDS ))
+    [[ $wait -lt 5 ]] && wait=5
+    [[ $wait -gt $RETRY_RESET_MAX_WAIT_SECONDS ]] && wait=$RETRY_RESET_MAX_WAIT_SECONDS
+    echo "$wait"
+}
+
+# Formats a seconds count as a short human-readable duration (e.g. "12m", "1h5m").
+format_duration() {
+    local seconds="$1"
+    if [[ $seconds -lt 60 ]]; then
+        echo "${seconds}s"
+    elif [[ $seconds -lt 3600 ]]; then
+        echo "$(( seconds / 60 ))m"
+    else
+        local hours=$(( seconds / 3600 )) mins=$(( (seconds % 3600) / 60 ))
+        if [[ $mins -eq 0 ]]; then
+            echo "${hours}h"
+        else
+            echo "${hours}h${mins}m"
+        fi
+    fi
+}
+
+# First incomplete item in IMPLEMENTATION_PLAN.md, stripped of the checkbox
+# prefix, markdown emphasis, and the trailing link to its task file — the item
+# the build prompt directs the agent to pick next. Empty when the file is absent
+# or every item is complete.
+#
+# Done in a single sed that quits at the first match rather than piping into
+# head: under `set -o pipefail` a head that closes the pipe early makes the
+# whole pipeline non-zero, which would abort the loop on a long plan.
+next_plan_item() {
+    plan_items_body 2>/dev/null | sed -nE '/^- \[ \]/{
+        s/^- \[ \] *//
+        s/\*\*//g
+        s/[[:space:]]*(→|->)?[[:space:]]*\[[^]]*\]\([^)]*\)[[:space:]]*$//
+        p
+        q
+    }'
 }
 
 # --- Metrics capture ---
@@ -784,24 +1046,42 @@ cmd_loop() {
     local dry_run=false
     local verbose=false
     local assume_yes=false
+    local max_retries_opt=""
+    local no_retry=false
     local no_metrics=false
 
-    ARGS=$(getopt -o n:g:m:b:vyh --long iterations:,goal:,model:,backend:,skip-push,dry-run,no-metrics,verbose,yes,help -n 'ralph' -- "$@")
-    eval set -- "$ARGS"
-
-    while true; do
+    # Parsed by hand rather than with getopt(1). BSD getopt, which is what macOS
+    # ships, does not understand --long and returns the whole invocation as
+    # positional junk — every flag was then silently dropped, so --dry-run ran
+    # the backend for real and --skip-push pushed. cmd_sandbox already parses its
+    # own flags this way. The mode is shifted off above, so there are no
+    # positionals left to permute and getopt bought only the --opt=value form,
+    # which the first branch handles.
+    while [[ $# -gt 0 ]]; do
         case "$1" in
-            -n|--iterations) max_iterations="$2"; shift 2 ;;
-            -g|--goal)       goal="$2";           shift 2 ;;
-            -m|--model)      model="$2";          shift 2 ;;
-            -b|--backend)    backend="$2";        shift 2 ;;
+            --*=*)
+                # Normalise --opt=value into --opt value, then re-dispatch
+                set -- "${1%%=*}" "${1#*=}" "${@:2}"
+                continue
+                ;;
+            -n|--iterations)             require_option_value "$@"; max_iterations="$2";  shift 2 ;;
+            -g|--goal)                   require_option_value "$@"; goal="$2";            shift 2 ;;
+            -m|--model)                  require_option_value "$@"; model="$2";           shift 2 ;;
+            -b|--backend)                require_option_value "$@"; backend="$2";         shift 2 ;;
+            --max-retries-per-iteration) require_option_value "$@"; max_retries_opt="$2"; shift 2 ;;
             --skip-push)     skip_push=true;      shift ;;
             --dry-run)       dry_run=true;        shift ;;
             --no-metrics)    no_metrics=true;     shift ;;
+            --no-retry)      no_retry=true;       shift ;;
             -v|--verbose)    verbose=true;        shift ;;
             -y|--yes)        assume_yes=true;     shift ;;
             -h|--help)       usage ;;
             --)              shift; break ;;
+            *)
+                echo "Error: unknown option '$1' for 'ralph $mode'" >&2
+                echo "Run 'ralph --help' for usage." >&2
+                exit 1
+                ;;
         esac
     done
 
@@ -815,6 +1095,16 @@ cmd_loop() {
         fi
         hard_override=true
     fi
+
+    local max_retries=$DEFAULT_RETRIES_WHEN_TOKENS_USED
+    if [[ -n "$max_retries_opt" ]]; then
+        if [[ ! "$max_retries_opt" =~ ^[0-9]+$ ]]; then
+            echo "Error: --max-retries-per-iteration must be a non-negative integer, got '$max_retries_opt'" >&2
+            exit 1
+        fi
+        max_retries=$max_retries_opt
+    fi
+    $no_retry && max_retries=0
 
     # Fail fast if 'ralph init' hasn't been run — checked before any backend
     # resolution, CLI lookup, or git work so the user gets immediate feedback.
@@ -832,8 +1122,9 @@ cmd_loop() {
     # Resolve iteration count from defaults/heuristics when -n wasn't passed.
     if ! $hard_override; then
         case "$mode" in
-            plan)  max_iterations=$PLAN_DEFAULT_CAP ;;
-            build) max_iterations=$(calculate_build_iterations) ;;
+            plan)   max_iterations=$PLAN_DEFAULT_CAP ;;
+            build)  max_iterations=$(calculate_build_iterations) ;;
+            review) max_iterations=$REVIEW_DEFAULT_CAP ;;
         esac
     fi
 
@@ -940,6 +1231,21 @@ cmd_loop() {
             "$iter_label" \
             "$(printf '%*s' "$pad_right" '' | tr ' ' '=')"
 
+        # Announce the iteration's target up front — the loop is otherwise
+        # silent until the backend finishes. Build mode works the plan top
+        # down, so the first incomplete entry is what this iteration will
+        # attempt; re-read each iteration because the previous one moves it.
+        if [[ "$mode" == "build" ]]; then
+            local next_item
+            # An unreadable plan must not abort the loop: announcing is a
+            # convenience, so fall back to silence rather than failing.
+            next_item=$(next_plan_item) || next_item=""
+            if [[ -n "$next_item" ]]; then
+                truncate_line "Next:    $next_item" "$line_width"
+                echo ""
+            fi
+        fi
+
         # Snapshot HEAD to detect noops. Plan mode never commits, so it
         # fingerprints the artifacts it is allowed to change instead.
         local head_before plan_state_before="" plan_state_after=""
@@ -982,36 +1288,89 @@ cmd_loop() {
                 fi
             fi
 
-            # Run backend command separately, capturing stdout while preserving stderr
-            local backend_output=""
-            local backend_exit=0
-            if [[ "$BACKEND_STDIN_PROMPT" == "true" ]]; then
-                backend_output=$(echo "$prompt" | "${BACKEND_CMD[@]}" 2> >(
-                    if $verbose; then
-                        echo "[verbose] === Backend stderr ===" >&2
-                        cat >&2
-                        echo "[verbose] === End backend stderr ===" >&2
-                    else
-                        cat >&2
-                    fi
-                )) || backend_exit=$?
-            else
-                backend_output=$("${BACKEND_CMD[@]}" "$prompt" 2> >(
-                    if $verbose; then
-                        echo "[verbose] === Backend stderr ===" >&2
-                        cat >&2
-                        echo "[verbose] === End backend stderr ===" >&2
-                    else
-                        cat >&2
-                    fi
-                )) || backend_exit=$?
-            fi
+            # Run backend command separately, capturing stdout while preserving
+            # stderr. On a non-zero exit, retry the same iteration if the
+            # output looks like a rate/usage-limit failure with a parseable
+            # reset time — backend CLIs use the same exit code for every
+            # failure type (see anthropics/claude-code#35540), so
+            # classification reads the raw stream content, before jq ever
+            # sees it. A rate-limit-shaped failure with no parseable reset
+            # time fails immediately rather than guessing a wait.
+            local backend_output="" backend_exit=0
+            local retry_num=0
+            while true; do
+                backend_exit=0
+                local stderr_capture
+                stderr_capture=$(mktemp)
 
-            if [[ $backend_exit -ne 0 ]]; then
-                echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
-                echo "Hint: re-run with --dry-run to inspect the prompt, or --verbose for full diagnostics" >&2
-                exit "$backend_exit"
-            fi
+                if [[ "$BACKEND_STDIN_PROMPT" == "true" ]]; then
+                    backend_output=$(echo "$prompt" | "${BACKEND_CMD[@]}" 2> >(
+                        if $verbose; then
+                            echo "[verbose] === Backend stderr ===" >&2
+                            tee "$stderr_capture" >&2
+                            echo "[verbose] === End backend stderr ===" >&2
+                        else
+                            tee "$stderr_capture" >&2
+                        fi
+                    )) || backend_exit=$?
+                else
+                    backend_output=$("${BACKEND_CMD[@]}" "$prompt" 2> >(
+                        if $verbose; then
+                            echo "[verbose] === Backend stderr ===" >&2
+                            tee "$stderr_capture" >&2
+                            echo "[verbose] === End backend stderr ===" >&2
+                        else
+                            tee "$stderr_capture" >&2
+                        fi
+                    )) || backend_exit=$?
+                fi
+
+                local backend_stderr
+                backend_stderr=$(<"$stderr_capture")
+                rm -f "$stderr_capture"
+
+                [[ $backend_exit -eq 0 ]] && break
+
+                local combined="$backend_output"$'\n'"$backend_stderr"
+                if ! is_rate_limit_failure "$combined"; then
+                    echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
+                    echo "Raw backend output:" >&2
+                    echo "$backend_output" >&2
+                    echo "Hint: re-run with --dry-run to inspect the prompt, or --verbose for full diagnostics" >&2
+                    exit "$backend_exit"
+                fi
+
+                local reset_epoch
+                reset_epoch=$(extract_reset_epoch "$combined")
+                if [[ -z "$reset_epoch" ]]; then
+                    echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
+                    echo "This looks rate limited, but no reset time could be parsed from the output —" >&2
+                    echo "failing instead of guessing a wait. Please report this so detection can be fixed." >&2
+                    echo "Raw backend output:" >&2
+                    echo "$backend_output" >&2
+                    echo "Hint: re-run with --dry-run to inspect the prompt, or --verbose for full diagnostics" >&2
+                    exit "$backend_exit"
+                fi
+
+                if [[ $retry_num -ge $max_retries ]]; then
+                    echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
+                    if [[ $max_retries -eq 0 ]]; then
+                        echo "Rate limited with a parseable reset time, but retries are disabled (--no-retry / --max-retries-per-iteration 0)." >&2
+                    else
+                        echo "Rate limited — exhausted $max_retries retries, each with a valid reset time." >&2
+                    fi
+                    echo "Raw backend output:" >&2
+                    echo "$backend_output" >&2
+                    echo "Hint: re-run with --dry-run to inspect the prompt, or --verbose for full diagnostics" >&2
+                    exit "$backend_exit"
+                fi
+
+                retry_num=$((retry_num + 1))
+                local wait_seconds
+                wait_seconds=$(compute_retry_wait "$reset_epoch")
+                echo "⏸ Rate limited on iteration $iteration, retrying in $(format_duration "$wait_seconds") (attempt $retry_num/$max_retries)" >&2
+                sleep "$wait_seconds"
+            done
 
             # Verbose: show raw backend output before jq
             if $verbose; then
@@ -1073,8 +1432,8 @@ cmd_loop() {
             fi
         fi
 
-        # Push changes after each iteration. Plan mode produces no commits
-        # (IMPLEMENTATION_PLAN.md is gitignored), so there is nothing to push.
+        # Push changes after each iteration. Plan and review modes produce no
+        # commits (their artifacts are gitignored), so there is nothing to push.
         if [[ "$mode" == "build" ]]; then
             if $dry_run; then
                 echo "[dry-run] Would run: git push origin $current_branch"
@@ -1096,21 +1455,42 @@ cmd_loop() {
             fi
         fi
 
-        # Early exit. Build mode watches HEAD and tolerates one noop; -n overrides it.
+        # Early exit, per mode.
+        #
+        # Build mode watches HEAD and tolerates one noop; -n overrides it.
+        #
         # Plan mode never commits (IMPLEMENTATION_PLAN.md is gitignored), so it
         # watches the plan artifacts instead. A pass that changes nothing has
         # converged, and there is no second-chance iteration to wait for: -n caps
         # a plan run but never disables the check.
+        #
+        # Review mode has no early exit at all. It is read-only by design — it
+        # writes REVIEW.md and never commits — so every iteration is a noop by
+        # HEAD, and a HEAD-based check would cut a multi-pass review short for
+        # doing exactly what it is supposed to do. Each condition below names its
+        # mode explicitly rather than treating one as the default.
+        #
+        # Convergence requires at least one item to converge on. A pass that
+        # changes nothing against an empty plan is a planning failure — the
+        # backend answered without doing the work — and is indistinguishable
+        # from real convergence by the fingerprint alone. Failing here stops a
+        # run that would otherwise report success and leave 'ralph build' with
+        # nothing to do.
         if ! $dry_run; then
             if [[ "$mode" == "plan" ]]; then
                 if [[ "$plan_state_before" == "$plan_state_after" ]]; then
+                    if [[ "$(plan_items_body | grep -c '^- \[' || true)" -eq 0 ]]; then
+                        echo "Error: pass $iteration changed nothing and IMPLEMENTATION_PLAN.md holds no items." >&2
+                        echo "The planning agent produced no plan. Check the backend output above; re-run 'ralph plan' once the cause is fixed." >&2
+                        exit 1
+                    fi
                     echo -e "\nPlan converged — pass $iteration changed nothing. Exiting early."
                     break
                 fi
-            elif ! $hard_override; then
+            elif [[ "$mode" == "build" ]] && ! $hard_override; then
                 local head_after
                 head_after=$(git rev-parse HEAD)
-                if [[ "$head_before" == "$head_after" ]]; then
+                if [[ -z "$(build_progress_paths "$head_before" "$head_after")" ]]; then
                     consecutive_noops=$((consecutive_noops + 1))
                     if [[ $consecutive_noops -ge 2 ]]; then
                         echo -e "\nNo changes detected for 2 consecutive iterations — exiting early."
@@ -1131,8 +1511,8 @@ cmd_loop() {
 
 # Main dispatch
 case "${1:-}" in
-    sandbox)    shift; cmd_sandbox "$@" ;;
-    plan|build) cmd_loop "$@" ;;
+    sandbox)           shift; cmd_sandbox "$@" ;;
+    plan|build|review) cmd_loop "$@" ;;
     metrics)    shift; cmd_metrics "$@" ;;
     init)       shift; cmd_init "$@" ;;
     clean)      cmd_clean ;;

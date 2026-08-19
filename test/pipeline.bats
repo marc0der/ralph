@@ -2,6 +2,14 @@
 
 load test_helper
 
+# Give the plan one item so a converging pass is treated as convergence rather
+# than as the empty-plan failure. Tests that are about what the fingerprint
+# covers, or about flags, need an item present so that check never fires and
+# masks what they actually assert.
+seed_plan_item() {
+    printf -- '- [ ] **Seeded item** — x. → [001-x.md](plan/001-x.md)\n' >> IMPLEMENTATION_PLAN.md
+}
+
 # --- Verbose flag acceptance ---
 
 @test "--verbose flag is accepted without error (build, dry-run)" {
@@ -453,6 +461,65 @@ MOCK
     [[ "$output" == *"[verbose] Backend command: claude"* ]]
 }
 
+# --- Option parsing ---
+#
+# ralph used to parse these with getopt(1). BSD getopt, which macOS ships, does
+# not understand --long: it returned the invocation as positional junk and every
+# flag was silently dropped, so --dry-run ran the backend and --skip-push pushed.
+# These run under whichever getopt is on PATH, so they fail on macOS if the
+# hand-rolled parser regresses back to getopt.
+
+@test "build accepts a short option with a separate value" {
+    "$RALPH" init
+    echo "- [ ] **Task one**" >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" build -n 3 --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Max:     3 iterations"* ]]
+}
+
+@test "build accepts a long option with a separate value" {
+    "$RALPH" init
+    echo "- [ ] **Task one**" >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" build --iterations 3 --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Max:     3 iterations"* ]]
+}
+
+@test "build accepts the --option=value form" {
+    "$RALPH" init
+    echo "- [ ] **Task one**" >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" build --iterations=3 --model=sonnet --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Max:     3 iterations"* ]]
+    [[ "$output" == *"Model:   sonnet"* ]]
+}
+
+@test "--dry-run is honoured, not silently dropped" {
+    # The flag reaching the parser is the whole point: a dropped --dry-run
+    # calls the backend for real.
+    "$RALPH" init
+    echo "- [ ] **Task one**" >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" build -n 1 --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"[dry-run] Would run:"* ]]
+}
+
+@test "loop rejects an unknown option" {
+    "$RALPH" init
+    echo "- [ ] **Task one**" >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" build --bogus --dry-run
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"unknown option '--bogus'"* ]]
+}
+
+@test "loop rejects an option missing its value" {
+    "$RALPH" init
+    echo "- [ ] **Task one**" >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" build --dry-run -n
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"requires a value"* ]]
+}
+
 # --- Noop early exit ---
 
 @test "build exits early after 2 consecutive noops" {
@@ -475,14 +542,16 @@ MOCK
     [[ "$output" == *"Completed 2 iterations"* ]]
 }
 
-@test "noop counter resets when a commit occurs" {
+@test "noop counter resets when an iteration changes source" {
     "$RALPH" init
     # 3 items = 4 calculated iterations
     for i in 1 2 3; do
         echo "- [ ] **Task $i**" >> IMPLEMENTATION_PLAN.md
     done
     mkdir -p "$TEST_DIR/bin"
-    # Mock backend: noop on iteration 1, commit on iteration 2, noop on 3 and 4
+    # Mock backend: noop on iteration 1, real work on iteration 2, noop on 3 and 4.
+    # The work has to touch a path: an empty commit moves HEAD but changes
+    # nothing, and progress is measured in changed paths, not commits.
     cat > "$TEST_DIR/bin/claude" <<MOCK
 #!/usr/bin/env bash
 CALL_LOG="$TEST_DIR/call_count"
@@ -491,7 +560,8 @@ count=0
 count=\$((count + 1))
 echo "\$count" > "\$CALL_LOG"
 if [[ "\$count" -eq 2 ]]; then
-    git commit --allow-empty -m "work done" --quiet
+    echo "code" > worked.txt
+    git add worked.txt && git commit -m "work done" --quiet
 fi
 echo '{"type":"result","result":"done"}'
 MOCK
@@ -502,6 +572,56 @@ MOCK
     # Should run: noop(1), commit(2), noop(3), noop(4)=early exit
     [[ "$output" == *"No changes detected for 2 consecutive iterations"* ]]
     [[ "$output" == *"ITERATION 4"* ]]
+}
+
+@test "a commit that only touches loop artifacts still counts as a noop" {
+    # ralph init no longer gitignores the artifacts, so a project that commits
+    # them advances HEAD on every iteration. A bare HEAD comparison would read a
+    # stalled loop as progress and run the full calculated count.
+    "$RALPH" init
+    for i in 1 2 3 4 5; do
+        echo "- [ ] **Task $i**" >> IMPLEMENTATION_PLAN.md
+    done
+    git add -A && git commit -m "track the loop artifacts" --quiet
+    mkdir -p "$TEST_DIR/bin"
+    # Backend does no real work, but commits the progress log every pass.
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo "note $RANDOM" >> PROGRESS.md
+git add PROGRESS.md && git commit -m "chore: progress log" --quiet
+echo '{"type":"result","result":"stalled"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"No changes detected for 2 consecutive iterations"* ]]
+    [[ "$output" == *"Completed 2 iterations"* ]]
+}
+
+@test "a commit touching source is progress even alongside artifact churn" {
+    # The mirror of the test above: the exclusion must not swallow real work
+    # that happens to land in the same commit as the plan and the log.
+    "$RALPH" init
+    for i in 1 2 3; do
+        echo "- [ ] **Task $i**" >> IMPLEMENTATION_PLAN.md
+    done
+    git add -A && git commit -m "track the loop artifacts" --quiet
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+n=$(find . -maxdepth 1 -name 'src*.txt' | wc -l | tr -d ' ')
+echo "code" > "src${n}.txt"
+echo "note" >> PROGRESS.md
+git add -A && git commit -m "feat: real work" --quiet
+echo '{"type":"result","result":"progress"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"No changes detected"* ]]
+    [[ "$output" == *"Completed 4 iterations"* ]]
 }
 
 @test "noop detection is disabled when -n is passed" {
@@ -523,6 +643,9 @@ MOCK
 
 @test "plan exits on the first pass that changes nothing" {
     "$RALPH" init
+    # An item to converge on: an empty plan that changes nothing is a planning
+    # failure, not convergence (see the empty-plan tests below).
+    printf -- '- [ ] **Existing item** — x. → [001-x.md](plan/001-x.md)\n' >> IMPLEMENTATION_PLAN.md
     mkdir -p "$TEST_DIR/bin"
     # Plan iterations never commit (IMPLEMENTATION_PLAN.md is gitignored), so
     # convergence is measured against the plan artifacts, not HEAD.
@@ -536,6 +659,68 @@ MOCK
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Plan converged — pass 1 changed nothing"* ]]
     [[ "$output" == *"Completed 1 iterations"* ]]
+}
+
+# A backend that answers without planning — "the plan looks complete to me" —
+# leaves the fingerprint unchanged against an empty plan. That is
+# indistinguishable from real convergence by the hash alone, and reporting it as
+# success exits 0 with nothing for 'ralph build' to pick up.
+@test "plan fails when it converges on an empty plan" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"result","subtype":"success","result":"The plan looks complete to me."}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"holds no items"* ]]
+    [[ "$output" != *"Plan converged"* ]]
+}
+
+# The counterpart: every item shipped is a finished plan, not a failed one, so
+# the check counts entries of any marker rather than open ones.
+@test "plan converges on a plan whose items are all shipped" {
+    "$RALPH" init
+    printf -- '- [x] **Shipped** — done. → [001-x.md](plan/001-x.md)\n' >> IMPLEMENTATION_PLAN.md
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"result","result":"no gaps found"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Plan converged"* ]]
+}
+
+# The empty-plan check must not fire when a pass is still doing work: a run that
+# writes its first item on pass 2 has to survive pass 1.
+@test "plan continues to a later pass that writes the first item" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+CALL_LOG="$TEST_DIR/call_count"
+count=0
+[[ -f "\$CALL_LOG" ]] && count=\$(cat "\$CALL_LOG")
+count=\$((count + 1))
+echo "\$count" > "\$CALL_LOG"
+if [[ "\$count" -eq 1 ]]; then
+    mkdir -p specs && echo "# researched" > specs/notes.md
+elif [[ "\$count" -eq 2 ]]; then
+    echo '- [ ] **First real item** — x. → [001-x.md](plan/001-x.md)' >> IMPLEMENTATION_PLAN.md
+fi
+echo '{"type":"result","result":"planning"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Plan converged — pass 3 changed nothing"* ]]
 }
 
 @test "plan continues while passes keep changing the plan" {
@@ -564,6 +749,7 @@ MOCK
 
 @test "plan counts a spec-only edit as progress" {
     "$RALPH" init
+    seed_plan_item
     mkdir -p "$TEST_DIR/bin"
     # Touches nothing but specs/ on pass 1. The plan file is unchanged, so this
     # only continues if specs/ is part of the convergence fingerprint.
@@ -588,8 +774,65 @@ MOCK
     [[ "$output" == *"Completed 2 iterations"* ]]
 }
 
+@test "plan counts a task-file-only edit as progress" {
+    "$RALPH" init
+    seed_plan_item
+    mkdir -p "$TEST_DIR/bin"
+    # The index is one line per item, so a pass that refines an item's scope or
+    # steps rewrites its plan/ task file and nothing else. Fingerprinting the
+    # index alone would read that as convergence and stop the run mid-plan.
+    printf -- '- [ ] **A** — do a thing. → [001-a.md](plan/001-a.md)\n' >> IMPLEMENTATION_PLAN.md
+    printf '# 001. A\n\n**Status:** Not started\n\n## Scope\n\nOriginal scope.\n' > plan/001-a.md
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+CALL_LOG="$TEST_DIR/call_count"
+count=0
+[[ -f "\$CALL_LOG" ]] && count=\$(cat "\$CALL_LOG")
+count=\$((count + 1))
+echo "\$count" > "\$CALL_LOG"
+if [[ "\$count" -eq 1 ]]; then
+    printf '# 001. A\n\n**Status:** Not started\n\n## Scope\n\nRevised scope.\n' > plan/001-a.md
+fi
+echo '{"type":"result","result":"planning"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Plan converged — pass 2 changed nothing"* ]]
+    [[ "$output" == *"Completed 2 iterations"* ]]
+}
+
+@test "plan counts a new task file as progress" {
+    "$RALPH" init
+    seed_plan_item
+    mkdir -p "$TEST_DIR/bin"
+    # Names as well as contents: adding a task file must count even before the
+    # index entry that links to it lands.
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+CALL_LOG="$TEST_DIR/call_count"
+count=0
+[[ -f "\$CALL_LOG" ]] && count=\$(cat "\$CALL_LOG")
+count=\$((count + 1))
+echo "\$count" > "\$CALL_LOG"
+if [[ "\$count" -eq 1 ]]; then
+    mkdir -p plan
+    echo '# 002. New' > plan/002-new.md
+fi
+echo '{"type":"result","result":"planning"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Plan converged — pass 2 changed nothing"* ]]
+    [[ "$output" == *"Completed 2 iterations"* ]]
+}
+
 @test "plan counts an edit to a symlinked spec as progress" {
     "$RALPH" init
+    seed_plan_item
     mkdir -p "$TEST_DIR/bin" "$TEST_DIR/external"
     echo "# external spec" > "$TEST_DIR/external/linked.md"
     ln -s "$TEST_DIR/external/linked.md" specs/linked.md
@@ -617,6 +860,7 @@ MOCK
 @test "plan survives an unreadable spec file" {
     [[ "$EUID" -ne 0 ]] || skip "root bypasses file permissions"
     "$RALPH" init
+    seed_plan_item
     mkdir -p "$TEST_DIR/bin"
     # A spec the loop cannot read must not abort the run under set -e/pipefail.
     echo "# secret" > specs/unreadable.md
@@ -635,6 +879,7 @@ MOCK
 
 @test "plan convergence exit still applies when -n is passed" {
     "$RALPH" init
+    seed_plan_item
     mkdir -p "$TEST_DIR/bin"
     # -n caps a plan run but must not disable convergence, unlike build mode.
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
@@ -651,6 +896,7 @@ MOCK
 
 @test "plan never pushes even without --skip-push (no remote configured)" {
     "$RALPH" init
+    seed_plan_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash

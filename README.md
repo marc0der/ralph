@@ -10,7 +10,7 @@ Autonomous AI coding agent loop runner. Runs plan and build phases in a loop, fe
 
 Ralph implements the [Ralph Wiggum pattern](https://github.com/ghuntley/how-to-ralph-wiggum) — a technique for running AI coding agents in autonomous loops where each iteration picks up where the last left off. The name comes from Ralph Wiggum's famous line *"I'm helping!"*, which captures the spirit of an agent that cheerfully works through a task list one item at a time, without needing hand-holding between steps.
 
-The pattern works in two phases: **plan** (analyse the codebase against specifications and produce a prioritised implementation plan) and **build** (pick the next item, implement it, run tests, commit, repeat). A shared `IMPLEMENTATION_PLAN.md` acts as the handoff between iterations, giving each fresh Claude session the context it needs to continue. An append-only `PROGRESS.md` log captures what each iteration did, what it learned, and what broke — providing a breadcrumb trail for both the human and future iterations.
+The pattern works in two phases: **plan** (analyse the codebase against specifications and produce a prioritised implementation plan) and **build** (pick the next item, implement it, run tests, commit, repeat). A shared `IMPLEMENTATION_PLAN.md` acts as the handoff between iterations, giving each fresh Claude session the context it needs to continue. The plan is split for context economy: `IMPLEMENTATION_PLAN.md` is an index of one-line entries, each linking to a task file under `plan/` that holds the detail, so an iteration reads the whole queue but only the one task it is about to implement. An append-only `PROGRESS.md` log captures what each iteration did, what it learned, and what broke — providing a breadcrumb trail for both the human and future iterations.
 
 ## Install
 
@@ -29,36 +29,43 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `sandbox`         | Enter a devcontainer shell for the current project                           |
 | `sandbox clean`   | Remove the devcontainer for the current project                              |
 | `sandbox --rebuild` | Rebuild the container image from scratch                                   |
-| `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` (max 6 iterations; exits as soon as a pass changes nothing) |
+| `sandbox --no-inhibit-sleep` | Don't hold the host awake for the sandbox session                    |
+| `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` and the task files under `plan/` (max 6 iterations; exits as soon as a pass changes nothing, and fails if that happens with an empty plan) |
 | `build`           | Pick the next item, implement, test, commit, push (default: 50 iterations)   |
-| `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`). Pass `--prompts` to also copy prompt templates for local customisation |
-| `archive`         | Move `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` to `.ralph/<timestamp>/`    |
-| `clean`           | Delete `IMPLEMENTATION_PLAN.md` and `PROGRESS.md`                           |
+| `review`          | Review the branch diff against specs and guardrails, write `REVIEW.md` — changes nothing else (default: 1 iteration) |
+| `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`, `plan/`). Pass `--prompts` to also copy prompt templates for local customisation, `--gitignore` to also ignore the loop artifacts |
+| `archive`         | Move `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and `plan/` task files to `.ralph/<timestamp>/` |
+| `clean`           | Delete `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and `plan/` task files       |
 | `metrics`         | Summarise a run's loop metrics: per-iteration table plus totals (latest run, or pass a `metrics.jsonl` path) |
 | `version`         | Print version                                                                |
 
-### Options (plan and build)
+### Options (plan, build and review)
 
 | Flag                 | Description                                              |
 |----------------------|----------------------------------------------------------|
-| `-n`, `--iterations` | Max iterations. In build mode this also disables the noop exit; in plan mode it caps the run but never disables the convergence exit |
+| `-n`, `--iterations` | Max iterations. In build mode this also disables the noop exit; in plan mode it caps the run but never disables the convergence exit; review has no early exit to disable |
 | `-g`, `--goal`       | Goal injected into the prompt template                   |
 | `-m`, `--model`      | Model to use (default depends on backend)                |
 | `-b`, `--backend`    | Backend to use: `claude`, `codex`, `copilot`, `pi` (default: `claude`) |
-| `--skip-push`        | Don't push after each build iteration (plan never pushes) |
+| `--skip-push`        | Don't push after each build iteration (plan and review never push) |
 | `--dry-run`          | Print what would be executed without running              |
 | `--no-metrics`       | Don't record per-iteration metrics under `.ralph/metrics/` |
 | `-h`, `--help`       | Show help                                                |
 
+### Review
+
+`ralph review` runs a single read-only verification pass over the current branch: it diffs against the merge base with the default branch, maps every substantive change back to a spec or plan item, flags over-engineering (speculative abstraction, single-caller indirection, pattern duplication), and checks test integrity (weakened, deleted, or missing tests) and guardrail conformance. The output is `REVIEW.md` — verdict, traceability table, severity-ordered findings, and questions for the author — and nothing else: no source edits, no commits, no pushes. Use `-g` to narrow the focus or name a different diff base, and `-n` to run more than one pass. `REVIEW.md` is a loop artifact like the plan and the progress log — `ralph init --gitignore` ignores it if you want it kept out of the repo.
+
 ### Loop metrics
 
-Every real (non-dry-run) `plan` or `build` run records one JSON line per iteration to `.ralph/metrics/<branch>-<timestamp>-<pid>/metrics.jsonl`, alongside the raw backend event stream (`iter-NNN.stream.jsonl`) for deeper analysis. Captured per iteration: wall-clock and API duration, turn count, cost (USD), token usage (input, output, cache read/write), git activity (commits, files changed, insertions/deletions), `IMPLEMENTATION_PLAN.md` items completed, a tool-call histogram, and a noop flag. The loop prints a one-line summary after each iteration, and `ralph metrics` prints the per-iteration table and run totals. Result-event fields are populated for the `claude` backend; other backends record timing and git activity with the rest as nulls. `.ralph/` is gitignored by `ralph init`, so metrics never touch the working tree the loop commits from.
+Every real (non-dry-run) `plan` or `build` run records one JSON line per iteration to `.ralph/metrics/<branch>-<timestamp>-<pid>/metrics.jsonl`, alongside the raw backend event stream (`iter-NNN.stream.jsonl`) for deeper analysis. Captured per iteration: wall-clock and API duration, turn count, cost (USD), token usage (input, output, cache read/write), git activity (commits, files changed, insertions/deletions), `IMPLEMENTATION_PLAN.md` items completed, a tool-call histogram, and a noop flag. The loop prints a one-line summary after each iteration, and `ralph metrics` prints the per-iteration table and run totals. Result-event fields are populated for the `claude` backend; other backends record timing and git activity with the rest as nulls. `ralph init --gitignore` ignores `.ralph/`, so metrics need never touch the working tree the loop commits from.
 
 ### Examples
 
 ```bash
 ralph sandbox                                       # enter devcontainer
 ralph sandbox --rebuild                             # rebuild and enter
+ralph sandbox --no-inhibit-sleep                    # enter without holding the host awake
 ralph sandbox clean                                 # remove the container
 ralph plan                                          # analyse and plan
 ralph plan -g "Migrate to hexagonal architecture"   # plan with a goal
@@ -69,9 +76,12 @@ ralph plan -b codex -g "design the auth module"     # plan with codex
 ralph build --dry-run -b codex                      # dry-run with codex
 ralph build -b copilot -n 10                        # 10 iterations with copilot
 ralph build -b pi -n 10                             # 10 iterations with pi
+ralph review                                        # review the branch, write REVIEW.md
+ralph review -g "Focus on FT-001 rule coverage"     # review with a focus
 ralph archive                                       # archive before starting fresh
 ralph init                                          # initialise workspace
 ralph init --prompts                                # also copy prompts for customisation
+ralph init --gitignore                              # also ignore the loop artifacts
 ```
 
 ## Sandbox
@@ -93,6 +103,8 @@ ralph sandbox clean        # remove the container for this project
 ```
 
 Each project gets its own container, automatically reused between sessions. Shell history persists across container recreations via a Docker volume.
+
+A devcontainer is suspended along with its host, which stalls a long unattended `ralph build` run mid-iteration if the laptop sleeps. `ralph sandbox` holds the host awake for the duration of the session using the platform's sleep inhibitor — `caffeinate` on macOS, `systemd-inhibit` on Linux — releasing it on exit or Ctrl-C. If neither is available, ralph prints a warning and continues. Pass `--no-inhibit-sleep` to opt out.
 
 ### What gets mounted
 
@@ -124,8 +136,8 @@ sdk env install
 
 Ralph looks for prompts in this order:
 
-1. **Project-local** — `PROMPT_plan.md` / `PROMPT_build.md` in the working directory
-2. **Installed defaults** — `~/.config/ralph/prompts/plan.md` / `build.md`
+1. **Project-local** — `PROMPT_plan.md` / `PROMPT_build.md` / `PROMPT_review.md` in the working directory
+2. **Installed defaults** — `~/.config/ralph/prompts/plan.md` / `build.md` / `review.md`
 
 The default prompts reference Anthropic model names (Sonnet, Opus) for subagent selection. If you're using a non-Claude backend, run `ralph init --prompts` to copy the defaults into your project and edit them to suit your backend.
 
@@ -137,39 +149,107 @@ Ralph iterations create and maintain these files in your project:
 |--------------------------|---------------------------------------------------------------|
 | `CLAUDE.md`              | Operational guardrails for the Claude backend — build commands, conventions, project rules. Read by every iteration to orient the agent. You maintain this file; ralph does not create or modify it |
 | `AGENTS.md`              | Operational guardrails for the Codex backend — equivalent of `CLAUDE.md` for codex projects |
-| `IMPLEMENTATION_PLAN.md` | Prioritised task list — shared state between iterations       |
+| `IMPLEMENTATION_PLAN.md` | Prioritised index of work items, one line each — shared state between iterations |
+| `plan/`                  | One `NNN-slug.md` task file per plan item, holding its scope, files and verification criteria |
 | `PROGRESS.md`            | Append-only log of what each iteration did, learned, and broke|
+| `REVIEW.md`              | Output of `ralph review` — verdict, traceability, findings    |
 | `specs/`                 | Feature specifications driving the work                       |
 
 **Note:** `CLAUDE.md` and `AGENTS.md` are your project's own configuration files for Claude Code and Codex respectively — ralph reads them but never creates or modifies them. The prompt templates reference both files so each backend gets relevant project-specific guidance.
 
-`PROMPT_plan.md` and `PROMPT_build.md` are optional project-local prompt overrides (see [Prompt resolution](#prompt-resolution)).
+`PROMPT_plan.md`, `PROMPT_build.md` and `PROMPT_review.md` are optional project-local prompt overrides (see [Prompt resolution](#prompt-resolution)).
+
+### Committing the loop artifacts, or not
+
+`ralph init` does **not** touch `.gitignore` by default. Use `--gitignore` to add the build artefacts to `.gitignore`.
+
+- **Committed** (default) — the build agent stages the plan, the task files and the progress log in the same commit as the code they describe, so a teammate who pulls the branch can resume from where the last run left off.
+- **Ignored** (`ralph init --gitignore`) — only the code ralph produces reaches the repo; the loop artifacts stay local to your machine.
+
+`.ralph/` (per-run metrics and raw backend transcripts) and any `PROMPT_*.md` overrides are never staged under either setting.
+
+### Plan layout
+
+Every build iteration re-reads the plan in full, so the plan is deliberately split in two: a small index that is always read, and per-task detail that is only read when it is about to be worked on.
+
+`IMPLEMENTATION_PLAN.md` holds one line per item, in priority order:
+
+```markdown
+- [x] **Add PATCH endpoint** — accept partial updates on `/items/{id}`. → [001-patch-endpoint.md](plan/001-patch-endpoint.md)
+- [ ] **Wire up token refresh** — refresh expiring sessions without a re-login. → [002-token-refresh.md](plan/002-token-refresh.md)
+```
+
+Each entry links to `plan/NNN-slug.md`, which carries the scope, the files involved, the "done when" criteria, and — once the item ships — the build agent's completion notes:
+
+```markdown
+# 002. Wire up token refresh
+
+**Status:** Not started
+
+## Scope
+...
+
+## Done when
+...
+```
+
+Numbers are allocated in order and never reused. Completed items and their task files are never deleted — the plan is an append-only ledger of what shipped.
+
+Completion notes live in the task file, capped at about three lines, with the fuller narrative going to `PROGRESS.md`. What they never go in is the index — that's the file every iteration re-reads in full, so it stays one line per item however much history accumulates behind it.
+
+**Note:** `plan/` belongs to ralph. `clean` and `archive` treat every `*.md` file in it as a task file, so if your project already has a `plan/` directory, rename one of them before running ralph.
 
 ### The implementation plan contract
 
-`specs/` states **what** to build. `IMPLEMENTATION_PLAN.md` states **how** to build it. The plan is a work queue, not a scratchpad — every line in it is an instruction or a pass/fail criterion. Outcomes, evidence and learnings go to `PROGRESS.md`; decisions and their reasoning go to `specs/`.
+`specs/` states **what** to build. The plan states **how** to build it. The plan is a work queue, not a scratchpad — every line in it is an instruction or a pass/fail criterion. Outcomes, evidence and learnings go to `PROGRESS.md`; decisions and their reasoning go to `specs/`.
 
-Each item uses six fields and nothing else:
+The index carries one line per item and nothing else:
 
 ```markdown
-- [ ] **Retarget the polkit agent to the Sway session**
-  Spec: `specs/plasma-sway-remnants.md` item 3
-  Scope: Add a session-target option. Do not change the Plasma agent.
-  Files: `modules/home/keyring-services.nix`, `hosts/neomorph/home.nix`
-  Steps:
-  1. Add `polkitSessionTarget` to `keyring-services.nix`. Default it to `graphical-session.target`.
-  2. Set `polkitSessionTarget` to `sway-session.target` in `hosts/neomorph/home.nix`.
-  Done when: Two `NRestarts` reads 30 seconds apart return the same number.
+- [ ] **Retarget the polkit agent to the Sway session** — the agent follows the Sway session. → [007-polkit-session-target.md](plan/007-polkit-session-target.md)
 ```
 
-- **At most 150 words, 14 lines and 8 steps per item.** An item needing a ninth step is too large for one build iteration and gets split.
+Its task file carries the detail, in these fields and no others:
+
+```markdown
+# 007. Retarget the polkit agent to the Sway session
+
+**Status:** Not started
+
+## Spec
+
+`specs/plasma-sway-remnants.md` item 3
+
+## Scope
+
+Add a session-target option. Do not change the Plasma agent.
+
+## Files
+
+`modules/home/keyring-services.nix`, `hosts/neomorph/home.nix`
+
+## Steps
+
+1. Add `polkitSessionTarget` to `keyring-services.nix`. Default it to `graphical-session.target`.
+2. Set `polkitSessionTarget` to `sway-session.target` in `hosts/neomorph/home.nix`.
+
+## Done when
+
+Two `NRestarts` reads 30 seconds apart return the same number.
+
+## Completion notes
+
+_Left empty for the build agent._
+```
+
+- **At most 150 words and 8 steps per task file**, excluding the completion notes. An item needing a ninth step is too large for one build iteration and gets split.
 - **Steps name greppable tokens** — symbols, option paths, literal values, files to copy an idiom from. Never line numbers, never pasted code, because an item runs many commits after it is written.
 - **`Done when` must be checkable without a human.** A criterion needing a fresh login or a visual check belongs in the spec's acceptance criteria, not the plan — an item nobody can verify never completes, and the build loop selects it forever.
-- **Items are written in [Simplified Technical English](https://www.asd-ste100.org/)** — one instruction per sentence, 20 words maximum, active imperative present tense.
+- **Task files are written in [Simplified Technical English](https://www.asd-ste100.org/)** — one instruction per sentence, 20 words maximum, active imperative present tense.
 
-Markers are `- [ ]` open, `- [x]` shipped, and `- [~]` superseded or blocked. Only `- [ ]` sizes the build loop, so a superseded item neither inflates the iteration count nor counts as shipped work.
+Markers in the index are `- [ ]` open, `- [x]` shipped, and `- [~]` superseded or blocked, each matching the `**Status:**` in its task file. Only `- [ ]` sizes the build loop, so a superseded item neither inflates the iteration count nor counts as shipped work.
 
-The plan phase authors and refines items freely, inserting and reordering to keep position meaningful. **Once the build phase starts, items are immutable** — a build iteration may only tick a checkbox or append a new item at the end. When an item turns out to be wrong or its spec contradicts it, the build agent marks it `- [~]`, records why in `PROGRESS.md`, and moves on; the next planning run writes the replacement.
+The plan phase authors and refines items freely, inserting and reordering entries to keep position meaningful. **Once the build phase starts, the plan is immutable** — a build iteration may only tick a checkbox, append a new item at the end, and fill in the completion notes of the item it just finished. When an item turns out to be wrong or its spec contradicts it, the build agent marks it `- [~]`, records why in `PROGRESS.md`, and moves on; the next planning run writes the replacement.
 
 This split assumes a capable model writes the plan and a cheaper one executes it. Use `-m` to match:
 
@@ -204,9 +284,9 @@ The build phase commits via the `/commit` skill bundled with ralph and scaffolde
 - **Atomic** — separable concerns become separate commits, even within a single build iteration
 - **Selective staging** — only the paths belonging to the current commit are staged; never `git add -A`
 - **Optional short body** — up to 3 bulleted lines summarising what was implemented, only when the subject isn't self-explanatory
-- Loop-local artifacts (`IMPLEMENTATION_PLAN.md`, `PROGRESS.md`, `PROMPT_*.md`, `.ralph/`) are never staged
+- The plan, the task files and the progress log are staged with the code they describe when the project tracks them, and left alone when `ralph init --gitignore` has ignored them — the build agent checks `git check-ignore` rather than assuming. `.ralph/` and `PROMPT_*.md` are never staged either way
 
-The scaffolded skill lives in your project's `.claude/skills/` and is not gitignored by `ralph init` — commit it to share with your team, or edit it locally if you want different conventions.
+The scaffolded skill lives in your project's `.claude/skills/` and is never listed in `.gitignore` by `ralph init` — commit it to share with your team, or edit it locally if you want different conventions.
 
 ## Permissions and safety
 
@@ -282,7 +362,7 @@ export PATH="$HOME/.local/bin:$PATH"
 If `git push` fails due to diverged history, pull and resolve conflicts manually, then re-run `ralph build` to continue.
 
 **Resuming after a failed iteration**
-Just re-run `ralph build`. It picks up from the current state of `IMPLEMENTATION_PLAN.md` — no special recovery step is needed.
+Just re-run `ralph build`. It picks up from the current state of `IMPLEMENTATION_PLAN.md` and the task files under `plan/` — no special recovery step is needed.
 
 **Sandbox container is stale or broken**
 Remove it and start fresh:

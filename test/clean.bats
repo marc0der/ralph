@@ -38,3 +38,16 @@ load test_helper
     [[ "$status" -eq 0 ]]
     [[ -d "specs" ]]
 }
+
+@test "clean deletes per-task files under plan/" {
+    "$RALPH" init
+    printf '# 001. Thing\n' > plan/001-thing.md
+    printf '# 002. Other\n' > plan/002-other.md
+    run "$RALPH" clean
+    [[ "$status" -eq 0 ]]
+    [[ ! -f "plan/001-thing.md" ]]
+    [[ ! -f "plan/002-other.md" ]]
+    [[ "$output" == *"Deleted: plan/001-thing.md"* ]]
+    # The directory is workspace scaffolding, like specs/ — it stays
+    [[ -d "plan" ]]
+}

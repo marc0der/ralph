@@ -11,6 +11,8 @@ unset DEVCONTAINER
 
 # Create a temporary directory for each test with mock config
 setup() {
+    # For tests that manipulate the PATH
+    ORIGINAL_PATH="$PATH"
     TEST_DIR="$(mktemp -d)"
     cd "$TEST_DIR" || return 1
     git init --quiet
@@ -28,11 +30,13 @@ setup() {
         "$RALPH_CONFIG_DIR/templates/IMPLEMENTATION_PLAN.md"
     echo "# Plan prompt" > "$RALPH_CONFIG_DIR/prompts/plan.md"
     echo "# Build prompt" > "$RALPH_CONFIG_DIR/prompts/build.md"
+    echo "# Review prompt" > "$RALPH_CONFIG_DIR/prompts/review.md"
     echo "# commit skill" > "$RALPH_CONFIG_DIR/skills/commit/SKILL.md"
 }
 
 # Clean up after each test
 teardown() {
+    PATH="$ORIGINAL_PATH"
     rm -rf "$TEST_DIR"
 }
 
