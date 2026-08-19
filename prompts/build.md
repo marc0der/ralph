@@ -78,7 +78,8 @@ Tests must stay green throughout: if a simplification breaks a test, revert the 
 3. Commit the changes by invoking the **`/commit` skill**. Do NOT compose commits manually. Rules for this iteration:
    - **Atomic commits**: if the working tree contains separable concerns **within this item** (e.g. a refactor *and* the feature it enables, or test additions that stand on their own), produce **multiple commits in one skill invocation** — one per concern — instead of a single grab-bag commit.
    - **Selective staging**: never `git add -A` / `git add .`. Stage only the paths belonging to the current commit.
-   - **Exclude loop artifacts**: do NOT stage or commit `IMPLEMENTATION_PLAN.md`, `PROGRESS.md`, `PROMPT_plan.md`, `PROMPT_build.md`, or the `plan/` and `.ralph/` directories — these are local-only.
+   - **Loop artifacts follow the project's own setting.** Whether the plan is committed or kept local is decided at `ralph init`, and git already records the answer — do not guess it. For `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and the task files under `plan/`: run `git check-ignore -q <path>`; if it exits non-zero the project tracks them, so stage them in the **same commit** as the code they describe, keeping the plan and the code in step. If it exits 0 the project keeps them local — leave them unstaged and **never** use `git add -f` to override it.
+   - **Never stage `.ralph/` or `PROMPT_*.md`**, whatever the setting: those are machine-local run telemetry and local prompt overrides, not part of the handoff.
    - **Subject + optional short body**: short imperative subject; body, if used, is up to 3 bulleted lines summarising what was implemented.
 4. `git push`
 5. **Stop here.** Do not pick up another item — the next iteration starts fresh from Phase 1.

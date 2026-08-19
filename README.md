@@ -33,7 +33,7 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` and the task files under `plan/` (max 6 iterations; exits as soon as a pass changes nothing, and fails if that happens with an empty plan) |
 | `build`           | Pick the next item, implement, test, commit, push (default: 50 iterations)   |
 | `review`          | Review the branch diff against specs and guardrails, write `REVIEW.md` — changes nothing else (default: 1 iteration) |
-| `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`, `plan/`). Pass `--prompts` to also copy prompt templates for local customisation |
+| `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`, `plan/`). Pass `--prompts` to also copy prompt templates for local customisation, `--gitignore` to also ignore the loop artifacts |
 | `archive`         | Move `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and `plan/` task files to `.ralph/<timestamp>/` |
 | `clean`           | Delete `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and `plan/` task files       |
 | `metrics`         | Summarise a run's loop metrics: per-iteration table plus totals (latest run, or pass a `metrics.jsonl` path) |
@@ -54,11 +54,11 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 
 ### Review
 
-`ralph review` runs a single read-only verification pass over the current branch: it diffs against the merge base with the default branch, maps every substantive change back to a spec or plan item, flags over-engineering (speculative abstraction, single-caller indirection, pattern duplication), and checks test integrity (weakened, deleted, or missing tests) and guardrail conformance. The output is `REVIEW.md` — verdict, traceability table, severity-ordered findings, and questions for the author — and nothing else: no source edits, no commits, no pushes. Use `-g` to narrow the focus or name a different diff base, and `-n` to run more than one pass. `REVIEW.md` is local-only (gitignored by `ralph init`), like the other loop artifacts.
+`ralph review` runs a single read-only verification pass over the current branch: it diffs against the merge base with the default branch, maps every substantive change back to a spec or plan item, flags over-engineering (speculative abstraction, single-caller indirection, pattern duplication), and checks test integrity (weakened, deleted, or missing tests) and guardrail conformance. The output is `REVIEW.md` — verdict, traceability table, severity-ordered findings, and questions for the author — and nothing else: no source edits, no commits, no pushes. Use `-g` to narrow the focus or name a different diff base, and `-n` to run more than one pass. `REVIEW.md` is a loop artifact like the plan and the progress log — `ralph init --gitignore` ignores it if you want it kept out of the repo.
 
 ### Loop metrics
 
-Every real (non-dry-run) `plan` or `build` run records one JSON line per iteration to `.ralph/metrics/<branch>-<timestamp>-<pid>/metrics.jsonl`, alongside the raw backend event stream (`iter-NNN.stream.jsonl`) for deeper analysis. Captured per iteration: wall-clock and API duration, turn count, cost (USD), token usage (input, output, cache read/write), git activity (commits, files changed, insertions/deletions), `IMPLEMENTATION_PLAN.md` items completed, a tool-call histogram, and a noop flag. The loop prints a one-line summary after each iteration, and `ralph metrics` prints the per-iteration table and run totals. Result-event fields are populated for the `claude` backend; other backends record timing and git activity with the rest as nulls. `.ralph/` is gitignored by `ralph init`, so metrics never touch the working tree the loop commits from.
+Every real (non-dry-run) `plan` or `build` run records one JSON line per iteration to `.ralph/metrics/<branch>-<timestamp>-<pid>/metrics.jsonl`, alongside the raw backend event stream (`iter-NNN.stream.jsonl`) for deeper analysis. Captured per iteration: wall-clock and API duration, turn count, cost (USD), token usage (input, output, cache read/write), git activity (commits, files changed, insertions/deletions), `IMPLEMENTATION_PLAN.md` items completed, a tool-call histogram, and a noop flag. The loop prints a one-line summary after each iteration, and `ralph metrics` prints the per-iteration table and run totals. Result-event fields are populated for the `claude` backend; other backends record timing and git activity with the rest as nulls. `ralph init --gitignore` ignores `.ralph/`, so metrics need never touch the working tree the loop commits from.
 
 ### Examples
 
@@ -81,6 +81,7 @@ ralph review -g "Focus on FT-001 rule coverage"     # review with a focus
 ralph archive                                       # archive before starting fresh
 ralph init                                          # initialise workspace
 ralph init --prompts                                # also copy prompts for customisation
+ralph init --gitignore                              # also ignore the loop artifacts
 ```
 
 ## Sandbox
@@ -158,6 +159,15 @@ Ralph iterations create and maintain these files in your project:
 
 `PROMPT_plan.md`, `PROMPT_build.md` and `PROMPT_review.md` are optional project-local prompt overrides (see [Prompt resolution](#prompt-resolution)).
 
+### Committing the loop artifacts, or not
+
+`ralph init` does **not** touch `.gitignore` by default. Use `--gitignore` to add the build artefacts to `.gitignore`.
+
+- **Committed** (default) — the build agent stages the plan, the task files and the progress log in the same commit as the code they describe, so a teammate who pulls the branch can resume from where the last run left off.
+- **Ignored** (`ralph init --gitignore`) — only the code ralph produces reaches the repo; the loop artifacts stay local to your machine.
+
+`.ralph/` (per-run metrics and raw backend transcripts) and any `PROMPT_*.md` overrides are never staged under either setting.
+
 ### Plan layout
 
 Every build iteration re-reads the plan in full, so the plan is deliberately split in two: a small index that is always read, and per-task detail that is only read when it is about to be worked on.
@@ -187,7 +197,7 @@ Numbers are allocated in order and never reused. Completed items and their task 
 
 Completion notes live in the task file, capped at about three lines, with the fuller narrative going to `PROGRESS.md`. What they never go in is the index — that's the file every iteration re-reads in full, so it stays one line per item however much history accumulates behind it.
 
-**Note:** `ralph init` adds `plan/` to `.gitignore`, since task files are loop-local state. If your project already has a tracked `plan/` directory, rename one of them before running ralph — `clean` and `archive` only ever touch files matching the `NNN-slug.md` pattern, but the gitignore entry would still hide your own new files from git.
+**Note:** `plan/` belongs to ralph. `clean` and `archive` treat every `*.md` file in it as a task file, so if your project already has a `plan/` directory, rename one of them before running ralph.
 
 ### The implementation plan contract
 
@@ -274,9 +284,9 @@ The build phase commits via the `/commit` skill bundled with ralph and scaffolde
 - **Atomic** — separable concerns become separate commits, even within a single build iteration
 - **Selective staging** — only the paths belonging to the current commit are staged; never `git add -A`
 - **Optional short body** — up to 3 bulleted lines summarising what was implemented, only when the subject isn't self-explanatory
-- Loop-local artifacts (`IMPLEMENTATION_PLAN.md`, `plan/`, `PROGRESS.md`, `PROMPT_*.md`, `.ralph/`) are never staged
+- The plan, the task files and the progress log are staged with the code they describe when the project tracks them, and left alone when `ralph init --gitignore` has ignored them — the build agent checks `git check-ignore` rather than assuming. `.ralph/` and `PROMPT_*.md` are never staged either way
 
-The scaffolded skill lives in your project's `.claude/skills/` and is not gitignored by `ralph init` — commit it to share with your team, or edit it locally if you want different conventions.
+The scaffolded skill lives in your project's `.claude/skills/` and is never listed in `.gitignore` by `ralph init` — commit it to share with your team, or edit it locally if you want different conventions.
 
 ## Permissions and safety
 

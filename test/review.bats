@@ -100,11 +100,11 @@ latest_metrics_line() {
     [[ $(jq -r '.git.noop' <<<"$line") == "true" ]]
 }
 
-@test "init gitignores REVIEW.md and PROMPT_review.md" {
-    run "$RALPH" init
+@test "init --gitignore ignores REVIEW.md but not PROMPT_review.md" {
+    run "$RALPH" init --gitignore
     [[ "$status" -eq 0 ]]
     grep -qxF "REVIEW.md" .gitignore
-    grep -qxF "PROMPT_review.md" .gitignore
+    run ! grep -q "PROMPT_review.md" .gitignore
 }
 
 @test "init --prompts scaffolds PROMPT_review.md" {

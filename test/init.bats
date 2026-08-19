@@ -37,47 +37,87 @@ load test_helper
     grep -q "# mine" plan/notes.md
 }
 
-@test "init creates .gitignore when it does not exist" {
+@test "init does not touch .gitignore by default" {
     run "$RALPH" init
+    [[ "$status" -eq 0 ]]
+    [[ ! -f ".gitignore" ]]
+    [[ "$output" != *"Added to .gitignore"* ]]
+}
+
+@test "init leaves an existing .gitignore untouched by default" {
+    create_gitignore "node_modules"
+    run "$RALPH" init
+    [[ "$status" -eq 0 ]]
+    [[ "$(cat .gitignore)" == "node_modules" ]]
+}
+
+@test "init --gitignore creates .gitignore when it does not exist" {
+    run "$RALPH" init --gitignore
     [[ "$status" -eq 0 ]]
     [[ -f ".gitignore" ]]
     grep -qxF "IMPLEMENTATION_PLAN.md" .gitignore
     grep -qxF "plan/" .gitignore
     grep -qxF "PROGRESS.md" .gitignore
+    grep -qxF "REVIEW.md" .gitignore
     grep -qxF ".ralph/" .gitignore
-    grep -qxF "PROMPT_plan.md" .gitignore
-    grep -qxF "PROMPT_build.md" .gitignore
 }
 
-@test "init adds entries to existing .gitignore" {
-    create_gitignore "node_modules"
-    run "$RALPH" init
+@test "init --gitignore never ignores the PROMPT_ files" {
+    run "$RALPH" init --gitignore
     [[ "$status" -eq 0 ]]
+    run ! grep -q "PROMPT_" .gitignore
+}
+
+@test "init --gitignore groups its entries under a section header" {
+    create_gitignore "node_modules"
+    run "$RALPH" init --gitignore
+    [[ "$status" -eq 0 ]]
+    grep -qxF "# Ralph loop artifacts" .gitignore
+    # The header must precede the entries it labels
+    local header_line entry_line
+    header_line=$(grep -nxF "# Ralph loop artifacts" .gitignore | cut -d: -f1)
+    entry_line=$(grep -nxF "IMPLEMENTATION_PLAN.md" .gitignore | cut -d: -f1)
+    [[ "$header_line" -lt "$entry_line" ]]
+}
+
+@test "init --gitignore adds entries to an existing .gitignore" {
+    create_gitignore "node_modules"
+    run "$RALPH" init --gitignore
+    [[ "$status" -eq 0 ]]
+    grep -qxF "node_modules" .gitignore
     grep -qxF "IMPLEMENTATION_PLAN.md" .gitignore
     grep -qxF "plan/" .gitignore
     grep -qxF "PROGRESS.md" .gitignore
     grep -qxF ".ralph/" .gitignore
-    grep -qxF "PROMPT_plan.md" .gitignore
-    grep -qxF "PROMPT_build.md" .gitignore
 }
 
-@test "init does not duplicate .gitignore entries on second run" {
+@test "init --gitignore does not duplicate entries on a second run" {
     create_gitignore "node_modules"
-    "$RALPH" init
-    "$RALPH" init
+    "$RALPH" init --gitignore
+    run "$RALPH" init --gitignore
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Skipped: .gitignore already ignores the loop artifacts"* ]]
     local count
     count=$(grep -cxF "IMPLEMENTATION_PLAN.md" .gitignore)
     [[ "$count" -eq 1 ]]
+    count=$(grep -cxF "# Ralph loop artifacts" .gitignore)
+    [[ "$count" -eq 1 ]]
 }
 
-@test "init handles .gitignore without trailing newline" {
+@test "init --gitignore handles .gitignore without trailing newline" {
     printf "node_modules" > .gitignore
-    run "$RALPH" init
+    run "$RALPH" init --gitignore
     [[ "$status" -eq 0 ]]
-    # First gitignore entry should be on its own line, not concatenated
-    run ! grep -q "node_modulesIMPLEMENTATION_PLAN.md" .gitignore
+    # The header must not be concatenated onto the last existing line
+    run ! grep -q "node_modules#" .gitignore
     grep -qxF "node_modules" .gitignore
     grep -qxF "IMPLEMENTATION_PLAN.md" .gitignore
+}
+
+@test "init rejects an unknown option" {
+    run "$RALPH" init --nope
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"unknown init option"* ]]
 }
 
 @test "init is idempotent — second run skips existing artifacts" {

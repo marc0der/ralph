@@ -33,7 +33,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 | `plan` | Run planning loop (max 6 iterations, exits on convergence) — reads specs/source, produces `IMPLEMENTATION_PLAN.md` and the `plan/NNN-slug.md` task files it links to |
 | `build` | Run build loop (default: 50 iterations) — picks next task, implements, tests, commits, pushes |
 | `sandbox` | Enter/manage devcontainer (`sandbox`, `sandbox clean`, `sandbox --rebuild`) |
-| `init` | Initialize workspace artifacts and directories |
+| `init` | Initialize workspace artifacts and directories (`--gitignore` also ignores the loop artifacts; off by default) |
 | `archive` | Move artifacts to `.ralph/<timestamp>/` |
 | `clean` | Delete artifacts |
 
@@ -45,7 +45,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 4. Substitute `{{GOAL}}` into prompt via bash parameter expansion
 5. Pipe prompt to the backend command in a loop (e.g., `claude -p` or `codex exec`)
 6. Parse JSON output with jq using backend-specific flags and filters, push changes after each iteration
-7. Detect an early exit, per mode. Build mode watches `HEAD` and stops after 2 consecutive noops, unless `-n` was passed. Plan mode never commits, so it fingerprints `IMPLEMENTATION_PLAN.md`, `plan/` and `specs/` via `plan_state_hash` and stops on the first pass that changes none of them; `-n` caps a plan run but never disables the check, and a converging pass against an empty plan is a failure rather than convergence. Review mode has no early exit: it is read-only, so every iteration is a noop by `HEAD` and any HEAD-based check would cut a multi-pass review short. Each branch names its mode explicitly — none is the default
+7. Detect an early exit, per mode. Build mode stops after 2 consecutive iterations that change no source, unless `-n` was passed — `build_progress_paths` diffs `HEAD` before and after with the loop artifacts excluded, so a project that commits its plan cannot mask a stalled loop by ticking a checkbox. Plan mode never commits, so it fingerprints `IMPLEMENTATION_PLAN.md`, `plan/` and `specs/` via `plan_state_hash` and stops on the first pass that changes none of them; `-n` caps a plan run but never disables the check, and a converging pass against an empty plan is a failure rather than convergence. Review mode has no early exit: it is read-only, so every iteration is a noop by `HEAD` and any HEAD-based check would cut a multi-pass review short. Each branch names its mode explicitly — none is the default
 
 ### The implementation plan contract
 
