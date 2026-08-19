@@ -177,6 +177,10 @@ Sandbox options:
 
 Init options:
   -p, --prompts      Also copy prompt templates for local customisation
+      --gitignore    Also add the loop artifacts (IMPLEMENTATION_PLAN.md,
+                     PROGRESS.md, REVIEW.md, plan/, .ralph/) to .gitignore.
+                     Off by default — whether the plan is loop-local state or a
+                     committed audit trail is the project's call
 
 Options:
   -n, --iterations N   Max iterations (plan default: 6, build: calculated from
@@ -300,10 +304,12 @@ cmd_archive() {
 
 cmd_init() {
     local with_prompts=false
+    local with_gitignore=false
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -p|--prompts) with_prompts=true; shift ;;
+            -p|--prompts)   with_prompts=true; shift ;;
+            --gitignore)    with_gitignore=true; shift ;;
             *) echo "Error: unknown init option '$1'"; exit 1 ;;
         esac
     done
@@ -347,20 +353,9 @@ cmd_init() {
         echo "Warning: commit skill not found at $skills_dir/commit/SKILL.md"
     fi
 
-    # Add ralph artifacts to .gitignore
-    if [[ ! -f ".gitignore" ]]; then
-        touch .gitignore
-        echo "Created: .gitignore"
+    if $with_gitignore; then
+        gitignore_artifacts
     fi
-    # Ensure file ends with a newline before appending
-    [[ -s .gitignore && $(tail -c1 .gitignore) != "" ]] && echo >> .gitignore
-    local ignore_entries=("IMPLEMENTATION_PLAN.md" "PROGRESS.md" "REVIEW.md" "$TASK_DIR/" ".ralph/" "PROMPT_plan.md" "PROMPT_build.md" "PROMPT_review.md")
-    for entry in "${ignore_entries[@]}"; do
-        if ! grep -qxF "$entry" .gitignore; then
-            echo "$entry" >> .gitignore
-            echo "Added to .gitignore: $entry"
-        fi
-    done
 
     # Optional: copy prompt templates for local customisation
     if $with_prompts; then
@@ -374,6 +369,34 @@ cmd_init() {
             scaffold "PROMPT_${file}" "$prompts_dir/$file"
         done
     fi
+}
+
+gitignore_artifacts() {
+    local entries=("IMPLEMENTATION_PLAN.md" "PROGRESS.md" "REVIEW.md" "$TASK_DIR/" ".ralph/")
+
+    local missing=() entry
+    for entry in "${entries[@]}"; do
+        grep -qxF "$entry" .gitignore 2>/dev/null || missing+=("$entry")
+    done
+
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        echo "Skipped: .gitignore already ignores the loop artifacts"
+        return
+    fi
+
+    if [[ ! -f ".gitignore" ]]; then
+        touch .gitignore
+        echo "Created: .gitignore"
+    fi
+    # Ensure the file ends with a newline before appending
+    [[ -s .gitignore && $(tail -c1 .gitignore) != "" ]] && echo >> .gitignore
+    [[ -s .gitignore ]] && printf '\n' >> .gitignore
+
+    echo "# Ralph loop artifacts" >> .gitignore
+    for entry in "${missing[@]}"; do
+        echo "$entry" >> .gitignore
+        echo "Added to .gitignore: $entry"
+    done
 }
 
 scaffold() {

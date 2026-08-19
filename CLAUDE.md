@@ -34,7 +34,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 | `plan` | Run planning loop (max 6 iterations, exits on convergence) — reads specs/source, produces `IMPLEMENTATION_PLAN.md` and the `plan/NNN-slug.md` task files it links to |
 | `build` | Run build loop (default: 50 iterations) — picks next task, implements, tests, commits, pushes |
 | `sandbox` | Enter/manage devcontainer (`sandbox`, `sandbox clean`, `sandbox --rebuild`) |
-| `init` | Initialize workspace artifacts and directories |
+| `init` | Initialize workspace artifacts and directories (`--gitignore` also ignores the loop artifacts; off by default) |
 | `archive` | Move artifacts to `.ralph/<timestamp>/` |
 | `clean` | Delete artifacts |
 
