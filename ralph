@@ -125,6 +125,16 @@ md5_hash() {
     fi
 }
 
+# Fail clearly when an option that takes a value is given none at all.
+# A value that merely looks like a flag is left alone: the option's own
+# validation reports it better than a generic parser message would.
+require_option_value() {
+    if [[ $# -lt 2 ]]; then
+        echo "Error: option '$1' requires a value" >&2
+        exit 1
+    fi
+}
+
 resolve_backend() {
     local name="$1"
     local found=false
@@ -1040,24 +1050,38 @@ cmd_loop() {
     local no_retry=false
     local no_metrics=false
 
-    ARGS=$(getopt -o n:g:m:b:vyh --long iterations:,goal:,model:,backend:,skip-push,dry-run,no-metrics,verbose,yes,help,max-retries-per-iteration:,no-retry -n 'ralph' -- "$@")
-    eval set -- "$ARGS"
-
-    while true; do
+    # Parsed by hand rather than with getopt(1). BSD getopt, which is what macOS
+    # ships, does not understand --long and returns the whole invocation as
+    # positional junk — every flag was then silently dropped, so --dry-run ran
+    # the backend for real and --skip-push pushed. cmd_sandbox already parses its
+    # own flags this way. The mode is shifted off above, so there are no
+    # positionals left to permute and getopt bought only the --opt=value form,
+    # which the first branch handles.
+    while [[ $# -gt 0 ]]; do
         case "$1" in
-            -n|--iterations) max_iterations="$2"; shift 2 ;;
-            -g|--goal)       goal="$2";           shift 2 ;;
-            -m|--model)      model="$2";          shift 2 ;;
-            -b|--backend)    backend="$2";        shift 2 ;;
+            --*=*)
+                # Normalise --opt=value into --opt value, then re-dispatch
+                set -- "${1%%=*}" "${1#*=}" "${@:2}"
+                continue
+                ;;
+            -n|--iterations)             require_option_value "$@"; max_iterations="$2";  shift 2 ;;
+            -g|--goal)                   require_option_value "$@"; goal="$2";            shift 2 ;;
+            -m|--model)                  require_option_value "$@"; model="$2";           shift 2 ;;
+            -b|--backend)                require_option_value "$@"; backend="$2";         shift 2 ;;
+            --max-retries-per-iteration) require_option_value "$@"; max_retries_opt="$2"; shift 2 ;;
             --skip-push)     skip_push=true;      shift ;;
             --dry-run)       dry_run=true;        shift ;;
             --no-metrics)    no_metrics=true;     shift ;;
+            --no-retry)      no_retry=true;       shift ;;
             -v|--verbose)    verbose=true;        shift ;;
             -y|--yes)        assume_yes=true;     shift ;;
-            --max-retries-per-iteration) max_retries_opt="$2"; shift 2 ;;
-            --no-retry)      no_retry=true;       shift ;;
             -h|--help)       usage ;;
             --)              shift; break ;;
+            *)
+                echo "Error: unknown option '$1' for 'ralph $mode'" >&2
+                echo "Run 'ralph --help' for usage." >&2
+                exit 1
+                ;;
         esac
     done
 
