@@ -163,8 +163,10 @@ Ralph iterations create and maintain these files in your project:
 
 `ralph init` does **not** touch `.gitignore` by default. Use `--gitignore` to add the build artefacts to `.gitignore`.
 
-- **Committed** — All the files needed to resume a run are committed, useful if you want other people on your team to be able to resume ralph iterations from where you left off.
-- **Ignored** — If you only want code that is produced by ralph to go in the repo and no ralph files to keep it clean.
+- **Committed** (default) — the build agent stages the plan, the task files and the progress log in the same commit as the code they describe, so a teammate who pulls the branch can resume from where the last run left off.
+- **Ignored** (`ralph init --gitignore`) — only the code ralph produces reaches the repo; the loop artifacts stay local to your machine.
+
+`.ralph/` (per-run metrics and raw backend transcripts) and any `PROMPT_*.md` overrides are never staged under either setting.
 
 ### Plan layout
 
@@ -282,7 +284,7 @@ The build phase commits via the `/commit` skill bundled with ralph and scaffolde
 - **Atomic** — separable concerns become separate commits, even within a single build iteration
 - **Selective staging** — only the paths belonging to the current commit are staged; never `git add -A`
 - **Optional short body** — up to 3 bulleted lines summarising what was implemented, only when the subject isn't self-explanatory
-- Loop-local artifacts (`IMPLEMENTATION_PLAN.md`, `plan/`, `PROGRESS.md`, `PROMPT_*.md`, `.ralph/`) are never staged
+- The plan, the task files and the progress log are staged with the code they describe when the project tracks them, and left alone when `ralph init --gitignore` has ignored them — the build agent checks `git check-ignore` rather than assuming. `.ralph/` and `PROMPT_*.md` are never staged either way
 
 The scaffolded skill lives in your project's `.claude/skills/` and is never listed in `.gitignore` by `ralph init` — commit it to share with your team, or edit it locally if you want different conventions.
 
