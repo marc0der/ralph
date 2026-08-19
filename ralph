@@ -735,6 +735,26 @@ plan_state_hash() {
     } 2>/dev/null | md5_hash
 }
 
+# Paths a build iteration changed, excluding the loop's own bookkeeping.
+#
+# A build iteration always rewrites IMPLEMENTATION_PLAN.md and PROGRESS.md, and
+# `ralph init` no longer gitignores them, so a project that commits its artifacts
+# advances HEAD every pass. A bare HEAD comparison would then read a stalled loop
+# as progress and never exit early. Ask the narrower question instead: did this
+# iteration change anything other than the plan and the log?
+#
+# Empty output means no source progress, whether or not HEAD moved.
+build_progress_paths() {
+    local before="$1" after="$2"
+    [[ "$before" == "$after" ]] && return 0
+    git diff --name-only "$before" "$after" -- . \
+        ":(exclude)IMPLEMENTATION_PLAN.md" \
+        ":(exclude)PROGRESS.md" \
+        ":(exclude)REVIEW.md" \
+        ":(exclude)${TASK_DIR}/" \
+        ":(exclude).ralph/"
+}
+
 truncate_line() {
     local text="$1" max="$2"
     if [[ ${#text} -gt $max ]]; then
@@ -1446,7 +1466,7 @@ cmd_loop() {
             elif [[ "$mode" == "build" ]] && ! $hard_override; then
                 local head_after
                 head_after=$(git rev-parse HEAD)
-                if [[ "$head_before" == "$head_after" ]]; then
+                if [[ -z "$(build_progress_paths "$head_before" "$head_after")" ]]; then
                     consecutive_noops=$((consecutive_noops + 1))
                     if [[ $consecutive_noops -ge 2 ]]; then
                         echo -e "\nNo changes detected for 2 consecutive iterations — exiting early."

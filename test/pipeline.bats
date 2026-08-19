@@ -483,14 +483,16 @@ MOCK
     [[ "$output" == *"Completed 2 iterations"* ]]
 }
 
-@test "noop counter resets when a commit occurs" {
+@test "noop counter resets when an iteration changes source" {
     "$RALPH" init
     # 3 items = 4 calculated iterations
     for i in 1 2 3; do
         echo "- [ ] **Task $i**" >> IMPLEMENTATION_PLAN.md
     done
     mkdir -p "$TEST_DIR/bin"
-    # Mock backend: noop on iteration 1, commit on iteration 2, noop on 3 and 4
+    # Mock backend: noop on iteration 1, real work on iteration 2, noop on 3 and 4.
+    # The work has to touch a path: an empty commit moves HEAD but changes
+    # nothing, and progress is measured in changed paths, not commits.
     cat > "$TEST_DIR/bin/claude" <<MOCK
 #!/usr/bin/env bash
 CALL_LOG="$TEST_DIR/call_count"
@@ -499,7 +501,8 @@ count=0
 count=\$((count + 1))
 echo "\$count" > "\$CALL_LOG"
 if [[ "\$count" -eq 2 ]]; then
-    git commit --allow-empty -m "work done" --quiet
+    echo "code" > worked.txt
+    git add worked.txt && git commit -m "work done" --quiet
 fi
 echo '{"type":"result","result":"done"}'
 MOCK
@@ -510,6 +513,56 @@ MOCK
     # Should run: noop(1), commit(2), noop(3), noop(4)=early exit
     [[ "$output" == *"No changes detected for 2 consecutive iterations"* ]]
     [[ "$output" == *"ITERATION 4"* ]]
+}
+
+@test "a commit that only touches loop artifacts still counts as a noop" {
+    # ralph init no longer gitignores the artifacts, so a project that commits
+    # them advances HEAD on every iteration. A bare HEAD comparison would read a
+    # stalled loop as progress and run the full calculated count.
+    "$RALPH" init
+    for i in 1 2 3 4 5; do
+        echo "- [ ] **Task $i**" >> IMPLEMENTATION_PLAN.md
+    done
+    git add -A && git commit -m "track the loop artifacts" --quiet
+    mkdir -p "$TEST_DIR/bin"
+    # Backend does no real work, but commits the progress log every pass.
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo "note $RANDOM" >> PROGRESS.md
+git add PROGRESS.md && git commit -m "chore: progress log" --quiet
+echo '{"type":"result","result":"stalled"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"No changes detected for 2 consecutive iterations"* ]]
+    [[ "$output" == *"Completed 2 iterations"* ]]
+}
+
+@test "a commit touching source is progress even alongside artifact churn" {
+    # The mirror of the test above: the exclusion must not swallow real work
+    # that happens to land in the same commit as the plan and the log.
+    "$RALPH" init
+    for i in 1 2 3; do
+        echo "- [ ] **Task $i**" >> IMPLEMENTATION_PLAN.md
+    done
+    git add -A && git commit -m "track the loop artifacts" --quiet
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+n=$(find . -maxdepth 1 -name 'src*.txt' | wc -l | tr -d ' ')
+echo "code" > "src${n}.txt"
+echo "note" >> PROGRESS.md
+git add -A && git commit -m "feat: real work" --quiet
+echo '{"type":"result","result":"progress"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"No changes detected"* ]]
+    [[ "$output" == *"Completed 4 iterations"* ]]
 }
 
 @test "noop detection is disabled when -n is passed" {
