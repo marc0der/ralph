@@ -461,6 +461,65 @@ MOCK
     [[ "$output" == *"[verbose] Backend command: claude"* ]]
 }
 
+# --- Option parsing ---
+#
+# ralph used to parse these with getopt(1). BSD getopt, which macOS ships, does
+# not understand --long: it returned the invocation as positional junk and every
+# flag was silently dropped, so --dry-run ran the backend and --skip-push pushed.
+# These run under whichever getopt is on PATH, so they fail on macOS if the
+# hand-rolled parser regresses back to getopt.
+
+@test "build accepts a short option with a separate value" {
+    "$RALPH" init
+    echo "- [ ] **Task one**" >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" build -n 3 --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Max:     3 iterations"* ]]
+}
+
+@test "build accepts a long option with a separate value" {
+    "$RALPH" init
+    echo "- [ ] **Task one**" >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" build --iterations 3 --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Max:     3 iterations"* ]]
+}
+
+@test "build accepts the --option=value form" {
+    "$RALPH" init
+    echo "- [ ] **Task one**" >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" build --iterations=3 --model=sonnet --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Max:     3 iterations"* ]]
+    [[ "$output" == *"Model:   sonnet"* ]]
+}
+
+@test "--dry-run is honoured, not silently dropped" {
+    # The flag reaching the parser is the whole point: a dropped --dry-run
+    # calls the backend for real.
+    "$RALPH" init
+    echo "- [ ] **Task one**" >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" build -n 1 --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"[dry-run] Would run:"* ]]
+}
+
+@test "loop rejects an unknown option" {
+    "$RALPH" init
+    echo "- [ ] **Task one**" >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" build --bogus --dry-run
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"unknown option '--bogus'"* ]]
+}
+
+@test "loop rejects an option missing its value" {
+    "$RALPH" init
+    echo "- [ ] **Task one**" >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" build --dry-run -n
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"requires a value"* ]]
+}
+
 # --- Noop early exit ---
 
 @test "build exits early after 2 consecutive noops" {
