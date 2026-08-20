@@ -2,8 +2,9 @@
 
 load test_helper
 
-# Mocks `sleep` so retry tests run instantly instead of actually waiting.
-# Each call's requested duration is appended to $TEST_DIR/sleep_calls.
+FIXTURE="$BATS_TEST_DIRNAME/fixtures/rate-limit-seven-day.jsonl"
+FIXTURE_RESET_EPOCH=1787457600
+
 mock_sleep() {
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/sleep" <<MOCK
@@ -14,11 +15,34 @@ MOCK
     chmod +x "$TEST_DIR/bin/sleep"
 }
 
-# --- Rate-limit detection (with a parseable reset time) triggers a retry ---
+mock_date() {
+    local frozen_now="$1" real_date
+    real_date=$(command -v date)
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/date" <<MOCK
+#!/usr/bin/env bash
+if [[ "\$1" == "+%s" ]]; then
+    echo "$frozen_now"
+    exit 0
+fi
+exec "$real_date" "\$@"
+MOCK
+    chmod +x "$TEST_DIR/bin/date"
+}
 
-@test "retries a rate-limit failure with a reset time and succeeds on the next attempt" {
-    "$RALPH" init
-    mock_sleep
+mock_claude_always_rate_limited() {
+    local exit_code="${1:-1}"
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+cat "$FIXTURE"
+exit $exit_code
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+}
+
+mock_claude_rate_limited_then() {
+    local success_body="$1"
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<MOCK
 #!/usr/bin/env bash
@@ -28,13 +52,19 @@ count=0
 count=\$((count + 1))
 echo "\$count" > "\$COUNT_FILE"
 if [[ "\$count" -eq 1 ]]; then
-    reset_epoch=\$(( \$(date +%s) + 5 ))
-    echo "Claude AI usage limit reached|\$reset_epoch" >&2
+    cat "$FIXTURE"
     exit 1
 fi
-echo '{"type":"result","result":"done after retry"}'
+$success_body
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
+}
+
+@test "retries a rate_limit_event from real backend output and succeeds on the next attempt" {
+    "$RALPH" init
+    mock_sleep
+    mock_date $((FIXTURE_RESET_EPOCH - 120))
+    mock_claude_rate_limited_then "echo '{\"type\":\"result\",\"result\":\"done after retry\"}'"
 
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 0 ]]
@@ -44,176 +74,30 @@ MOCK
     [[ -f "$TEST_DIR/sleep_calls" ]]
 }
 
-@test "detects rate_limit_error on stdout, not just stderr" {
+@test "waits until the reported resetsAt plus the buffer" {
     "$RALPH" init
     mock_sleep
-    mkdir -p "$TEST_DIR/bin"
-    cat > "$TEST_DIR/bin/claude" <<MOCK
-#!/usr/bin/env bash
-COUNT_FILE="$TEST_DIR/call_count"
-count=0
-[[ -f "\$COUNT_FILE" ]] && count=\$(cat "\$COUNT_FILE")
-count=\$((count + 1))
-echo "\$count" > "\$COUNT_FILE"
-if [[ "\$count" -eq 1 ]]; then
-    reset_epoch=\$(( \$(date +%s) + 5 ))
-    echo "{\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"Please try again later.|\$reset_epoch\"}}"
-    exit 1
-fi
-echo '{"type":"result","result":"done"}'
-MOCK
-    chmod +x "$TEST_DIR/bin/claude"
+    mock_date $((FIXTURE_RESET_EPOCH - 120))
+    mock_claude_rate_limited_then "echo '{\"type\":\"result\",\"result\":\"done\"}'"
 
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Rate limited"* ]]
+    [[ "$(sed -n '1p' "$TEST_DIR/sleep_calls")" -eq 150 ]]
 }
 
-# --- No blind exponential backoff: an unparseable reset time fails loudly ---
-
-@test "fails immediately (no retry) when rate-limited but no reset time can be parsed" {
+@test "fails without retrying when the wait to resetsAt exceeds the maximum" {
     "$RALPH" init
     mock_sleep
-    mkdir -p "$TEST_DIR/bin"
-    cat > "$TEST_DIR/bin/claude" <<'MOCK'
-#!/usr/bin/env bash
-echo "rate limit hit, no reset time given" >&2
-exit 1
-MOCK
-    chmod +x "$TEST_DIR/bin/claude"
+    mock_date $((FIXTURE_RESET_EPOCH - 21600))
+    mock_claude_always_rate_limited 3
 
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
-    [[ "$status" -eq 1 ]]
-    [[ "$output" == *"no reset time could be parsed"* ]]
+    [[ "$status" -eq 3 ]]
+    [[ "$output" == *"exceeds maximum allowed wait"* ]]
     [[ ! -f "$TEST_DIR/sleep_calls" ]]
 }
 
-# --- Backoff strategy: honours the reported reset time ---
-
-@test "honours a reported reset epoch when computing the wait" {
-    "$RALPH" init
-    mock_sleep
-    mkdir -p "$TEST_DIR/bin"
-    cat > "$TEST_DIR/bin/claude" <<MOCK
-#!/usr/bin/env bash
-COUNT_FILE="$TEST_DIR/call_count"
-count=0
-[[ -f "\$COUNT_FILE" ]] && count=\$(cat "\$COUNT_FILE")
-count=\$((count + 1))
-echo "\$count" > "\$COUNT_FILE"
-if [[ "\$count" -eq 1 ]]; then
-    reset_epoch=\$(( \$(date +%s) + 120 ))
-    echo "Claude AI usage limit reached|\$reset_epoch" >&2
-    exit 1
-fi
-echo '{"type":"result","result":"done"}'
-MOCK
-    chmod +x "$TEST_DIR/bin/claude"
-
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
-    [[ "$status" -eq 0 ]]
-    local waited
-    waited=$(sed -n '1p' "$TEST_DIR/sleep_calls")
-    # ~120s until reset + 30s buffer, with slack for test execution drift
-    [[ "$waited" -ge 130 ]]
-    [[ "$waited" -le 170 ]]
-}
-
-# --- Exhausting retries still fails, even though every attempt had a valid reset time ---
-
-@test "fails after exhausting max-retries when the limit keeps recurring with a fresh reset time" {
-    "$RALPH" init
-    mock_sleep
-    mkdir -p "$TEST_DIR/bin"
-    cat > "$TEST_DIR/bin/claude" <<'MOCK'
-#!/usr/bin/env bash
-reset_epoch=$(( $(date +%s) + 5 ))
-echo "Claude AI usage limit reached|$reset_epoch" >&2
-exit 1
-MOCK
-    chmod +x "$TEST_DIR/bin/claude"
-
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --max-retries-per-iteration 2
-    [[ "$status" -eq 1 ]]
-    [[ "$output" == *"attempt 1/2"* ]]
-    [[ "$output" == *"attempt 2/2"* ]]
-    [[ "$output" == *"exhausted 2 retries"* ]]
-    [[ "$(wc -l < "$TEST_DIR/sleep_calls")" -eq 2 ]]
-}
-
-# --- Never skip a plan item: no jq/push/noop processing on a retried iteration ---
-
-@test "a failed-then-retried iteration does not push or advance past the retry" {
-    "$RALPH" init
-    mock_sleep
-    mkdir -p "$TEST_DIR/bin"
-    cat > "$TEST_DIR/bin/claude" <<MOCK
-#!/usr/bin/env bash
-COUNT_FILE="$TEST_DIR/call_count"
-count=0
-[[ -f "\$COUNT_FILE" ]] && count=\$(cat "\$COUNT_FILE")
-count=\$((count + 1))
-echo "\$count" > "\$COUNT_FILE"
-if [[ "\$count" -eq 1 ]]; then
-    reset_epoch=\$(( \$(date +%s) + 5 ))
-    echo "usage limit reached|\$reset_epoch" >&2
-    exit 1
-fi
-git commit --allow-empty -m "work done" --quiet
-echo '{"type":"result","result":"done"}'
-MOCK
-    chmod +x "$TEST_DIR/bin/claude"
-
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
-    [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Completed 1 iteration"* ]]
-    # Only one commit exists beyond the initial one — the retried attempt
-    # succeeded exactly once, the failed attempt left no trace.
-    local commit_count
-    commit_count=$(git log --oneline | wc -l)
-    [[ "$commit_count" -eq 2 ]]
-}
-
-# --- --no-retry / --max-retries-per-iteration 0 disable the mechanism entirely ---
-
-@test "--no-retry fails immediately even on a rate-limit failure with a valid reset time" {
-    "$RALPH" init
-    mock_sleep
-    mkdir -p "$TEST_DIR/bin"
-    cat > "$TEST_DIR/bin/claude" <<'MOCK'
-#!/usr/bin/env bash
-echo "Claude AI usage limit reached|9999999999" >&2
-exit 1
-MOCK
-    chmod +x "$TEST_DIR/bin/claude"
-
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --no-retry
-    [[ "$status" -eq 1 ]]
-    [[ "$output" != *"⏸"* ]]
-    [[ "$output" == *"retries are disabled"* ]]
-    [[ ! -f "$TEST_DIR/sleep_calls" ]]
-}
-
-@test "--max-retries-per-iteration 0 behaves like --no-retry" {
-    "$RALPH" init
-    mock_sleep
-    mkdir -p "$TEST_DIR/bin"
-    cat > "$TEST_DIR/bin/claude" <<'MOCK'
-#!/usr/bin/env bash
-echo "usage limit reached|9999999999" >&2
-exit 1
-MOCK
-    chmod +x "$TEST_DIR/bin/claude"
-
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --max-retries-per-iteration 0
-    [[ "$status" -eq 1 ]]
-    [[ "$output" == *"retries are disabled"* ]]
-    [[ ! -f "$TEST_DIR/sleep_calls" ]]
-}
-
-# --- Genuine failures are unaffected ---
-
-@test "genuine failure (not rate-limited) fails immediately without retry" {
+@test "a failure carrying no rate_limit_event is not retried" {
     "$RALPH" init
     mock_sleep
     mkdir -p "$TEST_DIR/bin"
@@ -226,13 +110,112 @@ MOCK
 
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Did not detect a rate limited error"* ]]
     [[ "$output" != *"Rate limited"* ]]
     [[ ! -f "$TEST_DIR/sleep_calls" ]]
-    # The raw output is now shown on failure even without --verbose.
-    [[ "$output" == *"error_during_execution"* ]]
 }
 
-# --- Flag validation and help text ---
+@test "rate-limit wording on stderr alone is not treated as a rate limit" {
+    "$RALPH" init
+    mock_sleep
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo "Claude AI usage limit reached|9999999999" >&2
+exit 1
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"usage limit reached"* ]]
+    [[ "$output" == *"Did not detect a rate limited error"* ]]
+    [[ ! -f "$TEST_DIR/sleep_calls" ]]
+}
+
+@test "non-JSON backend output fails cleanly without a jq parse error" {
+    "$RALPH" init
+    mock_sleep
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo "Segmentation fault"
+exit 139
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
+    [[ "$status" -eq 139 ]]
+    [[ "$output" == *"Did not detect a rate limited error"* ]]
+    [[ "$output" != *"parse error"* ]]
+    [[ "$output" != *"jq:"* ]]
+    [[ ! -f "$TEST_DIR/sleep_calls" ]]
+}
+
+@test "fails after exhausting max-retries when the limit keeps recurring" {
+    "$RALPH" init
+    mock_sleep
+    mock_date $((FIXTURE_RESET_EPOCH - 120))
+    mock_claude_always_rate_limited
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --max-retries-per-iteration 2
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"attempt 1/2"* ]]
+    [[ "$output" == *"attempt 2/2"* ]]
+    [[ "$output" == *"exhausted 2 retries"* ]]
+    [[ "$(wc -l < "$TEST_DIR/sleep_calls")" -eq 2 ]]
+}
+
+@test "--no-retry fails immediately on a rate_limit_event" {
+    "$RALPH" init
+    mock_sleep
+    mock_date $((FIXTURE_RESET_EPOCH - 120))
+    mock_claude_always_rate_limited
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --no-retry
+    [[ "$status" -eq 1 ]]
+    [[ "$output" != *"⏸"* ]]
+    [[ "$output" == *"retries are disabled"* ]]
+    [[ ! -f "$TEST_DIR/sleep_calls" ]]
+}
+
+@test "--max-retries-per-iteration 0 behaves like --no-retry" {
+    "$RALPH" init
+    mock_sleep
+    mock_date $((FIXTURE_RESET_EPOCH - 120))
+    mock_claude_always_rate_limited
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --max-retries-per-iteration 0
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"retries are disabled"* ]]
+    [[ ! -f "$TEST_DIR/sleep_calls" ]]
+}
+
+@test "a failed-then-retried iteration does not push or advance past the retry" {
+    "$RALPH" init
+    mock_sleep
+    mock_date $((FIXTURE_RESET_EPOCH - 120))
+    mock_claude_rate_limited_then "git commit --allow-empty -m 'work done' --quiet
+echo '{\"type\":\"result\",\"result\":\"done\"}'"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Completed 1 iteration"* ]]
+    [[ "$(git log --oneline | wc -l)" -eq 2 ]]
+}
+
+@test "prints the raw backend output and hint on a rate-limit failure without --verbose" {
+    "$RALPH" init
+    mock_sleep
+    mock_date $((FIXTURE_RESET_EPOCH - 120))
+    mock_claude_always_rate_limited
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --no-retry
+    [[ "$output" == *"Error: backend command failed on iteration 1 (exit code 1)"* ]]
+    [[ "$output" == *"Raw backend output:"* ]]
+    [[ "$output" == *"rate_limit_event"* ]]
+    [[ "$output" == *"Hint: re-run with --dry-run"* ]]
+}
 
 @test "--max-retries-per-iteration rejects a non-numeric value" {
     "$RALPH" init

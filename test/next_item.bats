@@ -88,15 +88,21 @@ load test_helper
     [[ "$output" != *"Next:"* ]]
 }
 
-# Regression: the lookup used to pipe into `head -1`, so on a plan long enough
-# for head to close the pipe early, `set -o pipefail` made the pipeline non-zero
-# and the unguarded assignment aborted the loop under `set -e`.
+# Regression: the item lookup ends in a `sed ... q` that closes the pipe at the
+# first match, so on a plan larger than the pipe buffer the producer feeding it
+# dies of SIGPIPE. Under `set -o pipefail` that made the pipeline non-zero, and
+# the guarded assignment discarded the item it had just read successfully.
+# Keep the plan above 64KiB and under the '## Items' heading, or the failure
+# goes back to being a race the test only loses one run in ten.
 @test "a long plan announces its first item without aborting the loop" {
     "$RALPH" init
-    printf -- '- [ ] **First open item**\n' > IMPLEMENTATION_PLAN.md
-    for i in $(seq 1 2000); do
-        printf -- '- [ ] **Filler item %s**\n' "$i" >> IMPLEMENTATION_PLAN.md
-    done
+    {
+        printf -- '## Items\n\n- [ ] **First open item**\n'
+        for i in $(seq 1 4000); do
+            printf -- '- [ ] **Filler item %s**\n' "$i"
+        done
+    } > IMPLEMENTATION_PLAN.md
+    [[ "$(wc -c < IMPLEMENTATION_PLAN.md)" -gt 65536 ]]
 
     run "$RALPH" build --dry-run -n 1
     [[ "$status" -eq 0 ]]

@@ -774,54 +774,26 @@ truncate_line() {
     fi
 }
 
-# --- Rate-limit / usage-limit retry helpers ---
-#
-# Backend CLIs (at least Claude Code, see anthropics/claude-code#35540) exit
-# non-zero for every failure type — transient rate limits, usage-limit
-# exhaustion, and genuine errors alike — so detection has to be content-based
-# rather than exit-code-based.
-#
-# Deliberately no blind exponential-backoff fallback: if the output is
-# classified as rate-limited but no reset time can be parsed out of it, that
-# is a gap in detection, not a case to paper over with a guessed wait. It
-# fails loudly instead, so the gap gets fixed rather than hidden.
-
-# True if the combined backend stdout/stderr looks like a rate-limit or
-# usage-limit failure rather than a genuine error.
 is_rate_limit_failure() {
-    local text="${1,,}"
-    [[ "$text" == *"usage limit"* ]] && return 0
-    [[ "$text" == *"rate_limit_error"* ]] && return 0
-    [[ "$text" == *"rate limit"* ]] && return 0
-    [[ "$text" == *"overloaded_error"* ]] && return 0
-    return 1
+    local text="$1"
+    local resets_at
+    resets_at=$(extract_reset_epoch "$text")
+    [[ -n "$resets_at" ]]
 }
 
-# Extracts a reset epoch (seconds) from a "...|<epoch>" style message, if
-# present. Claude Code's own usage-limit messages carry the reset time this
-# way (seen verbatim in its auto-filed bug report titles, e.g.
-# "Claude AI usage limit reached|1754298000"). Echoes nothing if absent.
 extract_reset_epoch() {
     local text="$1"
-    if [[ "$text" =~ \|([0-9]{10,13}) ]]; then
-        local raw="${BASH_REMATCH[1]}"
-        if [[ ${#raw} -ge 13 ]]; then
-            echo $(( raw / 1000 ))
-        else
-            echo "$raw"
-        fi
-    fi
+    local resets_at
+    resets_at=$(echo "$text" | jq -r 'select(.type == "rate_limit_event") | .rate_limit_info.resetsAt // empty' 2>/dev/null | tail -n 1)
+    echo "$resets_at"
 }
 
-# Seconds to wait before retrying, given a reset epoch (capped against a
-# garbage or far-future parse). Caller must ensure reset_epoch is non-empty.
-compute_retry_wait() {
+compute_retry_wait_seconds() {
     local reset_epoch="$1"
     local now wait
     now=$(date +%s)
     wait=$(( reset_epoch - now + RETRY_RESET_BUFFER_SECONDS ))
     [[ $wait -lt 5 ]] && wait=5
-    [[ $wait -gt $RETRY_RESET_MAX_WAIT_SECONDS ]] && wait=$RETRY_RESET_MAX_WAIT_SECONDS
     echo "$wait"
 }
 
@@ -1239,7 +1211,7 @@ cmd_loop() {
             local next_item
             # An unreadable plan must not abort the loop: announcing is a
             # convenience, so fall back to silence rather than failing.
-            next_item=$(next_plan_item) || next_item=""
+            next_item=$(next_plan_item || true)
             if [[ -n "$next_item" ]]; then
                 truncate_line "Next:    $next_item" "$line_width"
                 echo ""
@@ -1288,86 +1260,65 @@ cmd_loop() {
                 fi
             fi
 
-            # Run backend command separately, capturing stdout while preserving
-            # stderr. On a non-zero exit, retry the same iteration if the
-            # output looks like a rate/usage-limit failure with a parseable
-            # reset time — backend CLIs use the same exit code for every
-            # failure type (see anthropics/claude-code#35540), so
-            # classification reads the raw stream content, before jq ever
-            # sees it. A rate-limit-shaped failure with no parseable reset
-            # time fails immediately rather than guessing a wait.
             local backend_output="" backend_exit=0
             local retry_num=0
             while true; do
                 backend_exit=0
-                local stderr_capture
-                stderr_capture=$(mktemp)
 
                 if [[ "$BACKEND_STDIN_PROMPT" == "true" ]]; then
                     backend_output=$(echo "$prompt" | "${BACKEND_CMD[@]}" 2> >(
                         if $verbose; then
                             echo "[verbose] === Backend stderr ===" >&2
-                            tee "$stderr_capture" >&2
+                            cat >&2
                             echo "[verbose] === End backend stderr ===" >&2
                         else
-                            tee "$stderr_capture" >&2
+                            cat >&2
                         fi
                     )) || backend_exit=$?
                 else
                     backend_output=$("${BACKEND_CMD[@]}" "$prompt" 2> >(
                         if $verbose; then
                             echo "[verbose] === Backend stderr ===" >&2
-                            tee "$stderr_capture" >&2
+                            cat >&2
                             echo "[verbose] === End backend stderr ===" >&2
                         else
-                            tee "$stderr_capture" >&2
+                            cat >&2
                         fi
                     )) || backend_exit=$?
                 fi
 
-                local backend_stderr
-                backend_stderr=$(<"$stderr_capture")
-                rm -f "$stderr_capture"
-
                 [[ $backend_exit -eq 0 ]] && break
 
-                local combined="$backend_output"$'\n'"$backend_stderr"
-                if ! is_rate_limit_failure "$combined"; then
-                    echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
-                    echo "Raw backend output:" >&2
-                    echo "$backend_output" >&2
-                    echo "Hint: re-run with --dry-run to inspect the prompt, or --verbose for full diagnostics" >&2
-                    exit "$backend_exit"
-                fi
+                echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
+                echo "Raw backend output:" >&2
+                echo "$backend_output" >&2
+                echo "Hint: re-run with --dry-run to inspect the prompt, or --verbose for full diagnostics" >&2
 
-                local reset_epoch
-                reset_epoch=$(extract_reset_epoch "$combined")
-                if [[ -z "$reset_epoch" ]]; then
-                    echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
-                    echo "This looks rate limited, but no reset time could be parsed from the output —" >&2
-                    echo "failing instead of guessing a wait. Please report this so detection can be fixed." >&2
-                    echo "Raw backend output:" >&2
-                    echo "$backend_output" >&2
-                    echo "Hint: re-run with --dry-run to inspect the prompt, or --verbose for full diagnostics" >&2
+                if ! is_rate_limit_failure "$backend_output"; then
+                    echo "Did not detect a rate limited error" >&2
                     exit "$backend_exit"
                 fi
 
                 if [[ $retry_num -ge $max_retries ]]; then
-                    echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
                     if [[ $max_retries -eq 0 ]]; then
                         echo "Rate limited with a parseable reset time, but retries are disabled (--no-retry / --max-retries-per-iteration 0)." >&2
                     else
                         echo "Rate limited — exhausted $max_retries retries, each with a valid reset time." >&2
                     fi
-                    echo "Raw backend output:" >&2
-                    echo "$backend_output" >&2
-                    echo "Hint: re-run with --dry-run to inspect the prompt, or --verbose for full diagnostics" >&2
                     exit "$backend_exit"
                 fi
 
                 retry_num=$((retry_num + 1))
+                local reset_epoch
+                reset_epoch=$(extract_reset_epoch "$backend_output")
                 local wait_seconds
-                wait_seconds=$(compute_retry_wait "$reset_epoch")
+                wait_seconds=$(compute_retry_wait_seconds "$reset_epoch")
+
+                if (( wait_seconds > RETRY_RESET_MAX_WAIT_SECONDS )); then
+                    echo "Retry wait time of $(format_duration "$wait_seconds") exceeds maximum allowed wait of $(format_duration "$RETRY_RESET_MAX_WAIT_SECONDS")" >&2
+                    exit "$backend_exit"
+                fi
+
                 echo "⏸ Rate limited on iteration $iteration, retrying in $(format_duration "$wait_seconds") (attempt $retry_num/$max_retries)" >&2
                 sleep "$wait_seconds"
             done

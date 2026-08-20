@@ -1,0 +1,4 @@
+{"type":"system","subtype":"init","session_id":"SessionId1","model":"some-model-1","cwd":"/some/workdir","tools":["some-tool-1","some-tool-2"],"uuid":"UUID1"}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Some prompt text."}]},"session_id":"SessionId1","uuid":"UUID2"}
+{"type":"assistant","message":{"id":"MessageId1","role":"assistant","model":"some-model-1","content":[{"type":"text","text":"Some assistant text."}]},"session_id":"SessionId1","uuid":"UUID3"}
+{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","resetsAt":1787457600,"rateLimitType":"seven_day","overageStatus":"rejected","overageDisabledReason":"out_of_credits","isUsingOverage":false},"uuid":"UUID4","session_id":"SessionId1"}
