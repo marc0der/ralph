@@ -14,7 +14,7 @@ Gather context by reading these sources. Use parallel **Sonnet** subagents for s
 
 - **Operational guardrails** — read `AGENTS.md` or `CLAUDE.md` (if present) for the project rules the code must obey
 - **Specifications** — read everything in `specs/`
-- **Plan and progress** — read `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` (if present) for what the branch claims to have done. The plan is an **index** of one-line entries: for every item the diff touches, read its linked task file under `plan/` as well. The task file holds the **Scope** that bounds what the item was allowed to change, the **Done when** criteria it had to meet, and the **Completion notes** recording what the author says shipped. An index entry gives you a title; the task file gives you the brief to review against
+- **Plan and progress** — read `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and `LEARNINGS.md` (if present) for what the branch claims to have done. The plan is an **index** of one-line entries: for every item the diff touches, read its linked task file under `plan/` as well. The task file holds the **Scope** that bounds what the item was allowed to change, the **Done when** criteria it had to meet, and the **Completion notes** recording what the author says shipped. An index entry gives you a title; the task file gives you the brief to review against
 - **The diff under review** — default scope is the current branch against its merge base with the default branch (`main` or `master`); if the goal above names a different base or scope, use that. Read the full diff *and* the surrounding code it lands in
 
 ## Phase 2: Review
@@ -41,7 +41,7 @@ Write `REVIEW.md` (overwrite any previous version):
 
 ## Constraints
 
-- **Review, don't fix.** `REVIEW.md` is the only file you create or modify. No source edits, no commits, no pushes, no changes to `IMPLEMENTATION_PLAN.md`, the task files under `plan/`, or `PROGRESS.md` — including no ticking off a `Done when` criterion you judge met.
+- **Review, don't fix.** `REVIEW.md` is the only file you create or modify. No source edits, no commits, no pushes, no changes to `IMPLEMENTATION_PLAN.md`, the task files under `plan/`, `PROGRESS.md`, or `LEARNINGS.md` — including no ticking off a `Done when` criterion you judge met.
 - **Subagent discipline:** **Sonnet** subagents for search/read, **Opus** for judgement.
 - Findings must be actionable: the reviewer should be able to accept or reject each one without re-deriving your analysis.
 - If the diff is empty or trivially small, say so in `REVIEW.md` and stop — do not manufacture findings.

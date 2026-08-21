@@ -17,7 +17,8 @@ Gather context by reading these sources. If your harness supports subagents, use
 - **Operational guardrails** — read `AGENTS.md` or `CLAUDE.md` (if present) for build commands, conventions, and project rules
 - **Specifications** — read everything in `specs/`
 - **Implementation plan** — read `IMPLEMENTATION_PLAN.md` to find the highest-priority incomplete item. It is an index of one-line entries, each linking to a task file under `plan/`. Start with one task file: the item you are about to implement. The one-line entries are usually context enough for the rest — open another task file when your item genuinely builds on it, such as a completed item whose interface you are extending. Reach for those deliberately; what wastes context is sweeping `plan/`, not a targeted read
-- **Progress log** — read `PROGRESS.md` (if present) for learnings and gotchas from earlier iterations
+- **Learnings** — read `LEARNINGS.md` (if present) for the patterns, gotchas and context earlier iterations recorded. Read it in full; it is deliberately small
+- **Progress log** — read `PROGRESS.md` (if present) for what recent iterations did and what broke. It is append-only and grows without bound — read the last few entries, not the whole file
 - **Application source** — read build files and source code to understand structure, dependencies, and architecture
 - **Tests** — read test sources to understand existing coverage and patterns
 
@@ -75,14 +76,15 @@ Tests must stay green throughout: if a simplification breaks a test, revert the 
    - **Never delete an entry or its task file.** The plan is an append-only ledger: completed items stay as a record of what shipped. You may **append** new items — a new task file plus its index entry — if this iteration surfaced follow-up work, but do not remove or rewrite existing ones. An appended item follows the same format and limits as every other: copy the shape of an existing task file under `plan/`, at most 150 words, at most 8 steps.
    - **Never add a `##` heading** to `IMPLEMENTATION_PLAN.md`, and never touch its `## Entry Format` section — it documents the format, and only `## Items` is yours to edit.
 2. Append an entry to `PROGRESS.md` following the template defined in its header (append-only — never edit previous entries)
-3. Commit the changes by invoking the **`/commit` skill**. Do NOT compose commits manually. Rules for this iteration:
+3. Record what you learned in `LEARNINGS.md`. **This file is not append-only** — it is a deduplicated summary you edit in place. Where an existing line already covers the point, sharpen that line instead of adding another. Correct anything this iteration proved wrong, and delete what is no longer true. Add nothing that is already obvious from the source, and keep the file inside the size bound stated in its header. If you learned nothing durable, leave the file alone
+4. Commit the changes by invoking the **`/commit` skill**. Do NOT compose commits manually. Rules for this iteration:
    - **Atomic commits**: if the working tree contains separable concerns **within this item** (e.g. a refactor *and* the feature it enables, or test additions that stand on their own), produce **multiple commits in one skill invocation** — one per concern — instead of a single grab-bag commit.
    - **Selective staging**: never `git add -A` / `git add .`. Stage only the paths belonging to the current commit.
-   - **Loop artifacts follow the project's own setting.** Whether the plan is committed or kept local is decided at `ralph init`, and git already records the answer — do not guess it. For `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and the task files under `plan/`: run `git check-ignore -q <path>`; if it exits non-zero the project tracks them, so stage them in the **same commit** as the code they describe, keeping the plan and the code in step. If it exits 0 the project keeps them local — leave them unstaged and **never** use `git add -f` to override it.
+   - **Loop artifacts follow the project's own setting.** Whether the plan is committed or kept local is decided at `ralph init`, and git already records the answer — do not guess it. For `IMPLEMENTATION_PLAN.md`, `PROGRESS.md`, `LEARNINGS.md` and the task files under `plan/`: run `git check-ignore -q <path>`; if it exits non-zero the project tracks them, so stage them in the **same commit** as the code they describe, keeping the plan and the code in step. If it exits 0 the project keeps them local — leave them unstaged and **never** use `git add -f` to override it.
    - **Never stage `.ralph/` or `PROMPT_*.md`**, whatever the setting: those are machine-local run telemetry and local prompt overrides, not part of the handoff.
    - **Subject + optional short body**: short imperative subject; body, if used, is up to 3 bulleted lines summarising what was implemented.
-4. `git push`
-5. **Stop here.** Do not pick up another item — the next iteration starts fresh from Phase 1.
+5. `git push`
+6. **Stop here.** Do not pick up another item — the next iteration starts fresh from Phase 1.
 
 ---
 
@@ -91,7 +93,7 @@ Tests must stay green throughout: if a simplification breaks a test, revert the 
 - **Subagent discipline:** If your harness supports subagents, use fast ones for search and read operations, and your strongest reasoning model for debugging and architectural decisions. Never run build or test commands in more than one subagent at a time.
 - **Boring code wins.** The output is reviewed by a human; the best implementation is the one that looks obvious in review. Cleverness that saves lines but costs comprehension is a defect, not a contribution.
 - **Implement completely.** Placeholders and stubs waste effort redoing the same work.
-- **`PROGRESS.md` owns the record.** Every outcome, measurement, verification result, learning and gotcha goes there. None of it ever goes in `IMPLEMENTATION_PLAN.md`.
+- **`PROGRESS.md` owns the record; `LEARNINGS.md` owns the knowledge.** Every outcome, measurement and verification result — what happened this iteration — goes to `PROGRESS.md`. Every durable pattern, gotcha and piece of context — what a future iteration needs to know — goes to `LEARNINGS.md`. Neither ever goes in `IMPLEMENTATION_PLAN.md`.
 - **Single sources of truth.** Don't duplicate information across files.
 - **Document the why** — in tests, commits, and documentation, capture importance and reasoning.
 - **Keep `IMPLEMENTATION_PLAN.md` current** — mark items done and append new ones, but **never delete**; future iterations depend on it to avoid duplicating effort. (Remainders of a split item are inserted after their parent rather than appended, so they keep their priority.)

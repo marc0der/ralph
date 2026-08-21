@@ -8,6 +8,12 @@ load test_helper
     [[ -f "PROGRESS.md" ]]
 }
 
+@test "init creates LEARNINGS.md" {
+    run "$RALPH" init
+    [[ "$status" -eq 0 ]]
+    [[ -f "LEARNINGS.md" ]]
+}
+
 @test "init creates IMPLEMENTATION_PLAN.md" {
     run "$RALPH" init
     [[ "$status" -eq 0 ]]
@@ -58,6 +64,7 @@ load test_helper
     grep -qxF "IMPLEMENTATION_PLAN.md" .gitignore
     grep -qxF "plan/" .gitignore
     grep -qxF "PROGRESS.md" .gitignore
+    grep -qxF "LEARNINGS.md" .gitignore
     grep -qxF "REVIEW.md" .gitignore
     grep -qxF ".ralph/" .gitignore
 }
@@ -88,6 +95,7 @@ load test_helper
     grep -qxF "IMPLEMENTATION_PLAN.md" .gitignore
     grep -qxF "plan/" .gitignore
     grep -qxF "PROGRESS.md" .gitignore
+    grep -qxF "LEARNINGS.md" .gitignore
     grep -qxF ".ralph/" .gitignore
 }
 
@@ -125,6 +133,7 @@ load test_helper
     run "$RALPH" init
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Skipped: PROGRESS.md already exists"* ]]
+    [[ "$output" == *"Skipped: LEARNINGS.md already exists"* ]]
     [[ "$output" == *"Skipped: IMPLEMENTATION_PLAN.md already exists"* ]]
     [[ "$output" == *"Skipped: specs/ already exists"* ]]
     [[ "$output" == *"Skipped: plan/ already exists"* ]]

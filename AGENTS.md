@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is Ralph?
 
-Ralph is an autonomous AI coding agent loop runner. It runs iterative plan/build cycles using a configurable backend (Claude Code, OpenAI Codex, GitHub Copilot CLI, or pi) in headless mode, with shared artifacts (`IMPLEMENTATION_PLAN.md` plus the per-task files under `plan/` it indexes, and `PROGRESS.md`) as handoffs between iterations. All execution happens inside isolated devcontainers.
+Ralph is an autonomous AI coding agent loop runner. It runs iterative plan/build cycles using a configurable backend (Claude Code, OpenAI Codex, GitHub Copilot CLI, or pi) in headless mode, with shared artifacts (`IMPLEMENTATION_PLAN.md` plus the per-task files under `plan/` it indexes, `PROGRESS.md`, and `LEARNINGS.md`) as handoffs between iterations. All execution happens inside isolated devcontainers.
 
 ## Commands
 
@@ -49,7 +49,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 
 ### The implementation plan contract
 
-`specs/` states *what* to build; the plan states *how*. The plan is two artifacts: `IMPLEMENTATION_PLAN.md` is an index of one-line entries, each linking to a task file at `plan/NNN-slug.md` that holds the detail. Both prompts enforce a closed field schema on the task file (title, `**Status:**`, `Spec`, `Scope`, `Files`, `Steps`, `Done when`, `Completion notes`), a cap of 150 words / 8 steps per task file, and Simplified Technical English. `IMPLEMENTATION_PLAN.md` holds exactly three headings; neither artifact carries outcomes or evidence — those belong in `PROGRESS.md`.
+`specs/` states *what* to build; the plan states *how*. The plan is two artifacts: `IMPLEMENTATION_PLAN.md` is an index of one-line entries, each linking to a task file at `plan/NNN-slug.md` that holds the detail. Both prompts enforce a closed field schema on the task file (title, `**Status:**`, `Spec`, `Scope`, `Files`, `Steps`, `Done when`, `Completion notes`), a cap of 150 words / 8 steps per task file, and Simplified Technical English. `IMPLEMENTATION_PLAN.md` holds exactly three headings; neither artifact carries outcomes or evidence — those belong in `PROGRESS.md`, and durable learnings belong in `LEARNINGS.md`.
 
 Items are mutable during the plan phase and immutable during the build phase, where the only legal edits are ticking a checkbox, marking an entry `- [~]`, appending a new item (index entry plus task file), and filling in the finished item's completion notes. Markers are `- [ ]`, `- [x]`, and `- [~]` (superseded or blocked), each matching the `**Status:**` in its task file. `calculate_build_iterations` counts only `^- \[ \]` below `## Items`, so `[~]` items and the template's example entry neither size the build loop nor count as shipped work. `plan_state_hash` fingerprints the index, `plan/` and `specs/` together, so a pass that only rewrites a task file is not mistaken for convergence. Convergence also requires the plan to hold at least one entry: a pass that changes nothing against an empty plan is a planning failure — the backend answered without doing the work — and exits non-zero rather than reporting success. When changing these rules, keep `prompts/plan.md`, `prompts/build.md` and `templates/IMPLEMENTATION_PLAN.md` in agreement — the prompts win on any disagreement.
 
@@ -66,7 +66,7 @@ Uses the `devcontainer` CLI to manage container lifecycle. Key details:
 `install.sh` places files at:
 - `~/.local/bin/ralph` — CLI binary
 - `~/.config/ralph/prompts/` — default plan/build prompt templates
-- `~/.config/ralph/templates/` — artifact templates (PROGRESS.md, IMPLEMENTATION_PLAN.md)
+- `~/.config/ralph/templates/` — artifact templates (PROGRESS.md, LEARNINGS.md, IMPLEMENTATION_PLAN.md)
 - `~/.config/ralph/container/` — devcontainer config + Dockerfile
 - `~/.config/ralph/skills/` — bundled Claude Code skills (e.g. `commit`) scaffolded into `<workspace>/.claude/skills/` by `ralph init`
 

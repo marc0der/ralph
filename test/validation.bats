@@ -29,6 +29,7 @@ load test_helper
     # Provide init artifacts so iteration calculation succeeds
     echo "- [ ] **Task one**" > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
+    touch LEARNINGS.md
     # Keep system paths but remove any directory containing claude
     local filtered_path
     filtered_path=$(echo "$PATH" | tr ':' '\n' | while read -r dir; do
@@ -43,6 +44,7 @@ load test_helper
     # Provide init artifacts so iteration calculation succeeds
     echo "- [ ] **Task one**" > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
+    touch LEARNINGS.md
     # Codex is almost certainly not installed, so just verify the error names the right binary
     local filtered_path
     filtered_path=$(echo "$PATH" | tr ':' '\n' | while read -r dir; do
@@ -57,6 +59,7 @@ load test_helper
     # Provide init artifacts so iteration calculation succeeds
     echo "- [ ] **Task one**" > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
+    touch LEARNINGS.md
     # Copilot is almost certainly not installed, so just verify the error names the right binary
     local filtered_path
     filtered_path=$(echo "$PATH" | tr ':' '\n' | while read -r dir; do
@@ -71,6 +74,7 @@ load test_helper
     # Provide init artifacts so iteration calculation succeeds
     echo "- [ ] **Task one**" > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
+    touch LEARNINGS.md
     # Pi is preinstalled in the devcontainer image, so we must strip it; on a clean
     # host this is a no-op but still asserts the error names the right binary.
     local filtered_path
@@ -87,6 +91,7 @@ load test_helper
     cd "$(mktemp -d)" || return 1
     echo "- [ ] **Task one**" > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
+    touch LEARNINGS.md
     run "$RALPH" build
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"not inside a git repository"* ]]
@@ -98,6 +103,7 @@ load test_helper
     [[ "$output" == *"missing workspace artifacts required for 'build'"* ]]
     [[ "$output" == *"IMPLEMENTATION_PLAN.md"* ]]
     [[ "$output" == *"PROGRESS.md"* ]]
+    [[ "$output" == *"LEARNINGS.md"* ]]
     [[ "$output" == *"Run 'ralph init'"* ]]
 }
 
@@ -107,6 +113,17 @@ load test_helper
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"missing workspace artifacts required for 'build'"* ]]
     [[ "$output" == *"PROGRESS.md"* ]]
+    [[ "$output" == *"LEARNINGS.md"* ]]
+    [[ "$output" == *"Run 'ralph init'"* ]]
+}
+
+@test "build fails when only LEARNINGS.md is missing" {
+    echo "- [ ] **Task one**" > IMPLEMENTATION_PLAN.md
+    touch PROGRESS.md
+    run "$RALPH" build
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"missing workspace artifacts required for 'build'"* ]]
+    [[ "$output" == *"LEARNINGS.md"* ]]
     [[ "$output" == *"Run 'ralph init'"* ]]
 }
 
@@ -121,6 +138,7 @@ load test_helper
 @test "build fails with no incomplete items" {
     echo "- [x] **Completed task**" > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
+    touch LEARNINGS.md
     run "$RALPH" build
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"no incomplete items"* ]]
@@ -196,6 +214,7 @@ plant_decoy_above_items() {
 @test "build -n overrides calculated iterations" {
     echo "- [ ] **Task one**" > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
+    touch LEARNINGS.md
     run "$RALPH" build -n 10 --dry-run
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Max:     10 iterations"* ]]
@@ -207,6 +226,7 @@ plant_decoy_above_items() {
         echo "- [ ] **Task $i**" >> IMPLEMENTATION_PLAN.md
     done
     touch PROGRESS.md
+    touch LEARNINGS.md
     run "$RALPH" build --dry-run
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Max:     6 iterations"* ]]

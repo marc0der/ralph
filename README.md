@@ -10,7 +10,7 @@ Autonomous AI coding agent loop runner. Runs plan and build phases in a loop, fe
 
 Ralph implements the [Ralph Wiggum pattern](https://github.com/ghuntley/how-to-ralph-wiggum) — a technique for running AI coding agents in autonomous loops where each iteration picks up where the last left off. The name comes from Ralph Wiggum's famous line *"I'm helping!"*, which captures the spirit of an agent that cheerfully works through a task list one item at a time, without needing hand-holding between steps.
 
-The pattern works in two phases: **plan** (analyse the codebase against specifications and produce a prioritised implementation plan) and **build** (pick the next item, implement it, run tests, commit, repeat). A shared `IMPLEMENTATION_PLAN.md` acts as the handoff between iterations, giving each fresh Claude session the context it needs to continue. The plan is split for context economy: `IMPLEMENTATION_PLAN.md` is an index of one-line entries, each linking to a task file under `plan/` that holds the detail, so an iteration reads the whole queue but only the one task it is about to implement. An append-only `PROGRESS.md` log captures what each iteration did, what it learned, and what broke — providing a breadcrumb trail for both the human and future iterations.
+The pattern works in two phases: **plan** (analyse the codebase against specifications and produce a prioritised implementation plan) and **build** (pick the next item, implement it, run tests, commit, repeat). A shared `IMPLEMENTATION_PLAN.md` acts as the handoff between iterations, giving each fresh Claude session the context it needs to continue. The plan is split for context economy: `IMPLEMENTATION_PLAN.md` is an index of one-line entries, each linking to a task file under `plan/` that holds the detail, so an iteration reads the whole queue but only the one task it is about to implement. An append-only `PROGRESS.md` log captures what each iteration did and what broke — a breadcrumb trail for the human and for future iterations. Alongside it, a small `LEARNINGS.md` holds the durable patterns, gotchas and context; it is edited in place rather than appended, so the cost of reading it stays flat however long the run.
 
 ## Install
 
@@ -33,9 +33,9 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` and the task files under `plan/` (max 6 iterations; exits as soon as a pass changes nothing, and fails if that happens with an empty plan) |
 | `build`           | Pick the next item, implement, test, commit, push (default: 50 iterations)   |
 | `review`          | Review the branch diff against specs and guardrails, write `REVIEW.md` — changes nothing else (default: 1 iteration) |
-| `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`, `plan/`). Pass `--prompts` to also copy prompt templates for local customisation, `--gitignore` to also ignore the loop artifacts |
-| `archive`         | Move `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and `plan/` task files to `.ralph/<timestamp>/` |
-| `clean`           | Delete `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and `plan/` task files       |
+| `init`            | Initialise workspace (`PROGRESS.md`, `LEARNINGS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`, `plan/`). Pass `--prompts` to also copy prompt templates for local customisation, `--gitignore` to also ignore the loop artifacts |
+| `archive`         | Move `IMPLEMENTATION_PLAN.md`, `PROGRESS.md`, `LEARNINGS.md` and `plan/` task files to `.ralph/<timestamp>/` |
+| `clean`           | Delete `IMPLEMENTATION_PLAN.md`, `PROGRESS.md`, `LEARNINGS.md` and `plan/` task files |
 | `metrics`         | Summarise a run's loop metrics: per-iteration table plus totals (latest run, or pass a `metrics.jsonl` path) |
 | `version`         | Print version                                                                |
 
@@ -151,7 +151,8 @@ Ralph iterations create and maintain these files in your project:
 | `AGENTS.md`              | Operational guardrails for the Codex backend — equivalent of `CLAUDE.md` for codex projects |
 | `IMPLEMENTATION_PLAN.md` | Prioritised index of work items, one line each — shared state between iterations |
 | `plan/`                  | One `NNN-slug.md` task file per plan item, holding its scope, files and verification criteria |
-| `PROGRESS.md`            | Append-only log of what each iteration did, learned, and broke|
+| `PROGRESS.md`            | Append-only log of what each iteration did and broke           |
+| `LEARNINGS.md`           | Durable patterns, gotchas and context — edited in place, not appended |
 | `REVIEW.md`              | Output of `ralph review` — verdict, traceability, findings    |
 | `specs/`                 | Feature specifications driving the work                       |
 
@@ -163,7 +164,7 @@ Ralph iterations create and maintain these files in your project:
 
 `ralph init` does **not** touch `.gitignore` by default. Use `--gitignore` to add the build artefacts to `.gitignore`.
 
-- **Committed** (default) — the build agent stages the plan, the task files and the progress log in the same commit as the code they describe, so a teammate who pulls the branch can resume from where the last run left off.
+- **Committed** (default) — the build agent stages the plan, the task files, the progress log and the learnings in the same commit as the code they describe, so a teammate who pulls the branch can resume from where the last run left off.
 - **Ignored** (`ralph init --gitignore`) — only the code ralph produces reaches the repo; the loop artifacts stay local to your machine.
 
 `.ralph/` (per-run metrics and raw backend transcripts) and any `PROMPT_*.md` overrides are never staged under either setting.
@@ -201,7 +202,7 @@ Completion notes live in the task file, capped at about three lines, with the fu
 
 ### The implementation plan contract
 
-`specs/` states **what** to build. The plan states **how** to build it. The plan is a work queue, not a scratchpad — every line in it is an instruction or a pass/fail criterion. Outcomes, evidence and learnings go to `PROGRESS.md`; decisions and their reasoning go to `specs/`.
+`specs/` states **what** to build. The plan states **how** to build it. The plan is a work queue, not a scratchpad — every line in it is an instruction or a pass/fail criterion. Outcomes and evidence go to `PROGRESS.md`; durable learnings go to `LEARNINGS.md`; decisions and their reasoning go to `specs/`.
 
 The index carries one line per item and nothing else:
 
@@ -284,7 +285,7 @@ The build phase commits via the `/commit` skill bundled with ralph and scaffolde
 - **Atomic** — separable concerns become separate commits, even within a single build iteration
 - **Selective staging** — only the paths belonging to the current commit are staged; never `git add -A`
 - **Optional short body** — up to 3 bulleted lines summarising what was implemented, only when the subject isn't self-explanatory
-- The plan, the task files and the progress log are staged with the code they describe when the project tracks them, and left alone when `ralph init --gitignore` has ignored them — the build agent checks `git check-ignore` rather than assuming. `.ralph/` and `PROMPT_*.md` are never staged either way
+- The plan, the task files, the progress log and the learnings are staged with the code they describe when the project tracks them, and left alone when `ralph init --gitignore` has ignored them — the build agent checks `git check-ignore` rather than assuming. `.ralph/` and `PROMPT_*.md` are never staged either way
 
 The scaffolded skill lives in your project's `.claude/skills/` and is never listed in `.gitignore` by `ralph init` — commit it to share with your team, or edit it locally if you want different conventions.
 

@@ -8,6 +8,7 @@ load test_helper
     [[ "$status" -eq 0 ]]
     [[ ! -f "IMPLEMENTATION_PLAN.md" ]]
     [[ ! -f "PROGRESS.md" ]]
+    [[ ! -f "LEARNINGS.md" ]]
 }
 
 @test "clean preserves local prompt templates" {
@@ -24,6 +25,7 @@ load test_helper
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Deleted: IMPLEMENTATION_PLAN.md"* ]]
     [[ "$output" == *"Deleted: PROGRESS.md"* ]]
+    [[ "$output" == *"Deleted: LEARNINGS.md"* ]]
 }
 
 @test "clean handles no artifacts gracefully" {

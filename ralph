@@ -10,7 +10,7 @@ PLAN_DEFAULT_CAP=6
 # Review is a single read-only pass by default; use -n to run more
 REVIEW_DEFAULT_CAP=1
 
-ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md REVIEW.md PROMPT_plan.md PROMPT_build.md PROMPT_review.md)
+ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md LEARNINGS.md REVIEW.md PROMPT_plan.md PROMPT_build.md PROMPT_review.md)
 ARCHIVE_DIR=".ralph"
 
 # IMPLEMENTATION_PLAN.md is an index of one-line entries; the detail for each
@@ -173,11 +173,12 @@ Modes:
                  and the per-task files it links to under plan/
   build          Pick the next item, implement, test, commit, push
   review         Review the branch diff against specs, write REVIEW.md (changes nothing else)
-  init           Initialise workspace (PROGRESS.md, IMPLEMENTATION_PLAN.md,
-                 specs/, plan/)
-  clean          Delete IMPLEMENTATION_PLAN.md, PROGRESS.md and plan/ task files
-  archive        Move IMPLEMENTATION_PLAN.md, PROGRESS.md and plan/ task files
-                 to .ralph/<timestamp>/
+  init           Initialise workspace (PROGRESS.md, LEARNINGS.md,
+                 IMPLEMENTATION_PLAN.md, specs/, plan/)
+  clean          Delete IMPLEMENTATION_PLAN.md, PROGRESS.md, LEARNINGS.md and
+                 plan/ task files
+  archive        Move IMPLEMENTATION_PLAN.md, PROGRESS.md, LEARNINGS.md and
+                 plan/ task files to .ralph/<timestamp>/
   metrics        Summarise a run's loop metrics (latest run, or a given metrics.jsonl)
 
 Sandbox options:
@@ -188,7 +189,8 @@ Sandbox options:
 Init options:
   -p, --prompts      Also copy prompt templates for local customisation
       --gitignore    Also add the loop artifacts (IMPLEMENTATION_PLAN.md,
-                     PROGRESS.md, REVIEW.md, plan/, .ralph/) to .gitignore.
+                     PROGRESS.md, LEARNINGS.md, REVIEW.md, plan/, .ralph/) to
+                     .gitignore.
                      Off by default — whether the plan is loop-local state or a
                      committed audit trail is the project's call
 
@@ -333,6 +335,12 @@ cmd_init() {
         echo "Warning: PROGRESS.md template not found at $templates_dir"
     fi
 
+    if [[ -f "$templates_dir/LEARNINGS.md" ]]; then
+        scaffold "LEARNINGS.md" "$templates_dir/LEARNINGS.md"
+    else
+        echo "Warning: LEARNINGS.md template not found at $templates_dir"
+    fi
+
     if [[ -f "$templates_dir/IMPLEMENTATION_PLAN.md" ]]; then
         scaffold "IMPLEMENTATION_PLAN.md" "$templates_dir/IMPLEMENTATION_PLAN.md"
     else
@@ -382,7 +390,7 @@ cmd_init() {
 }
 
 gitignore_artifacts() {
-    local entries=("IMPLEMENTATION_PLAN.md" "PROGRESS.md" "REVIEW.md" "$TASK_DIR/" ".ralph/")
+    local entries=("IMPLEMENTATION_PLAN.md" "PROGRESS.md" "LEARNINGS.md" "REVIEW.md" "$TASK_DIR/" ".ralph/")
 
     local missing=() entry
     for entry in "${entries[@]}"; do
@@ -652,14 +660,14 @@ resolve_prompt() {
 
 # Verify workspace artifacts produced by 'ralph init' are present.
 # Plan needs IMPLEMENTATION_PLAN.md (the template the agent fills in).
-# Build needs both IMPLEMENTATION_PLAN.md and PROGRESS.md.
+# Build needs IMPLEMENTATION_PLAN.md, PROGRESS.md and LEARNINGS.md.
 require_init_artifacts() {
     local mode="$1"
     local required=()
 
     case "$mode" in
         plan)  required=(IMPLEMENTATION_PLAN.md) ;;
-        build) required=(IMPLEMENTATION_PLAN.md PROGRESS.md) ;;
+        build) required=(IMPLEMENTATION_PLAN.md PROGRESS.md LEARNINGS.md) ;;
         # Review scaffolds nothing: it writes REVIEW.md afresh and reads the
         # plan/progress files only if they happen to exist. Return before the
         # loop below — expanding an empty array trips set -u on bash < 4.4.
@@ -748,10 +756,11 @@ plan_state_hash() {
 # Paths a build iteration changed, excluding the loop's own bookkeeping.
 #
 # A build iteration always rewrites IMPLEMENTATION_PLAN.md and PROGRESS.md, and
-# `ralph init` no longer gitignores them, so a project that commits its artifacts
-# advances HEAD every pass. A bare HEAD comparison would then read a stalled loop
-# as progress and never exit early. Ask the narrower question instead: did this
-# iteration change anything other than the plan and the log?
+# may revise LEARNINGS.md in place on any pass. `ralph init` no longer gitignores
+# them, so a project that commits its artifacts advances HEAD every pass. A bare
+# HEAD comparison would then read a stalled loop as progress and never exit
+# early. Ask the narrower question instead: did this iteration change anything
+# other than the plan, the log and the learnings?
 #
 # Empty output means no source progress, whether or not HEAD moved.
 build_progress_paths() {
@@ -760,6 +769,7 @@ build_progress_paths() {
     git diff --name-only "$before" "$after" -- . \
         ":(exclude)IMPLEMENTATION_PLAN.md" \
         ":(exclude)PROGRESS.md" \
+        ":(exclude)LEARNINGS.md" \
         ":(exclude)REVIEW.md" \
         ":(exclude)${TASK_DIR}/" \
         ":(exclude).ralph/"

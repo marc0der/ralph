@@ -599,6 +599,30 @@ MOCK
     [[ "$output" == *"Completed 2 iterations"* ]]
 }
 
+@test "a commit that only rewrites LEARNINGS.md still counts as a noop" {
+    # A build iteration is told to revise LEARNINGS.md in place every pass, so
+    # without its exclusion from build_progress_paths a stalled loop would look
+    # like progress and never exit early.
+    "$RALPH" init
+    for i in 1 2 3 4 5; do
+        echo "- [ ] **Task $i**" >> IMPLEMENTATION_PLAN.md
+    done
+    git add -A && git commit -m "track the loop artifacts" --quiet
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo "- learned $RANDOM" >> LEARNINGS.md
+git add LEARNINGS.md && git commit -m "docs: learnings" --quiet
+echo '{"type":"result","result":"stalled"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"No changes detected for 2 consecutive iterations"* ]]
+    [[ "$output" == *"Completed 2 iterations"* ]]
+}
+
 @test "a commit touching source is progress even alongside artifact churn" {
     # The mirror of the test above: the exclusion must not swallow real work
     # that happens to land in the same commit as the plan and the log.

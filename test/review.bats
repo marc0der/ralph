@@ -33,8 +33,9 @@ latest_metrics_line() {
 }
 
 @test "review needs no init artifacts" {
-    # Deliberately no 'ralph init': neither IMPLEMENTATION_PLAN.md nor
-    # PROGRESS.md exists, which would fail plan/build at the artifact check.
+    # Deliberately no 'ralph init': none of IMPLEMENTATION_PLAN.md,
+    # PROGRESS.md or LEARNINGS.md exists, which would fail plan/build at the
+    # artifact check.
     create_review_backend
 
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review -y

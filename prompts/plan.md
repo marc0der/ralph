@@ -17,7 +17,8 @@ Gather context by reading these sources. If your harness supports subagents, use
 - **Operational guardrails** — read `AGENTS.md` or `CLAUDE.md` (if present) for build commands, conventions, and project rules
 - **Specifications** — read everything in `specs/`
 - **Existing plan** — read `IMPLEMENTATION_PLAN.md` (if present) to understand progress so far. It is an index of one-line entries: a `- [x]` entry tells you the item shipped, and `PROGRESS.md` says what it did. Open a linked task file under `plan/` only when you need the detail of an item still outstanding — never sweep the directory
-- **Progress log** — read `PROGRESS.md` (if present) for outcomes, blockers, and the reasons items were marked `[~]`
+- **Learnings** — read `LEARNINGS.md` (if present) for the patterns, gotchas and context earlier iterations recorded. Read it in full; it is deliberately small
+- **Progress log** — read `PROGRESS.md` (if present) for outcomes, blockers, and the reasons items were marked `[~]`. It is append-only and grows without bound — read what you need, not the whole file
 - **Application source** — read build files and source code to understand structure, dependencies, and architecture
 - **Tests** — read test sources to understand existing coverage and test patterns
 
@@ -136,7 +137,7 @@ An item nobody can verify never completes. The build loop then selects it foreve
 
 ### Never write these in the plan
 
-Rationale, evidence, measurements, dated observations, build logs, status reports, questions for the user, or notes to yourself — in the index or in a task file. `PROGRESS.md` records outcomes. `specs/` records decisions and their reasoning. The plan records only work to do.
+Rationale, evidence, measurements, dated observations, build logs, status reports, questions for the user, or notes to yourself — in the index or in a task file. `PROGRESS.md` records outcomes. `LEARNINGS.md` records durable knowledge about the codebase. `specs/` records decisions and their reasoning. The plan records only work to do.
 
 ## Language
 
@@ -200,7 +201,7 @@ Its one line in `IMPLEMENTATION_PLAN.md`:
 ```
 
 ## Unresolved decisions
-
+f
 You have no human to ask. Resolve every open question yourself.
 
 - Investigate first. Most questions are answerable from the code.

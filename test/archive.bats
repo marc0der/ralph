@@ -8,12 +8,14 @@ load test_helper
     [[ "$status" -eq 0 ]]
     [[ ! -f "IMPLEMENTATION_PLAN.md" ]]
     [[ ! -f "PROGRESS.md" ]]
+    [[ ! -f "LEARNINGS.md" ]]
     [[ -d ".ralph" ]]
     # Verify files exist in the archive subdirectory
     local archive_dir
     archive_dir=$(find .ralph -mindepth 1 -maxdepth 1 -type d | head -1)
     [[ -f "${archive_dir}/IMPLEMENTATION_PLAN.md" ]]
     [[ -f "${archive_dir}/PROGRESS.md" ]]
+    [[ -f "${archive_dir}/LEARNINGS.md" ]]
 }
 
 @test "archive creates timestamped directory" {
@@ -40,6 +42,7 @@ load test_helper
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Archived: IMPLEMENTATION_PLAN.md"* ]]
     [[ "$output" == *"Archived: PROGRESS.md"* ]]
+    [[ "$output" == *"Archived: LEARNINGS.md"* ]]
 }
 
 @test "archive moves per-task files to .ralph/<timestamp>/plan/" {

@@ -23,6 +23,7 @@ echo "  Prompts:    $CONFIG_DIR/prompts/"
 # Install templates
 mkdir -p "$CONFIG_DIR/templates"
 cp "$SCRIPT_DIR/templates/PROGRESS.md" "$CONFIG_DIR/templates/PROGRESS.md"
+cp "$SCRIPT_DIR/templates/LEARNINGS.md" "$CONFIG_DIR/templates/LEARNINGS.md"
 cp "$SCRIPT_DIR/templates/IMPLEMENTATION_PLAN.md" "$CONFIG_DIR/templates/IMPLEMENTATION_PLAN.md"
 echo "  Templates:  $CONFIG_DIR/templates/"
 
