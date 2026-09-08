@@ -953,6 +953,21 @@ cmd_loop() {
         fi
     }
 
+    # One temp file backs the raw backend stream for the whole run when
+    # metrics are off. mktemp is allowed to fail: the path then stays empty and
+    # the loop degrades rather than aborting under `set -euo pipefail`.
+    local temp_stream=""
+    temp_stream=$(mktemp 2>/dev/null) || temp_stream=""
+
+    # Remove the temp file on every exit path. The path is expanded now, so the
+    # trap does not depend on cmd_loop's locals still being in scope. This sits
+    # alongside the interrupt trap below rather than replacing it, because that
+    # trap must keep exiting 130.
+    if [[ -n "$temp_stream" ]]; then
+        # shellcheck disable=SC2064  # Expand now; the local is gone at exit time
+        trap "rm -f -- '$temp_stream'" EXIT
+    fi
+
     # Clean exit on interrupt signals
     trap 'echo -e "\nInterrupted at iteration $iteration / $max_iterations" >&2; exit 130' SIGINT SIGTERM
 
@@ -996,6 +1011,17 @@ cmd_loop() {
             echo "[dry-run] Prompt content ($prompt_file with goal substituted):"
             echo "$prompt"
         else
+            # Resolve where this iteration's raw backend stream lands. With
+            # metrics on it is retained per iteration for later analysis;
+            # otherwise the per-run temp file holds only the current iteration.
+            local raw_file=""
+            if $metrics_enabled; then
+                raw_file="$metrics_dir/$(printf 'iter-%03d' "$iteration").stream.jsonl"
+            elif [[ -n "$temp_stream" ]]; then
+                raw_file="$temp_stream"
+                : > "$raw_file" 2>/dev/null || true
+            fi
+
             # Verbose: print backend command before execution
             if $verbose; then
                 if [[ "$BACKEND_STDIN_PROMPT" == "true" ]]; then
@@ -1060,12 +1086,11 @@ cmd_loop() {
             # Record iteration metrics; a failure here warns but never
             # interrupts the loop.
             if $metrics_enabled; then
-                local iter_end raw_file head_after_m
+                local iter_end head_after_m
                 # Fallbacks keep the never-interrupt-the-loop contract even if
                 # date or git fail mid-run (worst case: zero-length iteration /
                 # activity attributed as noop).
                 iter_end=$(date +%s) || iter_end=$iter_start
-                raw_file="$metrics_dir/$(printf 'iter-%03d' "$iteration").stream.jsonl"
                 printf '%s\n' "$backend_output" > "$raw_file" 2>/dev/null || true
                 head_after_m=$(git rev-parse HEAD 2>/dev/null) || head_after_m=$head_before
                 if write_iteration_metrics "$metrics_file" "$raw_file" "$mode" \
