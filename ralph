@@ -18,6 +18,14 @@ ARCHIVE_DIR=".ralph"
 
 SUPPORTED_BACKENDS=(claude codex copilot pi)
 
+# Prepended by cmd_loop to every BACKEND_JQ_LIVE filter, so each backend's
+# live renderer stays a single expression instead of repeating these helpers.
+# shellcheck disable=SC2034,SC2016  # Consumed in cmd_loop; $n is a jq variable
+JQ_LIVE_PRELUDE='
+def trim($n): if (. | length) > $n then .[0:$n] + "\u2026" else . end;
+def oneline: gsub("\\s+"; " ");
+'
+
 # shellcheck disable=SC2034  # Variables are set here and consumed in cmd_loop
 backend_claude() {
     BACKEND_NAME="claude"
@@ -27,6 +35,22 @@ backend_claude() {
     BACKEND_PERMISSION_WARNING="Claude will have unrestricted access to tools (file writes, shell commands, etc)."
     BACKEND_JQ_FLAGS=(-r)
     BACKEND_JQ_FILTER='select(.type == "result") | .result // empty'
+    # Live progress renderer: one short line per interesting stream-json event.
+    # Every field read is guarded, because a raise here is swallowed by the
+    # renderer's 2>/dev/null and would silently drop the line.
+    # shellcheck disable=SC2016  # $n is a jq variable from JQ_LIVE_PRELUDE
+    BACKEND_JQ_LIVE='
+if .type == "assistant" then
+    (.message.content // [])[]
+    | if .type == "tool_use" then
+        "  \u2192 " + (.name // "?") + " " + ((.input.command // .input.file_path // .input.path
+          // .input.pattern // ((.input // {}) | tostring)) | oneline | trim(100))
+      elif .type == "text" then
+        ((.text // "") | oneline | trim(300)) | if . == "" then empty else "  " + . end
+      else empty end
+elif .type == "result" then
+    "  [result] " + (.subtype // "?") + " \u00b7 " + (((.duration_ms // 0) / 1000 | round) | tostring) + "s"
+else empty end'
     BACKEND_STDIN_PROMPT=true
     # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
     build_backend_cmd() {
@@ -89,6 +113,20 @@ backend_pi() {
     # matching assistant toolCall content item by toolCallId). Empty otherwise.
     # shellcheck disable=SC2016  # $ae/$calls/$text are jq variables, not shell
     BACKEND_JQ_FILTER='(map(select(.type == "agent_end")) | last) as $ae | ([($ae.messages // [])[] | select(.role == "assistant")] | last | (.content // []) | map(select(.type == "text") | .text) | join("") | if . == "" then null else . end) // (([($ae.messages // [])[] | select(.role == "assistant") | (.content // [])[] | select(.type == "toolCall") | {key: .id, value: .}] | from_entries) as $calls | [($ae.messages // [])[] | select(.role == "toolResult" and .isError == false) | ((.content // []) | map(select(.type == "text") | .text) | join("")) as $text | if .toolName == "bash" then "$ " + ($calls[.toolCallId].arguments.command // "") + "\n" + $text else $text end] | join("\n") | if . == "" then null else . end) // empty'
+    # Live progress renderer. pi emits ~40 events per trivial task, including a
+    # flood of message_update usage snapshots; those fall through to empty. The
+    # standalone tool_execution_start event carries toolName/args flat on itself,
+    # unlike the toolCall content items the summary filter reads.
+    # shellcheck disable=SC2016  # $n is a jq variable from JQ_LIVE_PRELUDE
+    BACKEND_JQ_LIVE='
+if .type == "tool_execution_start" then
+    "  \u2192 " + (.toolName // "?") + " " + ((.args.command // .args.file_path // .args.path
+      // .args.pattern // ((.args // {}) | tostring)) | oneline | trim(100))
+elif .type == "message_end" and .message.role == "assistant" then
+    ((.message.content // []) | map(select(.type == "text") | .text // "") | join(" ")
+      | oneline | trim(300)) | if . == "" then empty else "  " + . end
+elif .type == "turn_start" then "  ---"
+else empty end'
     BACKEND_STDIN_PROMPT=true
     # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
     build_backend_cmd() {
