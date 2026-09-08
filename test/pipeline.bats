@@ -612,6 +612,82 @@ MOCK
     [[ "$stderr" == *'"type":"result"'* ]]
 }
 
+# --- Verbose mode: exit codes and stderr isolation ---
+
+# The tee pipeline puts two more processes between the backend and the shell,
+# so a plain `$?` would report the renderer's status instead of the backend's.
+# These two tests pin the contracts that arrangement puts at risk: the backend
+# exit code must still reach the caller through PIPESTATUS (spec section 5),
+# and backend stderr must stay out of the raw stream file that the summary
+# filter and the metrics reader both parse (spec section 1). The non-verbose
+# counterpart of the first test is "pipeline failure (backend exits non-zero)"
+# above, which never enters the tee branch.
+
+@test "backend exit code survives the tee pipeline under --verbose" {
+    "$RALPH" init
+    create_streaming_backend
+
+    MOCK_EXIT=42 PATH="$TEST_DIR/bin:$PATH" \
+        run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    [[ "$status" -eq 42 ]]
+    # The rendered line proves the run went through the tee branch, so the
+    # status below is PIPESTATUS[0] and not a plain command's exit code.
+    [[ "$stderr" == *"→ Bash ls -la"* ]]
+    [[ "$stderr" == *"backend command failed"* ]]
+    [[ "$stderr" == *"iteration 1"* ]]
+    [[ "$stderr" == *"exit code 42"* ]]
+}
+
+# Wrap the helper's mock so the backend writes to stderr as well as emitting
+# events on stdout. Both descriptors feed the same tee pipeline, so a
+# stderr_handler line sent to fd 1 would land in the stream file that the
+# summary filter and the metrics reader parse.
+#
+# The mock writes two kinds of noise, because they fail differently. Prose
+# leaks loudly: it aborts the summary filter, which cannot parse it. A
+# well-formed event leaks silently, and is the real hazard — it would be
+# adopted as the iteration result, so only reading the stream file catches it.
+@test "backend stderr stays out of the raw stream under --verbose" {
+    "$RALPH" init
+    create_streaming_backend
+    mv "$TEST_DIR/bin/claude" "$TEST_DIR/bin/streaming-events"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo 'backend warning: refreshing credentials' >&2
+"$(dirname "$0")/streaming-events"
+status=$?
+echo '{"type":"result","subtype":"success","result":"stderr leaked"}' >&2
+exit "$status"
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    [[ "$status" -eq 0 ]]
+    # The noise still reached the user, so this is about routing rather than
+    # about stderr being swallowed.
+    [[ "$stderr" == *"refreshing credentials"* ]]
+    # The summary comes from the backend's own result event, not the stderr one.
+    [[ "$output" == *"done here"* ]]
+    [[ "$output" != *"stderr leaked"* ]]
+
+    local stream
+    stream=$(find .ralph/metrics -name 'iter-001.stream.jsonl' -print -quit)
+    [[ -n "$stream" ]]
+    # `run !` and not a bare `!`: in bats a bare `!` cannot fail a test, so
+    # both of these would be inert (SC2314).
+    run ! grep -q 'refreshing credentials' "$stream"
+    run ! grep -q 'stderr leaked' "$stream"
+    # Count the lines too: dropping an event would satisfy every assertion
+    # above, and only three events were ever written to stdout.
+    [[ $(wc -l < "$stream") -eq 3 ]]
+
+    local line
+    while IFS= read -r line; do
+        jq -e . >/dev/null <<<"$line" \
+            || { echo "unparseable stream line: $line" >&2; return 1; }
+    done < "$stream"
+}
+
 # --- Verbose mode: live immediacy ---
 
 # The only test that can tell live rendering from a whole-stream capture
