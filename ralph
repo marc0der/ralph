@@ -1060,13 +1060,19 @@ cmd_loop() {
             # fails leaves raw_file empty, which sends this iteration down the
             # variable-capture path below. A write failure costs one
             # iteration's stream; it never interrupts the loop.
+            #
+            # The probe redirect sits inside a brace group so 2>/dev/null can
+            # reach it. Bash applies redirections left to right, so a bare
+            # `! : > "$raw_file" 2>/dev/null` opens the file first and reports
+            # the failed open on the still-live fd 2 — the fallback works, but
+            # the user sees a shell error naming a file ralph chose not to use.
             local raw_file=""
             if $metrics_enabled; then
                 raw_file="$metrics_dir/$(printf 'iter-%03d' "$iteration").stream.jsonl"
             fi
-            if [[ -z "$raw_file" ]] || ! : > "$raw_file" 2>/dev/null; then
+            if [[ -z "$raw_file" ]] || ! { : > "$raw_file"; } 2>/dev/null; then
                 raw_file="$temp_stream"
-                if [[ -z "$raw_file" ]] || ! : > "$raw_file" 2>/dev/null; then
+                if [[ -z "$raw_file" ]] || ! { : > "$raw_file"; } 2>/dev/null; then
                     raw_file=""
                 fi
             fi
