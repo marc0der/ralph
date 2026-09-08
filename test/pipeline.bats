@@ -453,6 +453,45 @@ MOCK
     [[ "$output" == *"[verbose] Backend command: claude"* ]]
 }
 
+# --- Verbose mode: live stream rendering ---
+
+# Live rendering is the whole point of the tee pipeline: without it a long
+# iteration looks idle until the backend exits. Rendered lines go to stderr so
+# stdout keeps carrying only the per-iteration summary, which is why every test
+# in this section needs --separate-stderr to tell the two apart.
+
+@test "--verbose renders tool calls live on stderr" {
+    "$RALPH" init
+    create_streaming_backend
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"→ Bash ls -la"* ]]
+}
+
+@test "--verbose renders assistant text live on stderr" {
+    "$RALPH" init
+    create_streaming_backend
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"done here"* ]]
+}
+
+# The default path must stay quiet. The mock's result event repeats the text as
+# `.result`, because that is the field the claude summary filter reads — so this
+# also proves the summary survives the live-render branch being skipped.
+@test "non-verbose run renders no live lines but still prints the summary" {
+    "$RALPH" init
+    create_streaming_backend
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"→ Bash ls -la"* ]]
+    [[ "$stderr" != *"→ Bash ls -la"* ]]
+    [[ "$output" == *"done here"* ]]
+}
+
 # --- Noop early exit ---
 
 @test "build exits early after 2 consecutive noops" {
