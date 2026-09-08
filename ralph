@@ -1035,10 +1035,11 @@ cmd_loop() {
                 fi
             fi
 
-            # Run backend command separately, capturing stdout while preserving stderr
-            local backend_output=""
+            # Stream backend stdout straight to the raw file. Nothing is held
+            # in a shell variable, so every later stage reads the same bytes the
+            # backend wrote, in the order it wrote them.
             local backend_exit=0
-            backend_output=$(run_backend 2> >(stderr_handler)) || backend_exit=$?
+            run_backend 2> >(stderr_handler) > "$raw_file" || backend_exit=$?
 
             if [[ $backend_exit -ne 0 ]]; then
                 echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
@@ -1049,13 +1050,13 @@ cmd_loop() {
             # Verbose: show raw backend output before jq
             if $verbose; then
                 echo "[verbose] Raw backend output:" >&2
-                echo "$backend_output" >&2
+                cat "$raw_file" >&2
             fi
 
             # Run jq separately on captured output
             local jq_output=""
             local jq_exit=0
-            jq_output=$(echo "$backend_output" | jq "${BACKEND_JQ_FLAGS[@]}" "$BACKEND_JQ_FILTER") || jq_exit=$?
+            jq_output=$(jq "${BACKEND_JQ_FLAGS[@]}" "$BACKEND_JQ_FILTER" "$raw_file") || jq_exit=$?
 
             if [[ $jq_exit -ne 0 ]]; then
                 echo "Error: jq parse failure on iteration $iteration (exit code $jq_exit)" >&2
@@ -1091,7 +1092,6 @@ cmd_loop() {
                 # date or git fail mid-run (worst case: zero-length iteration /
                 # activity attributed as noop).
                 iter_end=$(date +%s) || iter_end=$iter_start
-                printf '%s\n' "$backend_output" > "$raw_file" 2>/dev/null || true
                 head_after_m=$(git rev-parse HEAD 2>/dev/null) || head_after_m=$head_before
                 if write_iteration_metrics "$metrics_file" "$raw_file" "$mode" \
                     "$current_branch" "$BACKEND_NAME" "$model" "$iteration" \
