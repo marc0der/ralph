@@ -1216,3 +1216,26 @@ MOCK
     [[ "$output" != *"Push failed"* ]]
     [[ "$output" == *"Completed 1 iteration"* ]]
 }
+
+# mktemp honours $TMPDIR, so the raw stream path is attacker-shaped input as
+# far as the EXIT trap is concerned. Interpolating it into a double-quoted trap
+# body made a single quote in the path an unterminated string — bash reported
+# "unexpected EOF" at exit, leaked the stream file, and rewrote a clean 0 into
+# 2. Deferred expansion keeps the path data instead of code.
+@test "a quoted TMPDIR does not break the exit trap" {
+    "$RALPH" init
+    create_streaming_backend
+    quoted_tmp="$TEST_DIR/o'brien"
+    mkdir -p "$quoted_tmp"
+
+    MOCK_TMP_LISTING="$TEST_DIR/tmpdir-listing" TMPDIR="$quoted_tmp" \
+        PATH="$TEST_DIR/bin:$PATH" \
+        run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"done here"* ]]
+    [[ "$stderr" != *"unexpected EOF"* ]]
+    # The mock saw the stream file mid-iteration, so the trap had real work to
+    # do and the empty-path fallback cannot be what makes this test pass.
+    grep -q '^ralph\.' "$TEST_DIR/tmpdir-listing"
+    [[ -z "$(find "$quoted_tmp" -maxdepth 1 -name 'ralph.*' -print -quit)" ]]
+}
