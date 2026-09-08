@@ -980,11 +980,25 @@ cmd_loop() {
     # `2> >(stderr_handler)`, which inherits the backend invocation's stdout —
     # the stream the summary jq filter parses. A line without >&2 would be
     # injected into that stream and break the parse.
+    #
+    # The verbose branch reads line by line rather than blocking in `cat`, so
+    # the markers frame real backend stderr only. Printing them up front framed
+    # the live renderer's own output as backend stderr, because both write to
+    # fd 2, and a silent backend still produced an empty pair of markers.
     stderr_handler() {
         if $verbose; then
-            echo "[verbose] === Backend stderr ===" >&2
-            cat >&2
-            echo "[verbose] === End backend stderr ===" >&2
+            local line
+            local saw_line=false
+            while IFS= read -r line || [[ -n "$line" ]]; do
+                if ! $saw_line; then
+                    echo "[verbose] === Backend stderr ===" >&2
+                    saw_line=true
+                fi
+                printf '%s\n' "$line" >&2
+            done
+            if $saw_line; then
+                echo "[verbose] === End backend stderr ===" >&2
+            fi
         else
             cat >&2
         fi
