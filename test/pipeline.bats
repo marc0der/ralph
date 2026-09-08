@@ -610,6 +610,13 @@ MOCK
     [[ "$stderr" != *"[verbose] Raw stream:"* ]]
     [[ "$stderr" == *"[verbose] Raw backend output:"* ]]
     [[ "$stderr" == *'"type":"result"'* ]]
+    # The degrade is a decision, not a fault, so it must be silent apart from
+    # ralph's own metrics warning. Bash applies redirections left to right, so
+    # the writability probe used to open the file before 2>/dev/null could
+    # cover it, and leaked `.../iter-001.stream.jsonl: No such file or
+    # directory` on to stderr — a shell error naming a file ralph deliberately
+    # stopped using, with no ralph prefix to tell the user it was handled.
+    [[ "$stderr" != *"No such file or directory"* ]]
 }
 
 # `ralph init` gitignores .ralph, so an agent that tidies with `git clean -xfd`
