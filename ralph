@@ -714,6 +714,16 @@ write_iteration_metrics() {
           }' "$raw_file" 2>/dev/null) || backend_summary='{}'
     [[ -z "$backend_summary" ]] && backend_summary='{}'
 
+    # Bash applies the append redirection before jq runs and before any
+    # 2>/dev/null on that command could cover it, so a metrics directory that
+    # was never created leaks `<path>: No such file or directory` from the
+    # shell itself — a bare error naming a file the caller already reports as
+    # a handled metrics failure. Probe the append inside a brace group, where
+    # the redirect error is inside the silenced scope, and let the caller warn.
+    if ! { : >> "$metrics_file"; } 2>/dev/null; then
+        return 1
+    fi
+
     jq -cn \
         --argjson iteration "$iteration" \
         --arg mode "$mode" --arg branch "$branch" \
