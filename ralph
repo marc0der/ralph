@@ -1014,12 +1014,23 @@ cmd_loop() {
             # Resolve where this iteration's raw backend stream lands. With
             # metrics on it is retained per iteration for later analysis;
             # otherwise the per-run temp file holds only the current iteration.
+            #
+            # The file is now the summary filter's only input, so prove it is
+            # writable before the backend runs: truncating it also clears the
+            # previous iteration on the temp-file path. An unwritable metrics
+            # directory degrades to the temp file, and a temp file that also
+            # fails leaves raw_file empty, which sends this iteration down the
+            # variable-capture path below. A write failure costs one
+            # iteration's stream; it never interrupts the loop.
             local raw_file=""
             if $metrics_enabled; then
                 raw_file="$metrics_dir/$(printf 'iter-%03d' "$iteration").stream.jsonl"
-            elif [[ -n "$temp_stream" ]]; then
+            fi
+            if [[ -z "$raw_file" ]] || ! : > "$raw_file" 2>/dev/null; then
                 raw_file="$temp_stream"
-                : > "$raw_file" 2>/dev/null || true
+                if [[ -z "$raw_file" ]] || ! : > "$raw_file" 2>/dev/null; then
+                    raw_file=""
+                fi
             fi
 
             # Verbose: print backend command before execution
@@ -1037,9 +1048,15 @@ cmd_loop() {
 
             # Stream backend stdout straight to the raw file. Nothing is held
             # in a shell variable, so every later stage reads the same bytes the
-            # backend wrote, in the order it wrote them.
-            local backend_exit=0
-            run_backend 2> >(stderr_handler) > "$raw_file" || backend_exit=$?
+            # backend wrote, in the order it wrote them. With no writable file
+            # anywhere, fall back to capturing the stream in a variable for this
+            # iteration, so the summary still prints.
+            local backend_exit=0 fallback_output=""
+            if [[ -n "$raw_file" ]]; then
+                run_backend 2> >(stderr_handler) > "$raw_file" || backend_exit=$?
+            else
+                fallback_output=$(run_backend 2> >(stderr_handler)) || backend_exit=$?
+            fi
 
             if [[ $backend_exit -ne 0 ]]; then
                 echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
@@ -1047,16 +1064,32 @@ cmd_loop() {
                 exit "$backend_exit"
             fi
 
+            # An absent or empty stream is neither a backend failure nor a jq
+            # failure, so it warns on its own terms and names the file. Both
+            # other paths exit; this one carries on.
+            if [[ -n "$raw_file" && ! -s "$raw_file" ]]; then
+                echo "Warning: raw backend stream $raw_file is missing or empty after iteration $iteration" >&2
+            fi
+
             # Verbose: show raw backend output before jq
             if $verbose; then
                 echo "[verbose] Raw backend output:" >&2
-                cat "$raw_file" >&2
+                if [[ -n "$raw_file" ]]; then
+                    cat "$raw_file" >&2
+                else
+                    printf '%s\n' "$fallback_output" >&2
+                fi
             fi
 
             # Run jq separately on captured output
             local jq_output=""
             local jq_exit=0
-            jq_output=$(jq "${BACKEND_JQ_FLAGS[@]}" "$BACKEND_JQ_FILTER" "$raw_file") || jq_exit=$?
+            if [[ -n "$raw_file" ]]; then
+                jq_output=$(jq "${BACKEND_JQ_FLAGS[@]}" "$BACKEND_JQ_FILTER" "$raw_file") || jq_exit=$?
+            else
+                jq_output=$(printf '%s\n' "$fallback_output" \
+                    | jq "${BACKEND_JQ_FLAGS[@]}" "$BACKEND_JQ_FILTER") || jq_exit=$?
+            fi
 
             if [[ $jq_exit -ne 0 ]]; then
                 echo "Error: jq parse failure on iteration $iteration (exit code $jq_exit)" >&2
