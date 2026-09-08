@@ -1302,3 +1302,31 @@ MOCK
     # --verbose is already on, so advising it is noise.
     [[ "$stderr" != *"--verbose for full diagnostics"* ]]
 }
+
+# The counterpart rule on the warning path: a diagnostic may name only a file
+# the user can still open. Without metrics the stream lands in the per-run temp
+# file, which the next iteration truncates and the EXIT trap deletes, so naming
+# it printed a dead /tmp path once per iteration of an ordinary run — and this
+# warning is not gated on --verbose, so every `ralph build --no-metrics` saw it.
+@test "the empty-stream warning names no temp path" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    # A backend that emits nothing at all and exits clean: the stream file is
+    # created and stays empty, which is the case this warning exists for.
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics
+    # An empty stream is a report, not a failure: the loop carries on.
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"per-run raw backend stream is missing or empty after iteration 1"* ]]
+
+    # The strongest form of "no /tmp path": the warning names no path at all,
+    # whatever $TMPDIR happens to be on the machine running the suite.
+    local warning
+    warning=$(printf '%s\n' "$stderr" | grep 'is missing or empty after iteration 1')
+    [[ "$warning" != *"/"* ]]
+}
