@@ -1133,13 +1133,28 @@ cmd_loop() {
                 echo "Warning: raw backend stream $raw_file is missing or empty after iteration $iteration" >&2
             fi
 
+            # A retained stream that the user has already watched render live
+            # needs a path, not a second copy: re-printing it only buries the
+            # live output. Every other verbose case keeps the raw dump, because
+            # nothing was rendered (no live filter) or the file is the per-run
+            # temp file, which the next iteration truncates and the EXIT trap
+            # deletes — a path the user cannot act on.
+            local stream_pointer=false
+            if $metrics_enabled && [[ -n "$raw_file" && -n "${BACKEND_JQ_LIVE:-}" ]]; then
+                stream_pointer=true
+            fi
+
             # Verbose: show raw backend output before jq
             if $verbose; then
-                echo "[verbose] Raw backend output:" >&2
-                if [[ -n "$raw_file" ]]; then
-                    cat "$raw_file" >&2
+                if $stream_pointer; then
+                    echo "[verbose] Raw stream: $raw_file" >&2
                 else
-                    printf '%s\n' "$fallback_output" >&2
+                    echo "[verbose] Raw backend output:" >&2
+                    if [[ -n "$raw_file" ]]; then
+                        cat "$raw_file" >&2
+                    else
+                        printf '%s\n' "$fallback_output" >&2
+                    fi
                 fi
             fi
 
@@ -1155,7 +1170,11 @@ cmd_loop() {
 
             if [[ $jq_exit -ne 0 ]]; then
                 echo "Error: jq parse failure on iteration $iteration (exit code $jq_exit)" >&2
-                echo "Hint: re-run with --verbose to see raw backend output before jq processing" >&2
+                if $stream_pointer; then
+                    echo "Hint: inspect the raw backend stream at $raw_file" >&2
+                else
+                    echo "Hint: re-run with --verbose to see raw backend output before jq processing" >&2
+                fi
                 exit "$jq_exit"
             fi
 
