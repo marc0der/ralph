@@ -1232,10 +1232,28 @@ cmd_loop() {
             fi
 
             # An absent or empty stream is neither a backend failure nor a jq
-            # failure, so it warns on its own terms and names the file. Both
-            # other paths exit; this one carries on.
-            if [[ -n "$raw_file" && ! -s "$raw_file" ]]; then
-                echo "Warning: raw backend stream $raw_file is missing or empty after iteration $iteration" >&2
+            # failure, so it warns on its own terms. Both other paths exit;
+            # this one carries on.
+            #
+            # Only a retained stream may be named. The non-retained path is the
+            # per-run temp file, which the next iteration truncates and the EXIT
+            # trap deletes, so printing it once per iteration of a plain
+            # `ralph build --no-metrics` sent the user after bytes that are gone
+            # before the prompt returns. Describe it instead.
+            #
+            # The empty-raw_file case warns too. It is the worst degradation —
+            # no file was writable anywhere, so this iteration's stream lives
+            # only in a shell variable and nothing survives the iteration — yet
+            # a guard that required a file name skipped it entirely, and the
+            # sole symptom was a metrics record with every backend field absent.
+            if [[ -z "$raw_file" ]]; then
+                echo "Warning: no writable raw backend stream on iteration $iteration; the stream was held in memory and is not recorded" >&2
+            elif [[ ! -s "$raw_file" ]]; then
+                if $stream_retained; then
+                    echo "Warning: raw backend stream $raw_file is missing or empty after iteration $iteration" >&2
+                else
+                    echo "Warning: the per-run raw backend stream is missing or empty after iteration $iteration" >&2
+                fi
             fi
 
             # A retained stream that the user has already watched render live
@@ -1373,7 +1391,15 @@ cmd_loop() {
                 # activity attributed as noop).
                 iter_end=$(date +%s) || iter_end=$iter_start
                 head_after_m=$(git rev-parse HEAD 2>/dev/null) || head_after_m=$head_before
-                if write_iteration_metrics "$metrics_file" "$raw_file" "$mode" \
+                # An empty raw_file reaches jq as an empty filename, which it
+                # fails to open: `jq -cs` exits 2 under its own 2>/dev/null,
+                # backend_summary degrades to `{}`, and the record is written
+                # with api_s, turns, cost_usd, tokens, session_id, result_status
+                # and tools *absent* rather than null. `ralph metrics` reads
+                # that iteration as free, so run cost and token totals come out
+                # silently understated. /dev/null slurps to [] instead, which
+                # the filter turns into an explicit set of nulls.
+                if write_iteration_metrics "$metrics_file" "${raw_file:-/dev/null}" "$mode" \
                     "$current_branch" "$BACKEND_NAME" "$model" "$iteration" \
                     "$iter_start" "$iter_end" "$head_before" "$head_after_m" \
                     "$plan_done_before" "$plan_noop"; then
