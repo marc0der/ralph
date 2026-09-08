@@ -794,6 +794,61 @@ MOCK
     done < "$stream"
 }
 
+# --- Verbose mode: stream integrity ---
+
+# Spec section 4: a bad line must cost one rendered line and nothing else. With
+# jq bare in the pipeline, its abort on the first non-JSON line sent SIGPIPE
+# back through tee to the backend, so the stream file kept one line and the
+# agent's remaining work was lost. The hardened form (-rR with `fromjson? //
+# empty`, and a drain on failure) skips the line and keeps going.
+#
+# The run still exits non-zero, because the claude summary filter is
+# non-slurping and hits the same bad line afterwards — that is the loop
+# reporting an unparseable stream, not the renderer killing the backend. The
+# nine lines that follow the garbage are what tell the two apart.
+@test "a non-JSON stdout line does not truncate the raw stream" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+echo 'GARBAGE NOT JSON'
+for i in 1 2 3 4 5 6 7 8; do
+    # A gap per event so a renderer that dies on the bad line takes tee with it
+    # on tee's *next* write, while there is still a stream left to lose. Emitted
+    # back to back, all ten lines are already in tee's buffer before jq aborts
+    # and the file looks complete even in the broken arrangement.
+    sleep 0.05
+    echo '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t'"$i"'","name":"Bash","input":{"command":"event '"$i"'"}}]}}'
+done
+echo '{"type":"result","subtype":"success","duration_ms":1234,"result":"done here"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    # Non-zero from the summary filter, not from the backend: the mock exits 0.
+    [[ "$status" -ne 0 ]]
+    [[ "$stderr" == *"jq parse failure on iteration 1"* ]]
+    [[ "$stderr" != *"backend command failed"* ]]
+
+    local stream
+    stream=$(find .ralph/metrics -name 'iter-001.stream.jsonl' -print -quit)
+    [[ -n "$stream" ]]
+    # All ten emitted lines, in order, with the bad one still first: tee copies
+    # the stream verbatim and the renderer filters only its own output.
+    [[ $(wc -l < "$stream") -eq 10 ]]
+    [[ "$(head -n 1 "$stream")" == "GARBAGE NOT JSON" ]]
+    [[ "$(tail -n 1 "$stream")" == *'"type":"result"'* ]]
+    local i
+    for i in 1 2 3 4 5 6 7 8; do
+        grep -q "event $i" "$stream"
+    done
+
+    # The last event before the result rendered, so the renderer survived the
+    # bad line rather than merely being restarted by it.
+    [[ "$stderr" == *"→ Bash event 8"* ]]
+}
+
 # The markers claim the lines between them came from the backend. The live
 # renderer writes to fd 2 as well, so a marker printed before any stderr
 # arrived framed every rendered line as backend stderr — and a silent backend,
