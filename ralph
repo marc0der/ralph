@@ -1084,11 +1084,19 @@ cmd_loop() {
                 fi
             fi
 
-            # Stream backend stdout straight to the raw file. Nothing is held
-            # in a shell variable, so every later stage reads the same bytes the
-            # backend wrote, in the order it wrote them. With no writable file
-            # anywhere, fall back to capturing the stream in a variable for this
-            # iteration, so the summary still prints.
+            # Stream backend stdout through tee into the raw file. Nothing is
+            # held in a shell variable, so every later stage reads the same
+            # bytes the backend wrote, in the order it wrote them. With no
+            # writable file anywhere, fall back to capturing the stream in a
+            # variable for this iteration, so the summary still prints.
+            #
+            # tee is what keeps a mid-stream write failure — a full disk, a
+            # quota, an .ralph directory the agent under test removes — from
+            # ending the run. Redirecting the backend's own stdout to the file
+            # makes the backend the failing writer, so it dies of SIGXFSZ and a
+            # local disk fault is reported as a backend fault. tee absorbs the
+            # error instead, keeps draining its input so the backend still
+            # reaches its own end, and reports the failure in ${st[1]}.
             #
             # Under --verbose, with a live filter for this backend, tee the
             # stream through jq so each event renders as it arrives. The
@@ -1102,8 +1110,12 @@ cmd_loop() {
             #
             # The status comes from PIPESTATUS, not from `|| ...`: `true` is
             # itself a pipeline and would overwrite the array with its own 0.
-            # ${st[0]} is the backend on all three branches.
-            local backend_exit=0 fallback_output="" st=()
+            # ${st[0]} is the backend on all three branches, and ${st[1]} is
+            # tee on the two that write a file. The read of PIPESTATUS must stay
+            # textually adjacent to `fi`: any statement in between, even a bare
+            # assignment, resets the array to (0) and turns every backend crash
+            # into a silent success.
+            local backend_exit=0 fallback_output="" st=() stream_write_failed=false
             set +e
             if [[ -n "$raw_file" ]] && $verbose && [[ -n "${BACKEND_JQ_LIVE:-}" ]]; then
                 run_backend 2> >(stderr_handler) \
@@ -1112,18 +1124,31 @@ cmd_loop() {
                             "$JQ_LIVE_PRELUDE fromjson? // empty | $BACKEND_JQ_LIVE" \
                             >&2 2>/dev/null || cat >/dev/null; }
             elif [[ -n "$raw_file" ]]; then
-                run_backend 2> >(stderr_handler) > "$raw_file"
+                run_backend 2> >(stderr_handler) | tee "$raw_file" > /dev/null
             else
                 fallback_output=$(run_backend 2> >(stderr_handler))
             fi
             st=("${PIPESTATUS[@]}")
             set -e
             backend_exit=${st[0]}
+            # The variable-capture branch runs no tee, so ${st[1]} is unset
+            # there and the default keeps `set -u` quiet.
+            if [[ ${st[1]:-0} -ne 0 ]]; then
+                stream_write_failed=true
+            fi
 
             if [[ $backend_exit -ne 0 ]]; then
                 echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
                 echo "Hint: re-run with --dry-run to inspect the prompt, or --verbose for full diagnostics" >&2
                 exit "$backend_exit"
+            fi
+
+            # A short write is a local fault, not a backend fault: the backend
+            # reached its own end and only the copy on disk is truncated. Say so
+            # and carry on — the iteration keeps its work, and only this
+            # iteration's record is incomplete.
+            if $stream_write_failed; then
+                echo "Warning: raw backend stream write failed on iteration $iteration; $raw_file is truncated" >&2
             fi
 
             # An absent or empty stream is neither a backend failure nor a jq
@@ -1193,13 +1218,23 @@ cmd_loop() {
             fi
 
             if [[ $jq_exit -ne 0 ]]; then
-                echo "Error: jq parse failure on iteration $iteration (exit code $jq_exit)" >&2
-                if $stream_pointer; then
-                    echo "Hint: inspect the raw backend stream at $raw_file" >&2
+                # A truncated stream ends in a partial line, so the summary
+                # filter fails on input the backend never produced. Reporting
+                # that as a parse failure would stop the run for the same local
+                # fault the warning above already reported, so it degrades to an
+                # empty summary instead.
+                if $stream_write_failed; then
+                    echo "Warning: summary parse failed on iteration $iteration (exit code $jq_exit) because the stream write was short" >&2
+                    jq_output=""
                 else
-                    echo "Hint: re-run with --verbose to see raw backend output before jq processing" >&2
+                    echo "Error: jq parse failure on iteration $iteration (exit code $jq_exit)" >&2
+                    if $stream_pointer; then
+                        echo "Hint: inspect the raw backend stream at $raw_file" >&2
+                    else
+                        echo "Hint: re-run with --verbose to see raw backend output before jq processing" >&2
+                    fi
+                    exit "$jq_exit"
                 fi
-                exit "$jq_exit"
             fi
 
             # Verbose: show exit codes
