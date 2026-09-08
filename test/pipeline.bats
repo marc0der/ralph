@@ -50,6 +50,9 @@ MOCK
     [[ "$output" == *"exit code 42"* ]]
 }
 
+# --no-metrics is what makes this the no-retained-stream case: the iteration
+# streams to the per-run temp file, which the EXIT trap deletes, so there is
+# nothing to name and another run is the only way to see the output.
 @test "pipeline failure error message suggests --verbose and --dry-run" {
     "$RALPH" init
     mkdir -p "$TEST_DIR/bin"
@@ -59,7 +62,7 @@ exit 1
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --no-metrics
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"--verbose"* ]]
     [[ "$output" == *"--dry-run"* ]]
@@ -1238,4 +1241,57 @@ MOCK
     # do and the empty-path fallback cannot be what makes this test pass.
     grep -q '^ralph\.' "$TEST_DIR/tmpdir-listing"
     [[ -z "$(find "$quoted_tmp" -maxdepth 1 -name 'ralph.*' -print -quit)" ]]
+}
+
+# A hint must name something the user can open. `-b codex` ships no
+# BACKEND_JQ_LIVE, so keying this on stream_pointer made it false even when a
+# metrics run still held every byte jq choked on — and the hint then charged
+# the user a whole extra backend iteration to reprint a file already on disk.
+# Retention, not the presence of a live filter, is what decides.
+@test "the jq failure hint names a retained stream" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    # codex takes the prompt as a CLI argument, so the mock must not read stdin.
+    cat > "$TEST_DIR/bin/codex" <<'MOCK'
+#!/usr/bin/env bash
+echo 'NOT JSON AT ALL'
+MOCK
+    chmod +x "$TEST_DIR/bin/codex"
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 -b codex --skip-push
+    [[ "$status" -ne 0 ]]
+    [[ "$stderr" == *"jq parse failure on iteration 1"* ]]
+    [[ "$stderr" == *"Hint: inspect the raw backend stream at"*"iter-001.stream.jsonl"* ]]
+    # The stream is on disk, so asking for another run to see it is wrong.
+    [[ "$stderr" != *"re-run with --verbose"* ]]
+
+    # The hint names a file that is really there.
+    local hinted
+    hinted=$(printf '%s\n' "$stderr" | sed -n 's/^Hint: inspect the raw backend stream at //p')
+    [[ -s "$hinted" ]]
+}
+
+# The same rule as the jq hint, on the other exit path: a failing iteration has
+# already written a partial stream, and when the run retains it that file is
+# the backend's own account of the failure. Advising --verbose there costs a
+# whole extra backend iteration to reproduce bytes already on disk, and says
+# nothing at all when --verbose is what produced the failing run.
+@test "the backend failure hint names a retained stream" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"partial"}]}}'
+exit 42
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    [[ "$status" -eq 42 ]]
+    [[ "$stderr" == *"backend command failed on iteration 1"* ]]
+    [[ "$stderr" == *"Hint: inspect the raw backend stream at"*"iter-001.stream.jsonl"* ]]
+    [[ "$stderr" == *"--dry-run"* ]]
+    # --verbose is already on, so advising it is noise.
+    [[ "$stderr" != *"--verbose for full diagnostics"* ]]
 }
