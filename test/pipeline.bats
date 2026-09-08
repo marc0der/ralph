@@ -516,6 +516,31 @@ MOCK
     [[ "$stderr" == *"after it"* ]]
 }
 
+# Every other live-rendering test drives the claude filter, so a broken pi
+# filter would stay invisible until someone ran the pi backend for real. pi
+# takes its prompt on stdin, so the mock drains it before emitting — an
+# undrained pipe leaves ralph writing into a closed reader. The events are
+# pi-shaped: tool_execution_start carries toolName/args flat on itself, unlike
+# the nested toolCall items the summary filter reads from agent_end.
+@test "--verbose renders pi tool calls live on stderr" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/pi" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+echo '{"type":"turn_start","turn":1}'
+echo '{"type":"tool_execution_start","toolCallId":"call1","toolName":"bash","args":{"command":"ls -la"}}'
+echo '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"listed the files"}]}}'
+echo '{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"listed the files"}]}],"willRetry":false}'
+MOCK
+    chmod +x "$TEST_DIR/bin/pi"
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 -b pi --skip-push --verbose
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"→ bash ls -la"* ]]
+    [[ "$output" == *"listed the files"* ]]
+}
+
 # --- Verbose mode: raw stream pointer vs raw dump ---
 
 # Section 7 of the spec gives --verbose two mutually exclusive forms per
