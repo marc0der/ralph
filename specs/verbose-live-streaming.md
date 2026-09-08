@@ -85,6 +85,10 @@ run_backend() {
 
 The result is two branches, one per verbosity, instead of today's two per delivery mode. The duplicated stderr handler collapses into a single `stderr_handler` helper used by both.
 
+`printf '%s\n'` deliberately replaces the `echo "$prompt"` at `ralph:989`. This is an intentional in-scope fix, not a slip of the refactor: `echo` consumes a prompt that begins with `-n` or `-e` as its own options, so the bytes the backend reads are not the bytes of the prompt. The Out of Scope entry on prompt streaming concerns *how* the prompt is delivered, not this one-word correctness fix.
+
+`stderr_handler` must write exclusively to fd 2, and never to stdout. Its contract is load-bearing rather than cosmetic: `2> >(stderr_handler)` inherits the pipeline's stdout, which under section 3 is the pipe into `tee`. A handler line without `>&2` — a section header, for instance — therefore lands in `$raw_file`, and the non-slurping claude summary filter (`ralph:29`) then parse-errors on it and the iteration dies. Today's inline handlers hold the invariant only by accident, because every one of their lines happens to use `>&2` (`ralph:991-995`, `ralph:1001-1005`).
+
 ### 2. Route the stream through a file
 
 Both paths must leave the complete raw stream at `$raw_file`. The final summary filter then reads that file:
@@ -97,24 +101,36 @@ jq_output=$(jq "${BACKEND_JQ_FLAGS[@]}" "$BACKEND_JQ_FILTER" "$raw_file")
 
 `$raw_file` becomes load-bearing on both paths, so it must exist even when metrics are off:
 
-- Metrics enabled — keep the current path, `$metrics_dir/iter-NNN.stream.jsonl`, so the stream is retained for `ralph metrics`.
-- Metrics disabled (`--no-metrics`, or a metrics directory that could not be created) — use a temp file removed by an `EXIT` trap.
+- Metrics enabled — keep the current path, `$metrics_dir/iter-NNN.stream.jsonl`, so the stream is retained for later analysis, as documented in `README.md`.
+- Metrics disabled (`--no-metrics`, or a metrics directory that could not be created) — use one temp file for the whole run: `mktemp` it once before the iteration loop, truncate it with `>` at the start of each iteration, and remove it in a single `EXIT` trap. One file and one trap, registered once, so nothing is orphaned and the trap does not accumulate per iteration.
+
+The `EXIT` trap is new. It sits alongside the `SIGINT`/`SIGTERM` trap already installed in `cmd_loop` (`ralph:929`) rather than replacing it, because that trap exits 130 and must keep doing so. A failing `mktemp` must not abort the run under `set -euo pipefail` (`ralph:2`); it degrades to the same non-fatal fallback the write-failure rule below requires.
+
+A write failure must never abort the iteration. Today metrics writes the raw file under an explicit contract — `printf ... > "$raw_file" 2>/dev/null || true` (`ralph:1062`), documented at `ralph:606` as "A failure here never interrupts the loop". Promoting the file to the summary filter's only input must not repeal that:
+
+- Before invoking the backend, confirm `$raw_file` is writable. If it is not, fall back to a temp file. If that also fails, fall back to today's command-substitution capture into a variable for that iteration.
+- A missing or empty `$raw_file` after the backend exits produces its own warning, naming the file. It must not reuse the backend-failure path (`ralph:1009-1013`) or the jq-failure path (`ralph:1025-1039`), because neither failure occurred.
+
+A full disk or a read-only `.ralph/metrics` therefore degrades one iteration's reporting. It never kills a 50-iteration run.
 
 ### 3. Live rendering, verbose only
 
 ```bash
 run_backend 2> >(stderr_handler) \
     | tee "$raw_file" \
-    | { jq -rR --unbuffered "$JQ_LIVE_PRELUDE fromjson? // empty | $BACKEND_JQ_LIVE" 2>/dev/null \
+    | { jq -rR --unbuffered "$JQ_LIVE_PRELUDE fromjson? // empty | $BACKEND_JQ_LIVE" 2>/dev/null >&2 \
         || cat >/dev/null; }
 ```
 
-Four details are mandatory:
+Live lines go to stderr, like every other `[verbose]` diagnostic in the loop (`ralph:975`, `981`, `991`, `1018`, `1035`, `1093`). This keeps the current property that `--verbose` adds nothing to stdout, so `ralph build --verbose 2>/dev/null` still yields exactly the iteration summaries. Stdout stays reserved for the summary filter's output.
+
+Five details are mandatory:
 
 - **`--unbuffered`** — without it jq buffers about 64 KB and the output arrives in batches, which defeats the whole change.
 - **`-R` with `fromjson?`** — jq aborts on the first parse error in normal mode. Reading raw lines and discarding those that do not parse keeps the renderer alive when a backend writes a non-JSON line to stdout.
 - **`2>/dev/null`** — jq's own diagnostics would otherwise interleave with the rendered output.
 - **`|| cat >/dev/null`** — if jq dies for any other reason, this keeps draining the pipe. See section 4 for why that matters.
+- **`>&2`** — the renderer inherits the pipeline's stdout, so without it the live lines join the summary on stdout.
 
 ### 4. A dying renderer must not kill the run
 
@@ -162,7 +178,7 @@ A new per-backend variable, following `BACKEND_JQ_FILTER` and the rest of the we
 
 - It receives one decoded event per invocation.
 - It emits zero or more strings, each a single short line for the user.
-- It must never assume a field exists. Unknown or uninteresting events produce `empty`.
+- It must never assume a field exists. Unknown or uninteresting events produce `empty`. Every filter is checked against this contract before it ships, arithmetic included: a bare `.duration_ms / 1000` raises on a null field, and `2>/dev/null` then hides the reason the line vanished.
 - It renders progress only. Metrics, totals and the iteration summary stay where they are.
 
 A shared prelude, prepended by `cmd_loop`, keeps the filters short:
@@ -187,11 +203,17 @@ if .type == "assistant" then
         (.text | oneline | trim(300)) | if . == "" then empty else "  " + . end
       else empty end
 elif .type == "result" then
-    "  [result] " + (.subtype // "?") + " · " + ((.duration_ms / 1000 | round) | tostring) + "s"
+    "  [result] " + (.subtype // "?") + " · " + (((.duration_ms // 0) / 1000 | round) | tostring) + "s"
 else empty end'
 ```
 
-`backend_pi` — verified against a real stream. `message_update` falls through to `empty`, which suppresses the usage-snapshot flood:
+`backend_pi` — verified against a real `pi --mode json` stream. The standalone event carries the tool under `toolName` and its input under `args`, flat on the event itself:
+
+```json
+{"type":"tool_execution_start","toolCallId":"toolu_01Ca…","toolName":"bash","args":{"command":"ls -la"}}
+```
+
+This does not contradict `specs/pi-backend.md:34`, which documents `name` and `arguments.command` — those are the fields of an assistant `toolCall` **content item** inside `agent_end.messages`, a different shape from the standalone execution event. `specs/pi-backend.md:44` speaks only of `tool_execution_end`, which indeed omits `args`; its `_start` sibling carries them, as above. `message_update` falls through to `empty`, which suppresses the usage-snapshot flood:
 
 ```bash
 BACKEND_JQ_LIVE='
@@ -217,7 +239,13 @@ With the stream on disk at a stable path, re-printing it (`ralph:1016-1019`) onl
 [verbose] Raw stream: .ralph/metrics/<run>/iter-003.stream.jsonl
 ```
 
-The `--verbose` hint on jq parse failure (`ralph:1029`) changes with it: the raw stream is now a file to inspect, not output to re-read.
+The replacement is conditional. One rule covers both cases: print the pointer only when there is something for the pointer to point at, and otherwise keep today's raw dump (`ralph:1016-1019`) verbatim.
+
+- `BACKEND_JQ_LIVE` set, and metrics enabled — print the pointer. The user has just watched the stream and needs the path, not a second copy.
+- `BACKEND_JQ_LIVE` unset or empty — raw dump. Nothing was rendered live, so removing the dump would leave `--verbose` with less than it has today. This is what makes the "exactly as it does today" guarantee in section 6 true for `codex` and `copilot`, which ship with no live filter.
+- Metrics disabled (`--no-metrics`, or a metrics directory that could not be created, `ralph:873-875`) — raw dump. The stream lives in the per-run temp file from section 2, which the next iteration truncates and the `EXIT` trap deletes, so its path is useless to the user by the time they read it.
+
+The `--verbose` hint on jq parse failure (`ralph:1029`) changes with it, on the pointer path only: the raw stream is now a file to inspect, not output to re-read.
 
 ## Extensibility
 
@@ -235,37 +263,52 @@ The options table (`README.md:42-51`) is missing `-v` / `--verbose` entirely, al
 
 Add a short subsection after "Loop metrics" explaining that a normal run prints one summary per iteration, and that `--verbose` renders each tool call and assistant message as it happens.
 
-### CLAUDE.md
+### `ralph --help`
+
+The in-script option list (`ralph:172`) still reads `Show backend commands, raw output, and exit codes`, which section 7 falsifies. Bring it in line with the README entry:
+
+```
+  -v, --verbose        Stream backend activity live; show commands, exit codes and the raw stream path
+```
+
+### CLAUDE.md and AGENTS.md
 
 The "Core loop flow" list describes step 5 as piping the prompt to the backend and step 6 as parsing with jq. Update both to say the raw stream is written to a file, that the summary filter reads that file, and that `--verbose` additionally tees the stream through a per-backend live filter. Add `BACKEND_JQ_LIVE` to the backend-variables sentence under "Shell scripting conventions".
 
+`AGENTS.md` is a near-identical copy of `CLAUDE.md` and carries the same two passages, at `AGENTS.md:46-47` and `AGENTS.md:92`. Both files take the same edit, so an agent reading either one gets the same description of how the loop consumes backend output.
+
 ## Testing
 
-All tests use mock commands. No real backend CLI is required.
+All tests use mock commands. No real backend CLI is required. Because live lines go to stderr and the summary to stdout (section 3), every test that distinguishes the two must invoke `run --separate-stderr`, so `$output` and `$stderr` stay separate rather than merging into `$output`.
 
 ### Harness change
 
-A mock that emits timed JSONL and can exit non-zero on demand, so tests can assert ordering and exit-code propagation:
+A mock that emits timed JSONL and can exit non-zero on demand, so tests can assert immediacy, ordering and exit-code propagation. The delays and the sentinel are what make immediacy observable: the mock does not finish until well after its first event, and it announces its own finish by creating `$MOCK_SENTINEL`.
 
 ```bash
 #!/usr/bin/env bash
 echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"ls -la"}}]}}'
+sleep "${MOCK_DELAY:-0}"
 echo '{"type":"assistant","message":{"content":[{"type":"text","text":"done here"}]}}'
-echo '{"type":"result","subtype":"success","duration_ms":1234}'
+sleep "${MOCK_DELAY:-0}"
+echo '{"type":"result","subtype":"success","duration_ms":1234,"result":"done here"}'
+[[ -n "${MOCK_SENTINEL:-}" ]] && : > "$MOCK_SENTINEL"
 exit "${MOCK_EXIT:-0}"
 ```
 
 ### New tests
 
-- **Verbose renders tool calls live**: run `ralph build -n 1 --skip-push --verbose` with the mock and assert stdout contains `→ Bash ls -la`.
-- **Verbose renders assistant text**: assert stdout contains `done here`.
-- **Non-verbose renders no live lines**: same mock without `--verbose`; assert stdout does *not* contain `→ Bash ls -la`, and that the iteration summary is still present.
+- **Verbose renders tool calls live**: run `ralph build -n 1 --skip-push --verbose` with the mock and assert `$stderr` contains `→ Bash ls -la`.
+- **Verbose renders assistant text**: assert `$stderr` contains `done here`.
+- **Non-verbose renders no live lines**: same mock without `--verbose`; assert neither `$output` nor `$stderr` contains `→ Bash ls -la`, and that `$output` still carries the iteration summary `done here`. The mock's result event carries `"result":"done here"` for exactly this reason: the claude summary filter is `select(.type == "result") | .result // empty` (`ralph:29`), so a result event without that field renders a bare empty line and the assertion cannot pass.
 - **Backend exit code survives the tee pipeline**: `MOCK_EXIT=42` with `--verbose`; assert status 42 and that the error names iteration 1 and exit code 42. This is the regression test for the `PIPESTATUS` trap in section 5.
 - **Non-JSON stdout does not truncate the stream**: a mock whose first line is not JSON followed by valid events; with `--verbose`, assert exit 0 and that the raw stream file holds every emitted line.
-- **A backend without a live filter still runs under verbose**: unset `BACKEND_JQ_LIVE` for the backend under test; assert the iteration completes and the summary prints.
-- **Raw stream exists with `--no-metrics`**: assert the run succeeds and leaves no stray temp file behind.
-- **Verbose prints the raw stream path**: assert stdout contains `[verbose] Raw stream:` and not the raw JSON body.
+- **A backend without a live filter still runs under verbose**: unset `BACKEND_JQ_LIVE` for the backend under test; assert the iteration completes, the summary prints, and `--verbose` still emits the raw dump rather than the path pointer, per section 7.
+- **Raw stream exists with `--no-metrics`**: assert the run succeeds, leaves no stray temp file behind, and that `--verbose` emits the raw dump rather than a pointer to the deleted temp file.
+- **Verbose prints the raw stream path**: assert `$stderr` contains `[verbose] Raw stream:` and not the raw JSON body.
 - **Metrics still parse from the file**: with metrics on, assert `metrics.jsonl` records the tool histogram, confirming the metrics reader works against the loop-written file.
+- **Live lines arrive before the backend exits**: with `MOCK_DELAY` set to a few seconds and `MOCK_SENTINEL` pointing at a path that does not yet exist, run the loop in the background and poll for `→ Bash ls -la` in the captured stderr. Assert it appears while `$MOCK_SENTINEL` is still absent. This is the only test that distinguishes live rendering from a whole-stream capture rendered at the end, and it is the regression test for `--unbuffered`.
+- **Backend stderr stays out of the raw stream**: a mock that writes to stderr as well as stdout; with `--verbose`, assert every line of `$raw_file` parses as JSON. This is the regression test for the `stderr_handler` contract in section 1.
 
 ### Existing tests
 
