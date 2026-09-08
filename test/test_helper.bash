@@ -40,3 +40,30 @@ teardown() {
 create_gitignore() {
     printf "%s" "${1:-}" > .gitignore
 }
+
+# Helper: mock claude that streams JSONL events with controllable timing and
+# exit code. The delays and the sentinel are what make live rendering
+# observable: with MOCK_DELAY set the mock does not finish until well after its
+# first event, and it announces its own finish by creating $MOCK_SENTINEL, so a
+# test can prove a rendered line arrived before the backend exited.
+# Knobs (all read at run time, so one mock serves every test):
+#   MOCK_DELAY    seconds to sleep between events (default 0)
+#   MOCK_SENTINEL path to touch just before exiting (default: none)
+#   MOCK_EXIT     exit code (default 0)
+create_streaming_backend() {
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+echo '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"ls -la"}}]}}'
+sleep "${MOCK_DELAY:-0}"
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"done here"}]}}'
+sleep "${MOCK_DELAY:-0}"
+# `result` carries the text too: the claude summary filter reads `.result`, so
+# a result event without it renders a bare empty line on the non-verbose path.
+echo '{"type":"result","subtype":"success","duration_ms":1234,"duration_api_ms":1000,"num_turns":3,"result":"done here","session_id":"s1","total_cost_usd":0.02,"usage":{"input_tokens":100,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":50}}'
+[[ -n "${MOCK_SENTINEL:-}" ]] && : > "$MOCK_SENTINEL"
+exit "${MOCK_EXIT:-0}"
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+}
