@@ -235,3 +235,26 @@ MOCK
     [[ "$output" == *"metrics disabled for this run"* ]]
     [[ "$output" == *"Nothing to do."* ]]
 }
+
+# The tee branch is a second, distinct write site for the raw stream: under
+# --verbose the file is written by `tee` inside a pipeline rather than by a
+# plain `>` redirect. The metrics reader parses that same file after the
+# backend exits, so this pins that a torn or truncated tee write would show up
+# as a missing histogram rather than passing silently.
+@test "tool histogram is read from the stream file written under --verbose" {
+    "$RALPH" init
+    printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
+    create_streaming_backend
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --verbose
+    [[ "$status" -eq 0 ]]
+
+    local line
+    line=$(tail -1 "$(latest_metrics_file)")
+    # The mock emits exactly one tool_use, for Bash.
+    [[ $(jq -r '.tools.Bash' <<<"$line") == "1" ]]
+    # Fields from the result event prove the whole record parsed, not just the
+    # assistant events the histogram walks.
+    [[ $(jq -r '.turns' <<<"$line") == "3" ]]
+    [[ $(jq -r '.cost_usd' <<<"$line") == "0.02" ]]
+}
