@@ -721,6 +721,54 @@ MOCK
     done < "$stream"
 }
 
+# --- Stream write failures ---
+
+# A disk that fills mid-run, a quota, or an .ralph directory the agent under
+# test removes all fail the same way: the write to the stream file fails while
+# the backend is still producing. With the backend's own stdout redirected at
+# the file the backend is the failing writer, so it dies of SIGXFSZ and the
+# loop reports `backend command failed (exit code 153)` — a local disk fault
+# dressed up as a backend fault, and the run is over. Routing through tee moves
+# the failure off the backend: tee absorbs it, keeps draining so the backend
+# reaches its own end, and reports it in ${st[1]}.
+#
+# `ulimit -f 8` stands in for the full disk (8 blocks of 1024 = 8192 bytes).
+# The mock emits fifty padded events, well past that, so tee's copy stops
+# mid-line while the backend still exits 0.
+@test "a stream write failure leaves the loop running" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+# ~260 bytes per line, so fifty of them overrun an 8192-byte limit around
+# event 31 and leave a partial line as the last thing tee wrote.
+pad=$(printf 'x%.0s' $(seq 1 200))
+for i in $(seq 1 50); do
+    printf '{"type":"assistant","message":{"content":[{"type":"text","text":"%s"}]}}\n' "$pad"
+done
+echo '{"type":"result","subtype":"success","result":"done here"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    # `ulimit -c 0` keeps the SIGXFSZ core out of the test directory; it
+    # changes nothing about the write failure itself.
+    # shellcheck disable=SC2016  # $0 is the inner shell's argv[0], set below
+    run --separate-stderr env "PATH=$TEST_DIR/bin:$PATH" \
+        bash -c 'ulimit -c 0; ulimit -f 8; exec "$0" build -n 1 --skip-push --no-metrics' "$RALPH"
+
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"raw backend stream write failed on iteration 1"* ]]
+    # The backend reached its own end, so nothing may be blamed on it.
+    [[ "$stderr" != *"backend command failed"* ]]
+    # The truncated tail costs the summary, and that must degrade too: the
+    # non-slurping claude filter aborts on the partial last line, and before
+    # this change that parse error exited the run with jq's own status.
+    [[ "$stderr" == *"summary parse failed on iteration 1"* ]]
+    [[ "$stderr" != *"jq parse failure"* ]]
+    [[ "$output" == *"ITERATION 1 / 1"* ]]
+}
+
 # --- Verbose mode: live immediacy ---
 
 # The only test that can tell live rendering from a whole-stream capture
