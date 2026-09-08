@@ -118,7 +118,7 @@ A full disk or a read-only `.ralph/metrics` therefore degrades one iteration's r
 ```bash
 run_backend 2> >(stderr_handler) \
     | tee "$raw_file" \
-    | { jq -rR --unbuffered "$JQ_LIVE_PRELUDE fromjson? // empty | $BACKEND_JQ_LIVE" 2>/dev/null >&2 \
+    | { jq -rR --unbuffered "$JQ_LIVE_PRELUDE fromjson? // empty | $BACKEND_JQ_LIVE" >&2 2>/dev/null \
         || cat >/dev/null; }
 ```
 
@@ -130,7 +130,7 @@ Five details are mandatory:
 - **`-R` with `fromjson?`** — jq aborts on the first parse error in normal mode. Reading raw lines and discarding those that do not parse keeps the renderer alive when a backend writes a non-JSON line to stdout.
 - **`2>/dev/null`** — jq's own diagnostics would otherwise interleave with the rendered output.
 - **`|| cat >/dev/null`** — if jq dies for any other reason, this keeps draining the pipe. See section 4 for why that matters.
-- **`>&2`** — the renderer inherits the pipeline's stdout, so without it the live lines join the summary on stdout.
+- **`>&2`** — the renderer inherits the pipeline's stdout, so without it the live lines join the summary on stdout. It must precede `2>/dev/null`. Reversed, `>&2` duplicates a descriptor already pointed at `/dev/null` and every rendered line is lost.
 
 ### 4. A dying renderer must not kill the run
 
