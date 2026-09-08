@@ -555,6 +555,33 @@ MOCK
     [[ "$stderr" != *"[verbose] Raw stream:"* ]]
 }
 
+# An exported BACKEND_JQ_LIVE used to reach a backend that ships none, because
+# both read sites spelled it ${BACKEND_JQ_LIVE:-} and resolve_backend never
+# cleared it. An ambient export — a stale shell variable, a CI env block, a
+# devcontainer remoteEnv entry — therefore chose codex's code path and its
+# diagnostics. backend_codex now assigns "", which wins over the environment.
+@test "an exported BACKEND_JQ_LIVE does not reach a backend without one" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/codex" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"codex done"}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/codex"
+
+    BACKEND_JQ_LIVE='if .item.type == "agent_message" then "  LEAKED " + .item.text else empty end' \
+        PATH="$TEST_DIR/bin:$PATH" \
+        run --separate-stderr "$RALPH" build -n 1 -b codex --skip-push --verbose
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"codex done"* ]]
+    # The leaked filter renders nothing, so codex keeps the raw dump and never
+    # gains the stream pointer that a live filter would have earned it.
+    [[ "$stderr" != *"LEAKED"* ]]
+    [[ "$stderr" == *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" == *'"type":"item.completed"'* ]]
+    [[ "$stderr" != *"[verbose] Raw stream:"* ]]
+}
+
 # With metrics off the stream lives in the per-run temp file, which the EXIT
 # trap deletes — so a pointer to it would name a file the user cannot open.
 @test "--no-metrics --verbose keeps the raw dump and leaves no temp file behind" {
