@@ -11,6 +11,11 @@ PLAN_DEFAULT_CAP=6
 ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md PROMPT_plan.md PROMPT_build.md)
 ARCHIVE_DIR=".ralph"
 
+# Path of the per-run raw stream temp file, or empty when there is none.
+# Script-scoped so the EXIT trap can read it after cmd_loop's locals are gone,
+# which lets the trap defer expansion instead of baking the path into its body.
+RALPH_TEMP_STREAM=""
+
 # --- Backend definitions ---
 # Each backend_<name> function sets well-known variables and defines
 # build_backend_cmd(model) which populates the BACKEND_CMD array.
@@ -1038,13 +1043,15 @@ cmd_loop() {
     local temp_stream=""
     temp_stream=$(mktemp "${TMPDIR:-/tmp}/ralph.XXXXXXXXXX" 2>/dev/null) || temp_stream=""
 
-    # Remove the temp file on every exit path. The path is expanded now, so the
-    # trap does not depend on cmd_loop's locals still being in scope. This sits
-    # alongside the interrupt trap below rather than replacing it, because that
-    # trap must keep exiting 130.
+    # Remove the temp file on every exit path. The trap body stays single-quoted
+    # so the path is read at exit time from a script-scoped variable: mktemp
+    # honours $TMPDIR, and eagerly interpolating that path into the trap lets a
+    # single quote in it break the trap (rewriting a clean exit 0 into 2) or a
+    # command substitution in it run. This sits alongside the interrupt trap
+    # below rather than replacing it, because that trap must keep exiting 130.
     if [[ -n "$temp_stream" ]]; then
-        # shellcheck disable=SC2064  # Expand now; the local is gone at exit time
-        trap "rm -f -- '$temp_stream'" EXIT
+        RALPH_TEMP_STREAM="$temp_stream"
+        trap 'rm -f -- "$RALPH_TEMP_STREAM"' EXIT
     fi
 
     # Clean exit on interrupt signals
