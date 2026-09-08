@@ -36,20 +36,25 @@ backend_claude() {
     BACKEND_JQ_FLAGS=(-r)
     BACKEND_JQ_FILTER='select(.type == "result") | .result // empty'
     # Live progress renderer: one short line per interesting stream-json event.
-    # Every field read is guarded, because a raise here is swallowed by the
-    # renderer's 2>/dev/null and would silently drop the line.
+    # A raise here is swallowed by the renderer's 2>/dev/null and discards the
+    # remaining content items of the event, not only the offending one. `//`
+    # substitutes null and false only, so it does not guard a wrong type: every
+    # rendered value passes through tostring and every iteration tests its type.
     # shellcheck disable=SC2016  # $n is a jq variable from JQ_LIVE_PRELUDE
     BACKEND_JQ_LIVE='
 if .type == "assistant" then
-    (.message.content // [])[]
+    (if (.message.content? | type) == "array" then .message.content[] else empty end)
     | if .type == "tool_use" then
-        "  \u2192 " + (.name // "?") + " " + ((.input.command // .input.file_path // .input.path
-          // .input.pattern // ((.input // {}) | tostring)) | trim(100) | oneline)
+        "  \u2192 " + ((.name // "?") | tostring) + " "
+          + (((.input // {}) | if type == "object" then
+               (.command // .file_path // .path // .pattern // tostring) else . end)
+             | tostring | trim(100) | oneline)
       elif .type == "text" then
-        ((.text // "") | trim(300) | oneline) | if . == "" then empty else "  " + . end
+        ((.text // "") | tostring | trim(300) | oneline) | if . == "" then empty else "  " + . end
       else empty end
 elif .type == "result" then
-    "  [result] " + (.subtype // "?") + " \u00b7 " + (((.duration_ms // 0) / 1000 | round) | tostring) + "s"
+    "  [result] " + ((.subtype // "?") | tostring) + " \u00b7 "
+      + ((((.duration_ms // 0) | tonumber? // 0) / 1000 | round) | tostring) + "s"
 else empty end'
     BACKEND_STDIN_PROMPT=true
     # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
@@ -120,10 +125,13 @@ backend_pi() {
     # shellcheck disable=SC2016  # $n is a jq variable from JQ_LIVE_PRELUDE
     BACKEND_JQ_LIVE='
 if .type == "tool_execution_start" then
-    "  \u2192 " + (.toolName // "?") + " " + ((.args.command // .args.file_path // .args.path
-      // .args.pattern // ((.args // {}) | tostring)) | trim(100) | oneline)
+    "  \u2192 " + ((.toolName // "?") | tostring) + " "
+      + (((.args // {}) | if type == "object" then
+           (.command // .file_path // .path // .pattern // tostring) else . end)
+         | tostring | trim(100) | oneline)
 elif .type == "message_end" and .message.role == "assistant" then
-    ((.message.content // []) | map(select(.type == "text") | .text // "") | join(" ")
+    ((if (.message.content? | type) == "array" then .message.content else [] end)
+      | map(select(.type == "text") | .text // "" | tostring) | join(" ")
       | trim(300) | oneline) | if . == "" then empty else "  " + . end
 elif .type == "turn_start" then "  ---"
 else empty end'
