@@ -552,6 +552,51 @@ MOCK
     [[ -z "$(find "$TEST_DIR/tmp" -maxdepth 1 -name 'tmp.*' -print -quit)" ]]
 }
 
+# --- Verbose mode: live immediacy ---
+
+# The only test that can tell live rendering from a whole-stream capture
+# rendered at the end. Every other verbose test passes either way, because the
+# rendered lines are all present on stderr by the time `run` returns. Here the
+# mock sleeps between events and touches $MOCK_SENTINEL just before it exits,
+# so a rendered line observed while the sentinel is still absent proves jq
+# emitted it mid-run. This is the regression test for jq's --unbuffered flag:
+# without it jq buffers its output and nothing reaches stderr until the pipe
+# closes.
+@test "live lines arrive on stderr before the backend exits" {
+    "$RALPH" init
+    create_streaming_backend
+
+    local err="$TEST_DIR/live.err"
+    local sentinel="$TEST_DIR/mock-finished"
+    : > "$err"
+    [[ ! -e "$sentinel" ]]
+
+    MOCK_DELAY=3 MOCK_SENTINEL="$sentinel" PATH="$TEST_DIR/bin:$PATH" \
+        "$RALPH" build -n 1 --skip-push --verbose >/dev/null 2>"$err" &
+    local pid=$!
+
+    # Poll for up to 10s — the mock needs ~6s to finish, so a renderer that
+    # only flushes at exit still gets caught by the sentinel assertion below
+    # rather than by this timeout.
+    local seen=false waited=0
+    while [[ "$waited" -lt 100 ]]; do
+        if grep -qF -- '→ Bash ls -la' "$err"; then
+            seen=true
+            break
+        fi
+        sleep 0.1
+        waited=$((waited + 1))
+    done
+
+    [[ "$seen" == true ]]
+    [[ ! -e "$sentinel" ]]
+
+    local exit_code=0
+    wait "$pid" || exit_code=$?
+    [[ "$exit_code" -eq 0 ]]
+    [[ -e "$sentinel" ]]
+}
+
 # --- Noop early exit ---
 
 @test "build exits early after 2 consecutive noops" {
