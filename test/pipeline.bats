@@ -562,15 +562,20 @@ MOCK
     create_streaming_backend
     mkdir -p "$TEST_DIR/tmp"
 
-    TMPDIR="$TEST_DIR/tmp" PATH="$TEST_DIR/bin:$PATH" \
+    MOCK_TMP_LISTING="$TEST_DIR/tmpdir-listing" TMPDIR="$TEST_DIR/tmp" \
+        PATH="$TEST_DIR/bin:$PATH" \
         run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics --verbose
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *"[verbose] Raw backend output:"* ]]
     [[ "$stderr" == *'"type":"result"'* ]]
     [[ "$stderr" != *"[verbose] Raw stream:"* ]]
-    # mktemp names the stream tmp.XXXXXXXXXX; ralph is the only mktemp caller,
-    # so anything left under this private TMPDIR is a leaked stream file.
-    [[ -z "$(find "$TEST_DIR/tmp" -maxdepth 1 -name 'tmp.*' -print -quit)" ]]
+    # The mock listed $TMPDIR mid-iteration, so the stream file has to be there:
+    # an explicit mktemp template is what makes the temp path exist at all, and
+    # without it every --no-metrics run silently falls to variable capture.
+    grep -q '^ralph\.' "$TEST_DIR/tmpdir-listing"
+    # ralph names the stream ralph.XXXXXXXXXX and is the only mktemp caller, so
+    # anything left under this private TMPDIR is a leaked stream file.
+    [[ -z "$(find "$TEST_DIR/tmp" -maxdepth 1 -name 'ralph.*' -print -quit)" ]]
 }
 
 # An unwritable metrics directory degrades the run to the same per-run temp

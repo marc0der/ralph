@@ -55,6 +55,9 @@ create_streaming_backend() {
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
 cat > /dev/null
+# Snapshot $TMPDIR from inside the iteration: the per-run stream file only
+# exists while the backend runs, so a test cannot see it after the EXIT trap.
+[[ -n "${MOCK_TMP_LISTING:-}" ]] && ls -A "${TMPDIR:-/tmp}" > "$MOCK_TMP_LISTING"
 echo '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"ls -la"}}]}}'
 sleep "${MOCK_DELAY:-0}"
 echo '{"type":"assistant","message":{"content":[{"type":"text","text":"done here"}]}}'
