@@ -1125,6 +1125,21 @@ cmd_loop() {
                 fi
             fi
 
+            # Retention decides what a diagnostic may name. A metrics run keeps
+            # iter-NNN.stream.jsonl for later analysis; every other path lands
+            # on the per-run temp file, which the next iteration truncates and
+            # the EXIT trap deletes. Naming that file sends the user after bytes
+            # that are gone before the prompt returns.
+            #
+            # Where the file sits decides this, not whether metrics are on: an
+            # unwritable metrics directory degrades a metrics-enabled run to
+            # that same temp file, so the prefix test is the only thing that
+            # keeps a hint off a file the trap deletes.
+            local stream_retained=false
+            if [[ -n "$raw_file" && -n "$metrics_dir" && "$raw_file" == "$metrics_dir/"* ]]; then
+                stream_retained=true
+            fi
+
             # Verbose: print backend command before execution
             if $verbose; then
                 if [[ "$BACKEND_STDIN_PROMPT" == "true" ]]; then
@@ -1204,7 +1219,18 @@ cmd_loop() {
 
             if [[ $backend_exit -ne 0 ]]; then
                 echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
-                echo "Hint: re-run with --dry-run to inspect the prompt, or --verbose for full diagnostics" >&2
+                # The failing iteration already wrote a partial stream. When the
+                # run retains it, that file is the backend's own account of the
+                # failure, so name it instead of charging the user another
+                # iteration to reproduce bytes already on disk. Advising
+                # --verbose is noise once --verbose is on.
+                local backend_hint="Hint: re-run with --dry-run to inspect the prompt"
+                if $stream_retained; then
+                    backend_hint="Hint: inspect the raw backend stream at $raw_file, or re-run with --dry-run to inspect the prompt"
+                elif ! $verbose; then
+                    backend_hint="$backend_hint, or --verbose for full diagnostics"
+                fi
+                echo "$backend_hint" >&2
                 exit "$backend_exit"
             fi
 
@@ -1236,17 +1262,11 @@ cmd_loop() {
             # temp file, which the next iteration truncates and the EXIT trap
             # deletes — a path the user cannot act on.
             #
-            # "Retained" is decided by where the file sits, not by whether
-            # metrics are on: an unwritable metrics directory degrades a
-            # metrics-enabled run to that same temp file, so the prefix test is
-            # the only thing that keeps the pointer off a file the trap deletes.
-            #
             # A renderer that died rendered nothing, so the pointer has nothing
             # to replace and the dump comes back.
             local stream_pointer=false
-            if $metrics_enabled && [[ -n "$BACKEND_JQ_LIVE" ]] \
-                && ! $live_render_failed \
-                && [[ -n "$metrics_dir" && "$raw_file" == "$metrics_dir/"* ]]; then
+            if $stream_retained && [[ -n "$BACKEND_JQ_LIVE" ]] \
+                && ! $live_render_failed; then
                 stream_pointer=true
             fi
 
@@ -1303,9 +1323,14 @@ cmd_loop() {
                     jq_output=""
                 else
                     echo "Error: jq parse failure on iteration $iteration (exit code $jq_exit)" >&2
-                    if $stream_pointer; then
+                    # Retention, not the presence of a live filter, decides
+                    # whether the stream can be pointed at: -b codex ships no
+                    # BACKEND_JQ_LIVE, yet a metrics run still holds every byte
+                    # jq choked on. Keying this on stream_pointer asked for a
+                    # whole extra backend iteration to reprint that file.
+                    if $stream_retained; then
                         echo "Hint: inspect the raw backend stream at $raw_file" >&2
-                    else
+                    elif ! $verbose; then
                         echo "Hint: re-run with --verbose to see raw backend output before jq processing" >&2
                     fi
                     exit "$jq_exit"
