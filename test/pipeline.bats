@@ -768,6 +768,42 @@ MOCK
     done < "$stream"
 }
 
+# The markers claim the lines between them came from the backend. The live
+# renderer writes to fd 2 as well, so a marker printed before any stderr
+# arrived framed every rendered line as backend stderr — and a silent backend,
+# which is the common case, produced an empty pair around nothing at all.
+@test "a silent backend prints no stderr markers under --verbose" {
+    "$RALPH" init
+    create_streaming_backend
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" != *"=== Backend stderr ==="* ]]
+    [[ "$stderr" != *"=== End backend stderr ==="* ]]
+    # The markers went away, not the output they used to frame.
+    [[ "$stderr" == *"→ Bash ls -la"* ]]
+}
+
+# The other half of the contract: gating the markers must not lose them when
+# the backend really does write to stderr.
+@test "a noisy backend still frames its stderr under --verbose" {
+    "$RALPH" init
+    create_streaming_backend
+    mv "$TEST_DIR/bin/claude" "$TEST_DIR/bin/streaming-events"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo 'backend warning: refreshing credentials' >&2
+exec "$(dirname "$0")/streaming-events"
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"=== Backend stderr ==="* ]]
+    [[ "$stderr" == *"refreshing credentials"* ]]
+    [[ "$stderr" == *"=== End backend stderr ==="* ]]
+}
+
 # --- Stream write failures ---
 
 # A disk that fills mid-run, a quota, or an .ralph directory the agent under
