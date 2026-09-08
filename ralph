@@ -1132,13 +1132,14 @@ cmd_loop() {
             # assignment, resets the array to (0) and turns every backend crash
             # into a silent success.
             local backend_exit=0 fallback_output="" st=() stream_write_failed=false
+            local live_render_failed=false
             set +e
             if [[ -n "$raw_file" ]] && $verbose && [[ -n "${BACKEND_JQ_LIVE:-}" ]]; then
                 run_backend 2> >(stderr_handler) \
                     | tee "$raw_file" \
                     | { jq -rR --unbuffered \
                             "$JQ_LIVE_PRELUDE fromjson? // empty | $BACKEND_JQ_LIVE" \
-                            >&2 2>/dev/null || cat >/dev/null; }
+                            >&2 2>/dev/null || { cat >/dev/null; false; }; }
             elif [[ -n "$raw_file" ]]; then
                 run_backend 2> >(stderr_handler) | tee "$raw_file" > /dev/null
             else
@@ -1151,6 +1152,16 @@ cmd_loop() {
             # there and the default keeps `set -u` quiet.
             if [[ ${st[1]:-0} -ne 0 ]]; then
                 stream_write_failed=true
+            fi
+            # ${st[2]} exists only on the live-render branch; the drain in the
+            # renderer group ends in `false` so that a jq the filter never
+            # compiled — a typo in a future BACKEND_JQ_LIVE, or a jq built
+            # without Oniguruma, where `gsub` is absent — is distinguishable
+            # from one that rendered every event. Without it the group always
+            # reports 0 and a verbose iteration silently prints less than a
+            # non-verbose one.
+            if [[ ${st[2]:-0} -ne 0 ]]; then
+                live_render_failed=true
             fi
 
             if [[ $backend_exit -ne 0 ]]; then
@@ -1165,6 +1176,12 @@ cmd_loop() {
             # iteration's record is incomplete.
             if $stream_write_failed; then
                 echo "Warning: raw backend stream write failed on iteration $iteration; $raw_file is truncated" >&2
+            fi
+
+            # jq's own diagnostic went to /dev/null, so the loop has to say
+            # this itself, or the only symptom is missing output.
+            if $live_render_failed; then
+                echo "Warning: live rendering failed on iteration $iteration; showing the raw stream from $raw_file instead" >&2
             fi
 
             # An absent or empty stream is neither a backend failure nor a jq
@@ -1185,8 +1202,12 @@ cmd_loop() {
             # metrics are on: an unwritable metrics directory degrades a
             # metrics-enabled run to that same temp file, so the prefix test is
             # the only thing that keeps the pointer off a file the trap deletes.
+            #
+            # A renderer that died rendered nothing, so the pointer has nothing
+            # to replace and the dump comes back.
             local stream_pointer=false
             if $metrics_enabled && [[ -n "${BACKEND_JQ_LIVE:-}" ]] \
+                && ! $live_render_failed \
                 && [[ -n "$metrics_dir" && "$raw_file" == "$metrics_dir/"* ]]; then
                 stream_pointer=true
             fi

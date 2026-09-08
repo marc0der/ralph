@@ -619,6 +619,46 @@ MOCK
     [[ "$stderr" != *"No such file or directory"* ]]
 }
 
+# The renderer swallows jq's diagnostics with 2>/dev/null and drains the pipe
+# with `|| cat`, so a filter that never compiled looks exactly like one that
+# rendered every event: exit 0, no output. Combined with the pointer, that made
+# --verbose print *less* than it did before live rendering existed — a single
+# `[verbose] Raw stream:` line and nothing else. The drain now ends in `false`
+# so ${st[2]} carries the renderer's verdict, and a dead renderer gives the
+# dump back. A jq shim that fails only for the -rR call stands in for the real
+# causes: a typo in a future BACKEND_JQ_LIVE, or a jq built without Oniguruma,
+# where the filters' `gsub` is absent.
+@test "a broken live filter falls back to the raw dump" {
+    "$RALPH" init
+    create_streaming_backend
+
+    local real_jq
+    real_jq=$(command -v jq)
+    {
+        printf '#!/usr/bin/env bash\nREAL_JQ=%q\n' "$real_jq"
+        cat <<'MOCK'
+for arg in "$@"; do
+    case "$arg" in -rR) exit 3 ;; esac
+done
+exec "$REAL_JQ" "$@"
+MOCK
+    } > "$TEST_DIR/bin/jq"
+    chmod +x "$TEST_DIR/bin/jq"
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    # The renderer is not the backend: its failure must not end the iteration.
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"live rendering failed on iteration 1"* ]]
+    [[ "$stderr" != *"[verbose] Raw stream:"* ]]
+    [[ "$stderr" == *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" == *'"type":"result"'* ]]
+    # Nothing rendered, so the dump is the only copy the user gets.
+    [[ "$stderr" != *"→ Bash ls -la"* ]]
+    # The summary filter runs through the real jq, so the iteration still
+    # reports its result.
+    [[ "$output" == *"done here"* ]]
+}
+
 # `ralph init` gitignores .ralph, so an agent that tidies with `git clean -xfd`
 # — or that removes .ralph itself — takes the stream file with it while the
 # iteration is still running. The write survives (the fd outlives the unlink),
