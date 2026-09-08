@@ -1089,12 +1089,36 @@ cmd_loop() {
             # backend wrote, in the order it wrote them. With no writable file
             # anywhere, fall back to capturing the stream in a variable for this
             # iteration, so the summary still prints.
-            local backend_exit=0 fallback_output=""
-            if [[ -n "$raw_file" ]]; then
-                run_backend 2> >(stderr_handler) > "$raw_file" || backend_exit=$?
+            #
+            # Under --verbose, with a live filter for this backend, tee the
+            # stream through jq so each event renders as it arrives. The
+            # renderer is hardened: -R with fromjson? skips a non-JSON line
+            # instead of aborting, and `|| cat` keeps draining the pipe if jq
+            # dies anyway. Either would otherwise SIGPIPE tee and kill the
+            # backend mid-iteration, losing every later event and the metrics
+            # record. Rendered lines go to fd 2, so stdout still carries only
+            # the summary; `>&2` must precede `2>/dev/null` or it duplicates
+            # the already-discarded fd 2 and every line is lost.
+            #
+            # The status comes from PIPESTATUS, not from `|| ...`: `true` is
+            # itself a pipeline and would overwrite the array with its own 0.
+            # ${st[0]} is the backend on all three branches.
+            local backend_exit=0 fallback_output="" st=()
+            set +e
+            if [[ -n "$raw_file" ]] && $verbose && [[ -n "${BACKEND_JQ_LIVE:-}" ]]; then
+                run_backend 2> >(stderr_handler) \
+                    | tee "$raw_file" \
+                    | { jq -rR --unbuffered \
+                            "$JQ_LIVE_PRELUDE fromjson? // empty | $BACKEND_JQ_LIVE" \
+                            >&2 2>/dev/null || cat >/dev/null; }
+            elif [[ -n "$raw_file" ]]; then
+                run_backend 2> >(stderr_handler) > "$raw_file"
             else
-                fallback_output=$(run_backend 2> >(stderr_handler)) || backend_exit=$?
+                fallback_output=$(run_backend 2> >(stderr_handler))
             fi
+            st=("${PIPESTATUS[@]}")
+            set -e
+            backend_exit=${st[0]}
 
             if [[ $backend_exit -ne 0 ]]; then
                 echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
