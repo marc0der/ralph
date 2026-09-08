@@ -207,7 +207,7 @@ Options:
       --skip-push      Don't push after each build iteration (plan never pushes)
       --dry-run        Print what would be executed without running
       --no-metrics     Don't record per-iteration metrics under .ralph/metrics/
-  -v, --verbose        Show backend commands, raw output, and exit codes
+  -v, --verbose        Stream backend activity live; show commands, exit codes and the raw stream path
   -y, --yes            Skip the confirmation when running outside a sandbox
   -h, --help           Show this help message
 
