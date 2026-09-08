@@ -1157,7 +1157,17 @@ cmd_loop() {
                 else
                     echo "[verbose] Raw backend output:" >&2
                     if [[ -n "$raw_file" ]]; then
-                        cat "$raw_file" >&2
+                        # The stream file can vanish between the write and this
+                        # read: an agent that runs `git clean -xfd` or removes
+                        # .ralph takes it along, because `ralph init` gitignores
+                        # .ralph. An unguarded `cat` under `set -e` would end
+                        # the whole run there, with cat's own message as the
+                        # only diagnostic. `>&2` sends the dump to stderr first,
+                        # so the trailing `2>/dev/null` hides only cat's
+                        # complaint, and the loop reports the gap itself.
+                        if ! cat "$raw_file" >&2 2>/dev/null; then
+                            echo "[verbose] Raw stream unavailable: $raw_file" >&2
+                        fi
                     else
                         printf '%s\n' "$fallback_output" >&2
                     fi
@@ -1167,8 +1177,16 @@ cmd_loop() {
             # Run jq separately on captured output
             local jq_output=""
             local jq_exit=0
-            if [[ -n "$raw_file" ]]; then
+            if [[ -n "$raw_file" && -r "$raw_file" ]]; then
                 jq_output=$(jq "${BACKEND_JQ_FLAGS[@]}" "$BACKEND_JQ_FILTER" "$raw_file") || jq_exit=$?
+            elif [[ -n "$raw_file" ]]; then
+                # Same vanished file as the dump above, read a second time. jq
+                # would add "Could not open file" and exit 2, and the loop
+                # reports that as a parse failure and stops — a local file
+                # fault dressed up as a backend fault. The warning already
+                # named the file, so summarise nothing and keep going: the next
+                # iteration opens a fresh stream.
+                jq_output=""
             else
                 jq_output=$(printf '%s\n' "$fallback_output" \
                     | jq "${BACKEND_JQ_FLAGS[@]}" "$BACKEND_JQ_FILTER") || jq_exit=$?
