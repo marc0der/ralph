@@ -1139,8 +1139,14 @@ cmd_loop() {
             # nothing was rendered (no live filter) or the file is the per-run
             # temp file, which the next iteration truncates and the EXIT trap
             # deletes — a path the user cannot act on.
+            #
+            # "Retained" is decided by where the file sits, not by whether
+            # metrics are on: an unwritable metrics directory degrades a
+            # metrics-enabled run to that same temp file, so the prefix test is
+            # the only thing that keeps the pointer off a file the trap deletes.
             local stream_pointer=false
-            if $metrics_enabled && [[ -n "$raw_file" && -n "${BACKEND_JQ_LIVE:-}" ]]; then
+            if $metrics_enabled && [[ -n "${BACKEND_JQ_LIVE:-}" ]] \
+                && [[ -n "$metrics_dir" && "$raw_file" == "$metrics_dir/"* ]]; then
                 stream_pointer=true
             fi
 
