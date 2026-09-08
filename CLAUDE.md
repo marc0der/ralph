@@ -44,8 +44,8 @@ Ralph is a single Bash script (`ralph`) with these commands:
 2. Resolve backend via `-b` flag (default: `claude`), which loads the backend's command builder, default model, and jq filter
 3. Resolve prompt template: project-local `PROMPT_<mode>.md` → installed default (`~/.config/ralph/prompts/`)
 4. Substitute `{{GOAL}}` into prompt via bash parameter expansion
-5. Pipe prompt to the backend command in a loop (e.g., `claude -p` or `codex exec`)
-6. Parse JSON output with jq using backend-specific flags and filters, push changes after each iteration
+5. Pipe the prompt to the backend command in a loop (e.g., `claude -p` or `codex exec`), writing the raw backend stream to a file — `iter-NNN.stream.jsonl` in the run's directory under `.ralph/metrics/` when metrics are enabled, a per-run temp file otherwise
+6. Parse that stream file with the summary jq filter using backend-specific flags, push changes after each iteration. Under `--verbose` the stream is also teed through a per-backend live filter, which renders each tool call and assistant message to stderr as it arrives
 7. Detect an early exit. Build mode watches `HEAD` and stops after 2 consecutive noops, unless `-n` was passed. Plan mode never commits, so it fingerprints `IMPLEMENTATION_PLAN.md` plus `specs/` via `plan_state_hash` and stops on the first pass that changes neither; `-n` caps a plan run but never disables the check
 
 ### The implementation plan contract
@@ -90,7 +90,7 @@ Override with `RALPH_BIN_DIR` and `RALPH_CONFIG_DIR`.
 
 - All code lives in the single `ralph` script — no external shell libraries
 - Functions are named `cmd_<command>` for top-level commands
-- Backend definitions use `backend_<name>` functions that set well-known variables (`BACKEND_CLI`, `BACKEND_DEFAULT_MODEL`, etc.) and define a `build_backend_cmd` inner function — adding a new backend only requires a new function and a `SUPPORTED_BACKENDS` entry
+- Backend definitions use `backend_<name>` functions that set well-known variables (`BACKEND_CLI`, `BACKEND_DEFAULT_MODEL`, `BACKEND_JQ_LIVE`, etc.) and define a `build_backend_cmd` inner function — adding a new backend only requires a new function and a `SUPPORTED_BACKENDS` entry
 - Use `command -v` to check for CLI dependencies
 - Validate early, fail with clear error messages to stderr
 - Cross-platform: support both Linux (`md5sum`) and macOS (`md5`) where needed
