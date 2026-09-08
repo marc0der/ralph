@@ -1024,10 +1024,13 @@ cmd_loop() {
     }
 
     # One temp file backs the raw backend stream for the whole run when
-    # metrics are off. mktemp is allowed to fail: the path then stays empty and
-    # the loop degrades rather than aborting under `set -euo pipefail`.
+    # metrics are off. The template is explicit because argless `mktemp` is a
+    # GNU extension that fails on BSD and macOS, which would silently strand
+    # every --no-metrics run on the variable-capture branch. mktemp is still
+    # allowed to fail: the path then stays empty and the loop degrades rather
+    # than aborting under `set -euo pipefail`.
     local temp_stream=""
-    temp_stream=$(mktemp 2>/dev/null) || temp_stream=""
+    temp_stream=$(mktemp "${TMPDIR:-/tmp}/ralph.XXXXXXXXXX" 2>/dev/null) || temp_stream=""
 
     # Remove the temp file on every exit path. The path is expanded now, so the
     # trap does not depend on cmd_loop's locals still being in scope. This sits
