@@ -48,11 +48,18 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `--skip-push`        | Don't push after each build iteration (plan never pushes) |
 | `--dry-run`          | Print what would be executed without running              |
 | `--no-metrics`       | Don't record per-iteration metrics under `.ralph/metrics/` |
+| `-v`, `--verbose`    | Stream backend activity live, and show commands, exit codes and the raw stream path |
 | `-h`, `--help`       | Show help                                                |
 
 ### Loop metrics
 
 Every real (non-dry-run) `plan` or `build` run records one JSON line per iteration to `.ralph/metrics/<branch>-<timestamp>-<pid>/metrics.jsonl`, alongside the raw backend event stream (`iter-NNN.stream.jsonl`) for deeper analysis. Captured per iteration: wall-clock and API duration, turn count, cost (USD), token usage (input, output, cache read/write), git activity (commits, files changed, insertions/deletions), `IMPLEMENTATION_PLAN.md` items completed, a tool-call histogram, and a noop flag. The loop prints a one-line summary after each iteration, and `ralph metrics` prints the per-iteration table and run totals. Result-event fields are populated for the `claude` backend; other backends record timing and git activity with the rest as nulls. `.ralph/` is gitignored by `ralph init`, so metrics never touch the working tree the loop commits from.
+
+### Live backend output
+
+A normal run stays quiet while the backend works and prints one summary line per iteration, once the backend has exited. `--verbose` renders the backend's event stream as it arrives instead: one short line per tool call (`→ Bash ls -la`) and per assistant message, so a long iteration shows what it is doing while it does it. It also prints the backend command and the per-iteration exit codes, and points at the retained `iter-NNN.stream.jsonl` the live lines were rendered from instead of re-printing it.
+
+Live rendering needs a per-backend stream filter, which `claude` and `pi` ship. Backends without one (`codex`, `copilot`) keep the older form: `--verbose` dumps the raw stream after the iteration. So does any run whose stream is not retained, such as `--no-metrics`, since there is no lasting path to name. Rendered lines and diagnostics go to stderr, so the iteration summaries on stdout stay pipeable.
 
 ### Examples
 
