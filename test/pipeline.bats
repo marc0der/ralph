@@ -587,7 +587,10 @@ MOCK
 
 # With metrics off the stream lives in the per-run temp file, which the EXIT
 # trap deletes — so a pointer to it would name a file the user cannot open.
-@test "--no-metrics --verbose keeps the raw dump and leaves no temp file behind" {
+# Rendering is unaffected by that, though: --no-metrics only removes the path.
+# Keying the dump on retention made this run render every event live and then
+# print the whole stream again, burying the live output it had just produced.
+@test "--no-metrics --verbose renders live and names no stream" {
     "$RALPH" init
     create_streaming_backend
     mkdir -p "$TEST_DIR/tmp"
@@ -596,8 +599,12 @@ MOCK
         PATH="$TEST_DIR/bin:$PATH" \
         run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics --verbose
     [[ "$status" -eq 0 ]]
-    [[ "$stderr" == *"[verbose] Raw backend output:"* ]]
-    [[ "$stderr" == *'"type":"result"'* ]]
+    [[ "$stderr" == *"→ Bash ls -la"* ]]
+    [[ "$stderr" == *"[verbose] Raw stream not retained"* ]]
+    # One form per iteration: the rendered lines are the output, so neither the
+    # dump header nor any raw event body may follow them.
+    [[ "$stderr" != *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" != *'"type":"result"'* ]]
     [[ "$stderr" != *"[verbose] Raw stream:"* ]]
     # The mock listed $TMPDIR mid-iteration, so the stream file has to be there:
     # an explicit mktemp template is what makes the temp path exist at all, and
@@ -612,7 +619,7 @@ MOCK
 # file --no-metrics uses, while metrics stay nominally requested. The pointer
 # has to follow the file, not the flag: a path under a directory the run never
 # created, or one the EXIT trap deletes, is a path the user cannot open.
-@test "unwritable metrics keeps the raw dump under --verbose" {
+@test "unwritable metrics renders live and names no stream" {
     "$RALPH" init
     create_streaming_backend
 
@@ -628,8 +635,10 @@ MOCK
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *"metrics disabled for this run"* ]]
     [[ "$stderr" != *"[verbose] Raw stream:"* ]]
-    [[ "$stderr" == *"[verbose] Raw backend output:"* ]]
-    [[ "$stderr" == *'"type":"result"'* ]]
+    [[ "$stderr" == *"[verbose] Raw stream not retained"* ]]
+    [[ "$stderr" == *"→ Bash ls -la"* ]]
+    [[ "$stderr" != *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" != *'"type":"result"'* ]]
 }
 
 # The case above never reaches the degrade path: a failed `mkdir -p` disables
@@ -638,7 +647,7 @@ MOCK
 # reports success for the metrics directory without creating it, which denies
 # the write even when tests run as root. Only here does the pointer condition
 # have to look at where `raw_file` sits rather than at the metrics flag.
-@test "a metrics run degraded to the temp file keeps the raw dump" {
+@test "a metrics run degraded to the temp file names no stream" {
     "$RALPH" init
     create_streaming_backend
 
@@ -662,10 +671,13 @@ MOCK
     [[ "$output" == *"Metrics: .ralph/metrics/"* ]]
     [[ "$stderr" == *"metrics capture failed for iteration 1"* ]]
     # The stream fell back to the per-run temp file, which the EXIT trap
-    # deletes, so its path must not be offered as something to inspect.
+    # deletes, so its path must not be offered as something to inspect. The
+    # renderer still ran, so the live lines stay the iteration's only form.
     [[ "$stderr" != *"[verbose] Raw stream:"* ]]
-    [[ "$stderr" == *"[verbose] Raw backend output:"* ]]
-    [[ "$stderr" == *'"type":"result"'* ]]
+    [[ "$stderr" == *"[verbose] Raw stream not retained"* ]]
+    [[ "$stderr" == *"→ Bash ls -la"* ]]
+    [[ "$stderr" != *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" != *'"type":"result"'* ]]
     # The degrade is a decision, not a fault, so it must be silent apart from
     # ralph's own metrics warning. Bash applies redirections left to right, so
     # the writability probe used to open the file before 2>/dev/null could
