@@ -492,6 +492,66 @@ MOCK
     [[ "$output" == *"done here"* ]]
 }
 
+# --- Verbose mode: raw stream pointer vs raw dump ---
+
+# Section 7 of the spec gives --verbose two mutually exclusive forms per
+# iteration. A stream the run retains and has already rendered live prints as a
+# one-line path, because re-printing it would bury the live output. Everything
+# else keeps the raw dump. These tests pin which form each case gets, so a
+# change to one condition cannot silently collapse both into the same output.
+
+@test "--verbose prints the raw stream path, not the raw JSON body" {
+    "$RALPH" init
+    create_streaming_backend
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"[verbose] Raw stream:"* ]]
+    [[ "$stderr" == *"iter-001.stream.jsonl"* ]]
+    [[ "$stderr" != *"[verbose] Raw backend output:"* ]]
+    # The rendered lines carry no JSON punctuation, so a raw event on fd 2 can
+    # only have come from a dump the pointer was meant to replace.
+    [[ "$stderr" != *'"type":"assistant"'* ]]
+}
+
+# codex ships no BACKEND_JQ_LIVE, so nothing rendered live and the dump is the
+# only way to see the stream. The mock must not read stdin: codex sets
+# BACKEND_STDIN_PROMPT=false, so nothing feeds the pipe and a `cat` would block.
+@test "a backend without a live filter keeps the raw dump under --verbose" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/codex" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"codex done"}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/codex"
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 -b codex --skip-push --verbose
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"codex done"* ]]
+    [[ "$stderr" == *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" == *'"type":"item.completed"'* ]]
+    [[ "$stderr" != *"[verbose] Raw stream:"* ]]
+}
+
+# With metrics off the stream lives in the per-run temp file, which the EXIT
+# trap deletes — so a pointer to it would name a file the user cannot open.
+@test "--no-metrics --verbose keeps the raw dump and leaves no temp file behind" {
+    "$RALPH" init
+    create_streaming_backend
+    mkdir -p "$TEST_DIR/tmp"
+
+    TMPDIR="$TEST_DIR/tmp" PATH="$TEST_DIR/bin:$PATH" \
+        run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics --verbose
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" == *'"type":"result"'* ]]
+    [[ "$stderr" != *"[verbose] Raw stream:"* ]]
+    # mktemp names the stream tmp.XXXXXXXXXX; ralph is the only mktemp caller,
+    # so anything left under this private TMPDIR is a leaked stream file.
+    [[ -z "$(find "$TEST_DIR/tmp" -maxdepth 1 -name 'tmp.*' -print -quit)" ]]
+}
+
 # --- Noop early exit ---
 
 @test "build exits early after 2 consecutive noops" {
