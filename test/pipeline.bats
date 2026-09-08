@@ -492,6 +492,27 @@ MOCK
     [[ "$output" == *"done here"* ]]
 }
 
+# jq's `//` substitutes null and false only, so it never guards against a field
+# arriving with the wrong type. A raise inside the content iteration discards
+# every *remaining* item of that event, so one odd tool input used to swallow
+# the assistant text that followed it. Both halves are asserted here.
+@test "--verbose renders a tool call whose input has the wrong type" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"before it"},{"type":"tool_use","id":"t1","name":"Bash","input":{"command":["ls","-la"]}},{"type":"text","text":"after it"}]}}'
+echo '{"type":"result","subtype":"success","duration_ms":1234,"result":"done here"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *'→ Bash ["ls","-la"]'* ]]
+    [[ "$stderr" == *"after it"* ]]
+}
+
 # --- Verbose mode: raw stream pointer vs raw dump ---
 
 # Section 7 of the spec gives --verbose two mutually exclusive forms per
