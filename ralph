@@ -44,9 +44,9 @@ if .type == "assistant" then
     (.message.content // [])[]
     | if .type == "tool_use" then
         "  \u2192 " + (.name // "?") + " " + ((.input.command // .input.file_path // .input.path
-          // .input.pattern // ((.input // {}) | tostring)) | oneline | trim(100))
+          // .input.pattern // ((.input // {}) | tostring)) | trim(100) | oneline)
       elif .type == "text" then
-        ((.text // "") | oneline | trim(300)) | if . == "" then empty else "  " + . end
+        ((.text // "") | trim(300) | oneline) | if . == "" then empty else "  " + . end
       else empty end
 elif .type == "result" then
     "  [result] " + (.subtype // "?") + " \u00b7 " + (((.duration_ms // 0) / 1000 | round) | tostring) + "s"
@@ -121,10 +121,10 @@ backend_pi() {
     BACKEND_JQ_LIVE='
 if .type == "tool_execution_start" then
     "  \u2192 " + (.toolName // "?") + " " + ((.args.command // .args.file_path // .args.path
-      // .args.pattern // ((.args // {}) | tostring)) | oneline | trim(100))
+      // .args.pattern // ((.args // {}) | tostring)) | trim(100) | oneline)
 elif .type == "message_end" and .message.role == "assistant" then
     ((.message.content // []) | map(select(.type == "text") | .text // "") | join(" ")
-      | oneline | trim(300)) | if . == "" then empty else "  " + . end
+      | trim(300) | oneline) | if . == "" then empty else "  " + . end
 elif .type == "turn_start" then "  ---"
 else empty end'
     BACKEND_STDIN_PROMPT=true
