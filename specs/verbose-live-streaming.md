@@ -111,7 +111,7 @@ A write failure must never abort the iteration. Today metrics writes the raw fil
 - Before invoking the backend, confirm `$raw_file` is writable. If it is not, fall back to a temp file. If that also fails, fall back to today's command-substitution capture into a variable for that iteration.
 - A missing or empty `$raw_file` after the backend exits produces its own warning, naming the file. It must not reuse the backend-failure path (`ralph:1009-1013`) or the jq-failure path (`ralph:1025-1039`), because neither failure occurred.
 
-A full disk or a read-only `.ralph/metrics` therefore degrades one iteration's reporting. It never kills a 50-iteration run.
+A full disk or a read-only `.ralph/metrics` therefore degrades one iteration's reporting. It never kills a 50-iteration run. Section 8 records how the shipped code broke that guarantee and what restores it.
 
 ### 3. Live rendering, verbose only
 
@@ -247,6 +247,139 @@ The replacement is conditional. One rule covers both cases: print the pointer on
 
 The `--verbose` hint on jq parse failure (`ralph:1029`) changes with it, on the pointer path only: the raw stream is now a file to inspect, not output to re-read.
 
+### 8. A write failure must degrade the report, not the run
+
+Section 2 checks that `$raw_file` is writable **before** the backend starts. That does not cover a write that fails **during** the stream, which is the likely case: a disk that fills over a long run, a quota, or an `.ralph` directory the agent under test removes. Measured on the shipped code with `ulimit -f 8` standing in for a full disk:
+
+```
+Error: backend command failed on iteration 1 (exit code 153)
+```
+
+`> "$raw_file"` makes the backend itself the failing writer, so it dies of `SIGXFSZ` and the loop exits. Nothing degraded; the run is over, and a local disk fault is reported as a backend fault.
+
+`tee` does not behave that way. It absorbs the write error, keeps copying to its stdout, and reports the failure in its own exit status. Measured with a 20000-line producer:
+
+```
+prod | tee /dev/full         | tail -1   →  PIPESTATUS=(0 1 0), producer reached its end
+prod | tee <file, ulimit -f> | tail -1   →  PIPESTATUS=(0 1 0), producer reached its end
+```
+
+Both paths therefore route through `tee`. The non-verbose path becomes `run_backend 2> >(stderr_handler) | tee "$raw_file" > /dev/null`. The verbose path is unchanged. This supersedes "redirect straight to the file" in the Fix summary and in section 2.
+
+Three consequences follow.
+
+`st=("${PIPESTATUS[@]}")` must stay textually adjacent to `fi`. Any intervening statement, even a bare assignment, resets `PIPESTATUS` to `(0)` and turns every backend crash into a silent success.
+
+`${st[1]}` becomes a real signal and must not be discarded. A non-zero `tee` status means the stream on disk is short. The iteration continues, but the summary filter may then fail on a truncated final line, and that failure must not be fatal either: when the write failed, a jq parse error becomes a warning and an empty summary rather than an `exit`.
+
+The backend's stdout is a pipe on both paths. `cmd_loop` did this before the change as well, so nothing regresses, but it is now a recorded decision. A Node producer that calls `process.exit()` with pending asynchronous writes truncates on a pipe and not on a file — measured at 16132 of 100002 lines — and `claude` and `pi` are Node programs. A uniform pipe at least keeps `--verbose` from changing what the backend sees. Detecting that truncation is out of scope, and `${st[1]}` does not report it.
+
+Every read of `$raw_file` must be guarded. The verbose raw dump reads it with a bare `cat` under `set -euo pipefail`, so a stream file removed between the write and the dump ends the run with `cat: ...: No such file or directory` as the only diagnostic — no ralph error, no further iterations. Reproduced with a backend that removes `.ralph/metrics`, which `git clean -xfd` also does, because `ralph init` gitignores `.ralph`.
+
+The writability probes carry a related defect. `! : > "$raw_file" 2>/dev/null` cannot suppress what it exists to suppress: bash applies `> "$raw_file"` first and reports the failed open on the still-live fd 2. The redirect must sit inside a brace group, as `! { : > "$raw_file"; } 2>/dev/null`.
+
+### 9. A dead renderer must be visible
+
+Section 3 hides jq's diagnostics with `2>/dev/null` and masks its status with `|| cat >/dev/null`, and section 7 prints the pointer without checking that anything rendered. Together they make every renderer failure silent, and they let `--verbose` print **less** than it did before this change:
+
+```
+printf '{"type":"result"}\n' | { jq -rR --unbuffered 'this is not valid jq' >&2 2>/dev/null || cat >/dev/null; }
+→ no output, exit 0
+```
+
+A typo in a future `BACKEND_JQ_LIVE`, or a jq built without Oniguruma so `gsub` is absent, then leaves a verbose iteration printing only `[verbose] Raw stream: <path>`.
+
+The renderer group must report a status: `{ jq ... >&2 2>/dev/null || { cat >/dev/null; false; }; }`. The drain is preserved, and `${st[2]}` now carries the result. A non-zero renderer status clears `stream_pointer`, warns, and restores the raw dump, because nothing was rendered for the pointer to replace.
+
+### 10. Live filter values must be trimmed first and coerced
+
+Two defects in the section 6 filters.
+
+`oneline | trim($n)` runs `gsub` across the whole payload before the trim discards it. `gsub` is super-linear, and jq is the terminal stage of the tee pipeline, so the stall fills the pipe, blocks `tee`, and blocks the backend. `--verbose` throttles the agent it is watching. Measured on one event:
+
+| payload | `oneline \| trim(100)` | `trim(100) \| oneline` |
+|---|---|---|
+| 8 KB | 0.05s | 0.01s |
+| 32 KB | 0.59s | 0.01s |
+| 64 KB | 2.20s | 0.01s |
+| 128 KB | 9.05s | 0.01s |
+
+The order is therefore `trim($n) | oneline` at every call site. `Bash`, `Read`, `Edit`, `Write` and `Grep` escape the cost through `.input.command`, `.input.file_path`, `.input.path` and `.input.pattern`. `Task`, `TodoWrite`, `ExitPlanMode`, `WebFetch` and every `mcp__*` tool fall through to `tostring` and do not.
+
+Second, section 6 requires that a filter never assume a field exists, and the shipped comment claims every field read is guarded. Neither holds. `//` substitutes `null` and `false` only, not a wrong type, so `.input` as a string, `.input.command` as an array, `.name` as a number, `.message.content` as a string and `.duration_ms` as a string all raise. A raise discards the **remaining** content items of that event, not only the current one: for `[text "AAA", bad tool_use, text "CCC"]` jq emits `AAA` and loses `CCC`. Every rendered value therefore passes through `tostring`, and every content iteration tests `type == "array"` first. The section 6 samples predate this rule and are illustrative only.
+
+### 11. The temp stream file needs an explicit template
+
+`mktemp` with no argument is a GNU coreutils extension. BSD and macOS require a template, or `-t prefix`, and exit non-zero without one. On macOS `temp_stream` is therefore always empty, so every `--no-metrics` run — and every metrics run whose stream file is unwritable — falls to the `raw_file=""` variable-capture branch. The tee path requires a non-empty `raw_file`, so live streaming, the point of this change, never happens and nothing says so. CI runs `ubuntu-latest` only, so no test catches it.
+
+`CLAUDE.md` and `AGENTS.md` require cross-platform support, and `ralph` already carries the pattern at its `md5sum`/`md5` fallback. Use `mktemp "${TMPDIR:-/tmp}/ralph.XXXXXXXXXX"`.
+
+### 12. Backend stderr framing
+
+`stderr_handler` prints `=== Backend stderr ===`, then blocks in `cat` for the whole iteration while the renderer writes to the same descriptor. Every live line is framed as backend stderr on the default `claude --verbose` path, even when the backend writes nothing to stderr at all. Real stderr and rendered lines then sit side by side in one block, indistinguishable.
+
+The handler must print the opening marker only when a first line arrives, and the closing marker only if one did.
+
+One limitation is accepted rather than fixed. Command substitution used to join the stderr process substitution implicitly, because the handler held the write end of the capture pipe. A plain redirect does not, and bash does not reap a process substitution, so a backend that forks a child holding stderr can deliver lines after the iteration summary:
+
+```
+Completed 1 iterations.
+LATE-BACKEND-STDERR-1
+```
+
+Ordering backend stderr against loop output is out of scope. Marker gating removes the visible symptom in the common case, where the handler exits as soon as the backend does.
+
+### 13. Every backend must assign `BACKEND_JQ_LIVE`
+
+`BACKEND_JQ_LIVE` is the only well-known `BACKEND_*` variable that some backend functions leave unset, and both read sites spell it `${BACKEND_JQ_LIVE:-}`. `resolve_backend` never initialises or clears it, so an exported value from the process environment reaches the filter:
+
+```
+BACKEND_JQ_LIVE='if .item.type=="agent_message" then "  LEAKED " + .item.text else empty end' \
+  ralph build -b codex --skip-push --verbose
+→   LEAKED codex done
+→ [verbose] Raw stream: .ralph/metrics/<run>/iter-001.stream.jsonl
+```
+
+An ambient export — a leftover shell variable, a CI env block, a devcontainer `remoteEnv` entry — therefore chooses which code path a backend takes and which diagnostics it prints. This spec also amended `CLAUDE.md` and `AGENTS.md` to advertise `BACKEND_JQ_LIVE` as a variable each backend function sets, which is a contract nothing enforces and half the backends break.
+
+`backend_codex` and `backend_copilot` assign `BACKEND_JQ_LIVE=""`, alongside the other well-known variables they already set. Both read sites then drop the `:-` default, so `set -u` fails loudly if a future backend forgets the assignment instead of silently inheriting the environment.
+
+### 14. The `EXIT` trap must not interpolate its path
+
+`trap "rm -f -- '$temp_stream'" EXIT` expands the path eagerly into hand-written single quotes, and `mktemp` honours `$TMPDIR`. A single quote in that path breaks the trap, and a command substitution in it runs:
+
+```
+TMPDIR="/tmp/o'brien"          → exit trap: unexpected EOF while looking for matching "'"
+                                 temp file leaks, exit status rewritten from 0 to 2
+TMPDIR="$W/q'\$(touch $W/X)'z"  → the substitution executes at exit, rc 0, no warning
+```
+
+A clean `ralph build` that reports 2 to CI is the practical damage; the substitution is the same defect seen from the other side. The `SC2064` suppression is right that `cmd_loop`'s local is gone by exit time, but eager expansion is the wrong remedy. Assign the path to a script-scoped variable and defer expansion: `trap 'rm -f -- "$RALPH_TEMP_STREAM"' EXIT`.
+
+### 15. Diagnostics must name something the user can open
+
+Three defects share one cause: the code decides what to name from the wrong fact.
+
+The jq-failure hint keys on `stream_pointer`, which requires `BACKEND_JQ_LIVE`. With `-b codex` and metrics on, the stream is retained and the hint still says `re-run with --verbose to see raw backend output`, which costs a whole backend iteration to reproduce bytes already on disk. Retention, not the presence of a live filter, decides the hint. Introduce `stream_retained` — `$raw_file` is non-empty and sits under `$metrics_dir` — and key the hint on that. `stream_pointer` keeps its own meaning for section 16.
+
+The backend-failure hint advises `--verbose for full diagnostics` even when `--verbose` is already on, and `exit "$backend_exit"` runs before the dump block, so a failing verbose iteration prints neither the raw output nor the path to the partial stream just written. Emit the section 16 verbose output before the backend-failure check, and name the retained stream in that hint too.
+
+The empty-stream warning names `$raw_file` unconditionally, so on the temp-file path it prints a `/tmp/tmp.XXXXXXXXXX` path that the `EXIT` trap deletes before the prompt returns — the same path section 7 argues at length must never be offered. It is also not gated on `$verbose`, so a plain `ralph build --no-metrics` prints a dead path once per iteration. Name the file only when `stream_retained` is true, and otherwise describe it as the per-run temp stream.
+
+The same guard skips the warning entirely in the worst degradation. When `raw_file` is empty, nothing warns, and `write_iteration_metrics` receives `""`; `jq -cs` then exits 2, `backend_summary` falls back to `{}`, and the record is written with `api_s`, `turns`, `cost_usd`, `tokens`, `session_id`, `result_status` and `tools` **absent** rather than null. `ralph metrics` renders that iteration as free, so run cost and token totals are silently understated. Warn on the empty case, and pass `/dev/null` to `write_iteration_metrics` rather than an empty path.
+
+### 16. One verbose form per iteration
+
+Section 7 replaced the raw dump with a pointer because re-printing a stream the user has just watched only buries the live output. The shipped condition does not honour that rule: the tee path needs a writable `raw_file`, while `stream_pointer` also needs metrics, so `--no-metrics --verbose` renders live **and** re-dumps the whole stream. `README.md` compounds it by implying `--no-metrics` keeps the older, non-live form.
+
+The rule is retention-independent. Per verbose iteration print exactly one of:
+
+- **Renderer ran, stream retained** — `[verbose] Raw stream: <path>`.
+- **Renderer ran, stream not retained** — `[verbose] Raw stream not retained` and nothing else. The live lines are the output; the temp path is not offerable.
+- **Renderer did not run, or failed** — the raw dump, as before. This covers `codex` and `copilot`, which ship no live filter, and the section 9 failure case.
+
+`README.md` changes with it: `--no-metrics` does not disable live rendering, it only removes the retained path.
+
 ## Extensibility
 
 `BACKEND_JQ_LIVE` joins the existing well-known variables set by each `backend_<name>` function. Adding a backend still requires only that function plus a `SUPPORTED_BACKENDS` entry, and `cmd_loop` needs no change. The live filter is optional, per section 6.
@@ -309,6 +442,28 @@ exit "${MOCK_EXIT:-0}"
 - **Metrics still parse from the file**: with metrics on, assert `metrics.jsonl` records the tool histogram, confirming the metrics reader works against the loop-written file.
 - **Live lines arrive before the backend exits**: with `MOCK_DELAY` set to a few seconds and `MOCK_SENTINEL` pointing at a path that does not yet exist, run the loop in the background and poll for `→ Bash ls -la` in the captured stderr. Assert it appears while `$MOCK_SENTINEL` is still absent. This is the only test that distinguishes live rendering from a whole-stream capture rendered at the end, and it is the regression test for `--unbuffered`.
 - **Backend stderr stays out of the raw stream**: a mock that writes to stderr as well as stdout; with `--verbose`, assert every line of `$raw_file` parses as JSON. This is the regression test for the `stderr_handler` contract in section 1.
+
+### New tests, sections 8 to 12
+
+- **Non-JSON stdout does not truncate the stream** — the section 4 test, still missing. A mock whose first stdout line is not JSON, followed by valid events; assert the stream file holds every emitted line and that an event after the bad line still rendered. The run exits non-zero, because the non-slurping claude summary filter fails on that line. The earlier bullet asking for exit 0 is wrong and is superseded here.
+- **A stream write failure leaves the loop running** — run under `ulimit -f`; assert the run reports a stream write warning and no backend failure.
+- **A missing stream file does not stop the loop** — a backend that removes the metrics directory; assert a later iteration still runs.
+- **A degraded metrics run prints no shell redirection error** — assert `No such file or directory` is absent from stderr.
+- **A broken live filter falls back to the raw dump** — a `jq` shim that fails for `-rR` calls and execs the real binary otherwise; assert the raw dump appears and the pointer does not.
+- **No stderr markers without backend stderr** — assert the markers are absent while a rendered line is present.
+- **A wrong field type still renders** — a `tool_use` whose `input.command` is an array; assert one rendered line.
+- **The temp stream file uses the ralph template** — assert a `ralph.*` file exists while the backend runs, and none after.
+
+### New tests, sections 13 to 16
+
+- **An exported `BACKEND_JQ_LIVE` does not reach a backend that ships none** — export a filter, run `-b codex --verbose`, assert the raw dump and no rendered line.
+- **A quoted `TMPDIR` does not break the exit trap** — run with a single quote in `$TMPDIR`; assert status 0 and no leaked temp file.
+- **A retained stream is named in the jq-failure hint** — `-b codex` with metrics on and an unparseable stream; assert the hint names `iter-001.stream.jsonl`.
+- **A failing backend still shows its stream under verbose** — `MOCK_EXIT=42` with `--verbose`; assert the pointer or the dump appears before the error.
+- **The empty-stream warning names no temp path** — `--no-metrics` with a silent backend; assert `/tmp` is absent from the warning.
+- **`--no-metrics --verbose` renders live and does not dump** — assert a rendered line, `Raw stream not retained`, and no raw JSON body.
+- **The variable-capture branch still summarises** — a `mktemp` shim that fails, with `--no-metrics`; assert the summary prints and no line renders.
+- **The pi live filter renders** — a pi-shaped mock emitting `tool_execution_start`; assert `$stderr` holds the rendered tool line.
 
 ### Existing tests
 
