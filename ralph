@@ -1185,9 +1185,15 @@ cmd_loop() {
             # assignment, resets the array to (0) and turns every backend crash
             # into a silent success.
             local backend_exit=0 fallback_output="" st=() stream_write_failed=false
-            local live_render_failed=false
-            set +e
+            local live_render_failed=false live_render=false
+            # Decide the branch once and record it: the verbose report below
+            # keys on whether the renderer ran, and re-deriving that condition
+            # there let the two drift apart.
             if [[ -n "$raw_file" ]] && $verbose && [[ -n "$BACKEND_JQ_LIVE" ]]; then
+                live_render=true
+            fi
+            set +e
+            if $live_render; then
                 run_backend 2> >(stderr_handler) \
                     | tee "$raw_file" \
                     | { jq -rR --unbuffered \
@@ -1256,25 +1262,35 @@ cmd_loop() {
                 fi
             fi
 
-            # A retained stream that the user has already watched render live
-            # needs a path, not a second copy: re-printing it only buries the
-            # live output. Every other verbose case keeps the raw dump, because
-            # nothing was rendered (no live filter) or the file is the per-run
-            # temp file, which the next iteration truncates and the EXIT trap
-            # deletes — a path the user cannot act on.
+            # A stream the user has just watched render live needs no second
+            # copy: re-printing it only buries the live output. So a verbose
+            # iteration prints exactly one form, and rendering decides which.
             #
-            # A renderer that died rendered nothing, so the pointer has nothing
-            # to replace and the dump comes back.
-            local stream_pointer=false
-            if $stream_retained && [[ -n "$BACKEND_JQ_LIVE" ]] \
-                && ! $live_render_failed; then
-                stream_pointer=true
+            # Retention only decides whether that form may name a file. The
+            # non-retained stream is the per-run temp file, which the next
+            # iteration truncates and the EXIT trap deletes, so it is reported
+            # as not retained rather than pointed at. Keying the dump on
+            # retention instead made `--no-metrics --verbose` render live *and*
+            # dump the same bytes again, which is the one outcome section 7
+            # replaced the dump to avoid.
+            #
+            # A renderer that never ran (no live filter, as with codex and
+            # copilot) or died rendered nothing, so the dump is that
+            # iteration's only form.
+            local stream_rendered=false stream_pointer=false
+            if $live_render && ! $live_render_failed; then
+                stream_rendered=true
+                if $stream_retained; then
+                    stream_pointer=true
+                fi
             fi
 
             # Verbose: show raw backend output before jq
             if $verbose; then
                 if $stream_pointer; then
                     echo "[verbose] Raw stream: $raw_file" >&2
+                elif $stream_rendered; then
+                    echo "[verbose] Raw stream not retained" >&2
                 else
                     echo "[verbose] Raw backend output:" >&2
                     if [[ -n "$raw_file" ]]; then
