@@ -552,6 +552,66 @@ MOCK
     [[ -z "$(find "$TEST_DIR/tmp" -maxdepth 1 -name 'tmp.*' -print -quit)" ]]
 }
 
+# An unwritable metrics directory degrades the run to the same per-run temp
+# file --no-metrics uses, while metrics stay nominally requested. The pointer
+# has to follow the file, not the flag: a path under a directory the run never
+# created, or one the EXIT trap deletes, is a path the user cannot open.
+@test "unwritable metrics keeps the raw dump under --verbose" {
+    "$RALPH" init
+    create_streaming_backend
+
+    # A file squatting on the path denies the mkdir even when tests run as
+    # root, where chmod-based denial does not bite (same idiom as
+    # test/metrics.bats "metrics failure does not fail the loop").
+    mkdir -p .ralph
+    touch .ralph/metrics
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    rm -f .ralph/metrics
+
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"metrics disabled for this run"* ]]
+    [[ "$stderr" != *"[verbose] Raw stream:"* ]]
+    [[ "$stderr" == *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" == *'"type":"result"'* ]]
+}
+
+# The case above never reaches the degrade path: a failed `mkdir -p` disables
+# metrics outright, so the pointer was already off. This one holds metrics
+# enabled while the stream file underneath is unwritable — a `mkdir` shim
+# reports success for the metrics directory without creating it, which denies
+# the write even when tests run as root. Only here does the pointer condition
+# have to look at where `raw_file` sits rather than at the metrics flag.
+@test "a metrics run degraded to the temp file keeps the raw dump" {
+    "$RALPH" init
+    create_streaming_backend
+
+    local real_mkdir
+    real_mkdir=$(command -v mkdir)
+    {
+        printf '#!/usr/bin/env bash\nREAL_MKDIR=%q\n' "$real_mkdir"
+        cat <<'MOCK'
+for arg in "$@"; do
+    case "$arg" in */metrics/*) exit 0 ;; esac
+done
+exec "$REAL_MKDIR" "$@"
+MOCK
+    } > "$TEST_DIR/bin/mkdir"
+    chmod +x "$TEST_DIR/bin/mkdir"
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    [[ "$status" -eq 0 ]]
+    # Metrics stayed enabled: the run still announced its metrics file and only
+    # failed when it tried to write into the directory that was never created.
+    [[ "$output" == *"Metrics: .ralph/metrics/"* ]]
+    [[ "$stderr" == *"metrics capture failed for iteration 1"* ]]
+    # The stream fell back to the per-run temp file, which the EXIT trap
+    # deletes, so its path must not be offered as something to inspect.
+    [[ "$stderr" != *"[verbose] Raw stream:"* ]]
+    [[ "$stderr" == *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" == *'"type":"result"'* ]]
+}
+
 # --- Verbose mode: live immediacy ---
 
 # The only test that can tell live rendering from a whole-stream capture
