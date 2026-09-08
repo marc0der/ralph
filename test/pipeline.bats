@@ -772,6 +772,13 @@ MOCK
     [[ "$stderr" == *"backend command failed"* ]]
     [[ "$stderr" == *"iteration 1"* ]]
     [[ "$stderr" == *"exit code 42"* ]]
+    # The failing iteration is the one whose stream the user most needs, and it
+    # is the only iteration that never reaches the summary, so the verbose
+    # stream output has to come before the exit rather than after it. Splitting
+    # on the error line proves the ordering, not just the presence of both.
+    [[ "$stderr" == *"iter-001.stream.jsonl"* ]]
+    before_error="${stderr%%Error: backend command failed*}"
+    [[ "$before_error" == *"[verbose] Raw stream:"* ]]
 }
 
 # Wrap the helper's mock so the backend writes to stderr as well as emitting
