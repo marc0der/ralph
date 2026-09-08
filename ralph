@@ -73,6 +73,10 @@ backend_codex() {
     BACKEND_PERMISSION_WARNING="Codex will have unrestricted access to tools (file writes, shell commands, etc)."
     BACKEND_JQ_FLAGS=(-rs)
     BACKEND_JQ_FILTER='(map(select(.item.type == "agent_message")) | last | .item.text // null) // ([ .[] | select(.item.type == "command_execution" and .item.status == "completed") | "$ " + .item.command + "\n" + (.item.aggregated_output // "") ] | join("\n") | if . == "" then null else . end) // empty'
+    # No live renderer yet. The assignment is not decoration: cmd_loop reads
+    # this variable unguarded, so leaving it unset would let an exported
+    # BACKEND_JQ_LIVE from the environment pick this backend's code path.
+    BACKEND_JQ_LIVE=""
     BACKEND_STDIN_PROMPT=false
     # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
     build_backend_cmd() {
@@ -90,6 +94,8 @@ backend_copilot() {
     BACKEND_PERMISSION_WARNING="Copilot will have unrestricted access to tools (file writes, shell commands, etc)."
     BACKEND_JQ_FLAGS=(-rs)
     BACKEND_JQ_FILTER='(map(select(.type == "assistant.message")) | last | .data.content // null) // ([ .[] | select(.type == "tool.execution_complete" and .data.success == true) | (.data.result.content // .data.result.detailedContent // "") ] | join("\n") | if . == "" then null else . end) // empty'
+    # No live renderer yet; assigned for the same reason as backend_codex.
+    BACKEND_JQ_LIVE=""
     BACKEND_STDIN_PROMPT=false
     # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
     build_backend_cmd() {
@@ -1159,7 +1165,7 @@ cmd_loop() {
             local backend_exit=0 fallback_output="" st=() stream_write_failed=false
             local live_render_failed=false
             set +e
-            if [[ -n "$raw_file" ]] && $verbose && [[ -n "${BACKEND_JQ_LIVE:-}" ]]; then
+            if [[ -n "$raw_file" ]] && $verbose && [[ -n "$BACKEND_JQ_LIVE" ]]; then
                 run_backend 2> >(stderr_handler) \
                     | tee "$raw_file" \
                     | { jq -rR --unbuffered \
@@ -1231,7 +1237,7 @@ cmd_loop() {
             # A renderer that died rendered nothing, so the pointer has nothing
             # to replace and the dump comes back.
             local stream_pointer=false
-            if $metrics_enabled && [[ -n "${BACKEND_JQ_LIVE:-}" ]] \
+            if $metrics_enabled && [[ -n "$BACKEND_JQ_LIVE" ]] \
                 && ! $live_render_failed \
                 && [[ -n "$metrics_dir" && "$raw_file" == "$metrics_dir/"* ]]; then
                 stream_pointer=true
