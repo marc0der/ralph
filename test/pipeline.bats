@@ -1342,3 +1342,51 @@ MOCK
     warning=$(printf '%s\n' "$stderr" | grep 'is missing or empty after iteration 1')
     [[ "$warning" != *"/"* ]]
 }
+
+# The last degradation step: no file was writable anywhere, so the iteration's
+# stream lives only in a shell variable. `mktemp` failing is the realistic
+# cause — a full or read-only $TMPDIR, or a BSD/macOS mktemp handed a template
+# it rejects — and with --no-metrics there is no second candidate to fall back
+# to. The tee path needs a real file, so the renderer cannot run here; the dump
+# of the captured variable is the only form --verbose can print, and the
+# summary must still reach stdout from that same variable.
+@test "the variable capture fallback still summarises under --verbose" {
+    "$RALPH" init
+    create_streaming_backend
+    mkdir -p "$TEST_DIR/tmp"
+
+    # The shim fails only for ralph's own template and execs the real binary
+    # otherwise (same idiom as the mkdir and jq shims above). bats implements
+    # `run --separate-stderr` with mktemp of its own, and the PATH prefix on a
+    # function call stays in force for the whole call, so a shim that failed
+    # every invocation broke the harness instead of the run under test.
+    local real_mktemp
+    real_mktemp=$(command -v mktemp)
+    {
+        printf '#!/usr/bin/env bash\nREAL_MKTEMP=%q\n' "$real_mktemp"
+        cat <<'MOCK'
+for arg in "$@"; do
+    case "$arg" in *ralph.XXXXXXXXXX) exit 1 ;; esac
+done
+exec "$REAL_MKTEMP" "$@"
+MOCK
+    } > "$TEST_DIR/bin/mktemp"
+    chmod +x "$TEST_DIR/bin/mktemp"
+
+    TMPDIR="$TEST_DIR/tmp" PATH="$TEST_DIR/bin:$PATH" \
+        run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics --verbose
+    # Losing the stream file costs the record, never the iteration.
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"done here"* ]]
+    # The dump reads from the captured variable, not from a path.
+    [[ "$stderr" == *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" == *'"type":"result"'* ]]
+    [[ "$stderr" != *"[verbose] Raw stream unavailable"* ]]
+    # No writable file means no tee, so nothing rendered live and neither
+    # pointer form applies.
+    [[ "$stderr" != *"→ Bash ls -la"* ]]
+    [[ "$stderr" != *"[verbose] Raw stream:"* ]]
+    [[ "$stderr" != *"[verbose] Raw stream not retained"* ]]
+    # A failed mktemp must leave nothing behind for the EXIT trap to miss.
+    [[ -z "$(find "$TEST_DIR/tmp" -maxdepth 1 -name 'ralph.*' -print -quit)" ]]
+}
