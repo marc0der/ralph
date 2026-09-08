@@ -612,6 +612,39 @@ MOCK
     [[ "$stderr" == *'"type":"result"'* ]]
 }
 
+# `ralph init` gitignores .ralph, so an agent that tidies with `git clean -xfd`
+# — or that removes .ralph itself — takes the stream file with it while the
+# iteration is still running. The write survives (the fd outlives the unlink),
+# but every later read by path fails. Under `set -euo pipefail` the unguarded
+# `cat` in the verbose dump killed the run outright, with cat's own message as
+# the only diagnostic and no further iterations. Both reads of the path are now
+# guarded, so a local file fault degrades one iteration instead of the run.
+@test "a removed stream file does not stop the loop under --verbose" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    # codex ships no live filter, so this takes the raw-dump branch — the one
+    # that reads the file back. BACKEND_STDIN_PROMPT=false for codex, so the
+    # mock must not read stdin or it would block.
+    cat > "$TEST_DIR/bin/codex" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"codex done"}}'
+rm -rf .ralph/metrics
+MOCK
+    chmod +x "$TEST_DIR/bin/codex"
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 2 -b codex --skip-push --verbose
+    [[ "$status" -eq 0 ]]
+    # Reaching iteration 2 is the whole point: before the guards the run ended
+    # inside iteration 1.
+    [[ "$output" == *"ITERATION 2 / 2"* ]]
+    [[ "$stderr" == *"[verbose] Raw stream unavailable:"* ]]
+    [[ "$stderr" == *"iter-001.stream.jsonl"* ]]
+    # cat's own complaint is the diagnostic the guard replaces; the loop's
+    # warning names the file instead.
+    [[ "$stderr" == *"is missing or empty after iteration 1"* ]]
+    run ! grep -q 'cat:.*No such file or directory' <<<"$stderr"
+}
+
 # --- Verbose mode: exit codes and stderr isolation ---
 
 # The tee pipeline puts two more processes between the backend and the shell,
