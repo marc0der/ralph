@@ -1217,23 +1217,6 @@ cmd_loop() {
                 live_render_failed=true
             fi
 
-            if [[ $backend_exit -ne 0 ]]; then
-                echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
-                # The failing iteration already wrote a partial stream. When the
-                # run retains it, that file is the backend's own account of the
-                # failure, so name it instead of charging the user another
-                # iteration to reproduce bytes already on disk. Advising
-                # --verbose is noise once --verbose is on.
-                local backend_hint="Hint: re-run with --dry-run to inspect the prompt"
-                if $stream_retained; then
-                    backend_hint="Hint: inspect the raw backend stream at $raw_file, or re-run with --dry-run to inspect the prompt"
-                elif ! $verbose; then
-                    backend_hint="$backend_hint, or --verbose for full diagnostics"
-                fi
-                echo "$backend_hint" >&2
-                exit "$backend_exit"
-            fi
-
             # A short write is a local fault, not a backend fault: the backend
             # reached its own end and only the copy on disk is truncated. Say so
             # and carry on — the iteration keeps its work, and only this
@@ -1292,6 +1275,30 @@ cmd_loop() {
                         printf '%s\n' "$fallback_output" >&2
                     fi
                 fi
+            fi
+
+            # This check runs after the verbose stream output, not before it.
+            # A failing iteration is the one whose stream the user most needs,
+            # and it is the only iteration that never reaches the code below,
+            # so an earlier exit here printed neither the partial stream nor a
+            # path to it — --verbose bought nothing on the run it was turned on
+            # for. Every statement above only reports; the failure branch stays
+            # the first one that ends the run.
+            if [[ $backend_exit -ne 0 ]]; then
+                echo "Error: backend command failed on iteration $iteration (exit code $backend_exit)" >&2
+                # The failing iteration already wrote a partial stream. When the
+                # run retains it, that file is the backend's own account of the
+                # failure, so name it instead of charging the user another
+                # iteration to reproduce bytes already on disk. Advising
+                # --verbose is noise once --verbose is on.
+                local backend_hint="Hint: re-run with --dry-run to inspect the prompt"
+                if $stream_retained; then
+                    backend_hint="Hint: inspect the raw backend stream at $raw_file, or re-run with --dry-run to inspect the prompt"
+                elif ! $verbose; then
+                    backend_hint="$backend_hint, or --verbose for full diagnostics"
+                fi
+                echo "$backend_hint" >&2
+                exit "$backend_exit"
             fi
 
             # Run jq separately on captured output
