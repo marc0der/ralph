@@ -59,7 +59,7 @@ Every real (non-dry-run) `plan` or `build` run records one JSON line per iterati
 
 A normal run stays quiet while the backend works and prints one summary line per iteration, once the backend has exited. `--verbose` renders the backend's event stream as it arrives instead: one short line per tool call (`→ Bash ls -la`) and per assistant message, so a long iteration shows what it is doing while it does it. It also prints the backend command and the per-iteration exit codes, and points at the retained `iter-NNN.stream.jsonl` the live lines were rendered from instead of re-printing it.
 
-Live rendering needs a per-backend stream filter, which `claude` and `pi` ship. Backends without one (`codex`, `copilot`) keep the older form: `--verbose` dumps the raw stream after the iteration. So does any run whose stream is not retained, such as `--no-metrics`, since there is no lasting path to name. Rendered lines and diagnostics go to stderr, so the iteration summaries on stdout stay pipeable.
+Live rendering needs a per-backend stream filter, which `claude` and `pi` ship. Backends without one (`codex`, `copilot`) keep the older form: `--verbose` dumps the raw stream after the iteration. `--no-metrics` does not disable live rendering; it only removes the retained path, so the iteration reports `Raw stream not retained` in place of a file to inspect. Rendered lines and diagnostics go to stderr, so the iteration summaries on stdout stay pipeable.
 
 ### Examples
 
