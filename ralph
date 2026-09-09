@@ -601,6 +601,7 @@ require_init_artifacts() {
 # The part of the plan that holds real items. The '## Entry Format' section
 # carries a template entry at column zero, which must never count as work.
 # Plans without that heading are read whole, so older plans still work.
+# shellcheck disable=SC2120  # optional $1 lets callers override the plan path; every in-tree call uses the default
 plan_items_body() {
     local file="${1:-IMPLEMENTATION_PLAN.md}"
     if grep -qE '^## Items[[:space:]]*$' "$file" 2>/dev/null; then
