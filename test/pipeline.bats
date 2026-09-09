@@ -469,6 +469,7 @@ MOCK
 
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
     [[ "$status" -eq 0 ]]
+    # shellcheck disable=SC2154  # set by bats `run --separate-stderr`, not by this script
     [[ "$stderr" == *"→ Bash ls -la"* ]]
 }
 
