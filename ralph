@@ -661,6 +661,32 @@ calculate_build_iterations() {
     echo $(( (count * 6 + 4) / 5 ))
 }
 
+# Modes that never commit, so HEAD cannot measure their progress. They snapshot
+# the plan fingerprint instead and use it for both convergence and the metrics
+# noop flag. Kept as one predicate rather than three inline mode tests, so a
+# fourth non-committing mode cannot be wired into two of the sites and missed
+# in the third.
+mode_converges_on_plan() {
+    case "$1" in
+        plan|review) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# The early-exit line names the phase that converged. Review also reports the
+# size of the anchor set it swept: a clean review changes no file, makes no
+# commit and records a metrics line of zeros, which is otherwise
+# indistinguishable from a backend that read the prompt and did nothing. Ralph
+# counts the shipped items itself rather than trusting the agent's own claim.
+convergence_message() {
+    local mode="$1" iteration="$2"
+    if [[ "$mode" == "review" ]]; then
+        echo "Review converged — pass $iteration found nothing new. Audited $(count_plan_items '^- \[x\]') shipped items."
+    else
+        echo "Plan converged — pass $iteration changed nothing. Exiting early."
+    fi
+}
+
 # Fingerprint the artifacts a plan iteration is allowed to change.
 # Plan mode never commits (IMPLEMENTATION_PLAN.md is gitignored), so HEAD cannot
 # detect progress. A pass that leaves this hash unchanged has converged.
@@ -1113,11 +1139,11 @@ cmd_loop() {
             "$iter_label" \
             "$(printf '%*s' "$pad_right" '' | tr ' ' '=')"
 
-        # Snapshot HEAD to detect noops. Plan mode never commits, so it
-        # fingerprints the artifacts it is allowed to change instead.
+        # Snapshot HEAD to detect noops. Plan and review never commit, so they
+        # fingerprint the artifacts they are allowed to change instead.
         local head_before plan_state_before="" plan_state_after=""
         head_before=$(git rev-parse HEAD)
-        if [[ "$mode" == "plan" ]]; then
+        if mode_converges_on_plan "$mode"; then
             plan_state_before=$(plan_state_hash)
         fi
 
@@ -1431,10 +1457,11 @@ cmd_loop() {
             # Print jq output (unchanged behaviour)
             echo "$jq_output"
 
-            # Fingerprint the plan artifacts after the pass. Plan mode uses this
-            # instead of HEAD for both the metrics noop flag and convergence.
+            # Fingerprint the plan artifacts after the pass. The non-committing
+            # modes use this instead of HEAD for both the metrics noop flag and
+            # convergence.
             local plan_noop=""
-            if [[ "$mode" == "plan" ]]; then
+            if mode_converges_on_plan "$mode"; then
                 plan_state_after=$(plan_state_hash)
                 if [[ "$plan_state_before" == "$plan_state_after" ]]; then
                     plan_noop=true
@@ -1496,14 +1523,14 @@ cmd_loop() {
         fi
 
         # Early exit. Build mode watches HEAD and tolerates one noop; -n overrides it.
-        # Plan mode never commits (IMPLEMENTATION_PLAN.md is gitignored), so it
-        # watches the plan artifacts instead. A pass that changes nothing has
+        # Plan and review never commit (IMPLEMENTATION_PLAN.md is gitignored), so
+        # they watch the plan artifacts instead. A pass that changes nothing has
         # converged, and there is no second-chance iteration to wait for: -n caps
-        # a plan run but never disables the check.
+        # such a run but never disables the check.
         if ! $dry_run; then
-            if [[ "$mode" == "plan" ]]; then
+            if mode_converges_on_plan "$mode"; then
                 if [[ "$plan_state_before" == "$plan_state_after" ]]; then
-                    echo -e "\nPlan converged — pass $iteration changed nothing. Exiting early."
+                    echo -e "\n$(convergence_message "$mode" "$iteration")"
                     break
                 fi
             elif ! $hard_override; then
