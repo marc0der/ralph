@@ -82,7 +82,7 @@ Anchor every marker at column zero. Never nest an item under another item.
 
 An item nobody can verify never completes. The build loop then selects it forever.
 
-`Done when` must also name the item's own behaviour: a symbol, a file, a flag, an output line, or an error path the item creates or changes. Name the observable value, not the activity. `grep -c seed_open_item test/pipeline.bats` is at least 40 names an observable value. `The helper is used everywhere` names none.
+`Done when` must also name the item's own behaviour: a symbol, a file, a flag, an output line, or an error path the item creates or changes. Name the observable value, not the activity. A criterion names an observable value when it states a count, a literal string, or an exit status. Example: `grep -c seed_open_item test/pipeline.bats` is at least 40. `The helper is used everywhere` names none.
 
 **Never make a whole-suite run the entire criterion.** `bats test/ passes` is true or false for every item at the same time, so it proves nothing about this item. Add a suite run only as a second conjunct beside an item-local check. A criterion that an unrelated commit can satisfy is not a criterion, and review cannot audit the shipped item against it.
 
