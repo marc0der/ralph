@@ -1151,6 +1151,14 @@ cmd_loop() {
             plan_state_before=$(plan_state_hash)
         fi
 
+        # Snapshot the shipped count so the guard after the pass can catch a
+        # review that un-ticked an item. Build ticks checkboxes by design, so
+        # only review is measured against it.
+        local shipped_before=0
+        if [[ "$mode" == "review" ]]; then
+            shipped_before=$(count_plan_items '^- \[x\]')
+        fi
+
         # Snapshot metrics baseline for this iteration
         local iter_start plan_done_before=0
         iter_start=$(date +%s)
@@ -1499,6 +1507,22 @@ cmd_loop() {
                     truncate_line "Metrics: $(fmt_duration $((iter_end - iter_start))) wall$(metrics_summary_suffix "$metrics_file")" "$line_width"
                 else
                     echo "Warning: metrics capture failed for iteration $iteration" >&2
+                fi
+            fi
+
+            # Review must never alter a '- [x]' marker (specs/review-phase.md
+            # section 4). An un-tick erases the record that the work was
+            # committed, hides that a defect escaped, and lets the item
+            # oscillate between '[ ]' and '[x]' across review and build runs,
+            # which never converges. Stop the run rather than let the next pass
+            # audit a plan that already lost an anchor.
+            if [[ "$mode" == "review" ]]; then
+                local shipped_after
+                shipped_after=$(count_plan_items '^- \[x\]')
+                if [[ "$shipped_after" -lt "$shipped_before" ]]; then
+                    echo "Error: review reduced the shipped item count from $shipped_before to $shipped_after" >&2
+                    echo "Review may never un-tick an item. Restore IMPLEMENTATION_PLAN.md before re-running." >&2
+                    exit 1
                 fi
             fi
         fi
