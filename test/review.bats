@@ -75,3 +75,50 @@ load test_helper
     run "$RALPH" review --dry-run -n 1
     [[ "$status" -eq 0 ]]
 }
+
+@test "review gates still fail with no shipped items when -n is passed" {
+    # The gates run beside require_init_artifacts, not inside the iteration
+    # resolution, so '-n' must not buy a run of empty audit iterations.
+    echo "- [ ] **Open task**" > IMPLEMENTATION_PLAN.md
+    touch PROGRESS.md
+    run "$RALPH" review -n 1
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"no shipped items"* ]]
+}
+
+@test "review gates still fail with an open item when -n is passed" {
+    "$RALPH" init
+    printf -- '- [x] **Shipped task**\n- [ ] **Open task**\n' >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" review -n 1
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"still holds incomplete items"* ]]
+    [[ "$output" == *"Run 'ralph build'"* ]]
+}
+
+@test "review counts shipped items in a plan with no Items heading" {
+    # plan_items_body reads the whole file when '## Items' is absent, so plans
+    # predating the heading must still satisfy the shipped-items precondition.
+    printf -- '# Implementation Plan\n\n- [x] **Shipped task**\n' > IMPLEMENTATION_PLAN.md
+    touch PROGRESS.md
+    run "$RALPH" review --dry-run -n 1
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
+}
+
+@test "review defaults to 6 iterations" {
+    # Review converges like plan, so it takes the same flat cap instead of
+    # sizing itself from the plan the way build does.
+    "$RALPH" init
+    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" review --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Max:     6 iterations"* ]]
+}
+
+@test "review -n overrides the default cap" {
+    "$RALPH" init
+    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" review --dry-run -n 2
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Max:     2 iterations"* ]]
+}
