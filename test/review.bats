@@ -274,3 +274,25 @@ MOCK
     [[ $(jq -r '.mode' <<<"$line") == "review" ]]
     [[ $(jq -r '.git.noop' <<<"$line") == "true" ]]
 }
+
+@test "review fails when a pass un-ticks a shipped item" {
+    # '[x]' records that the work was committed. Un-ticking hides that a defect
+    # escaped and lets the item oscillate between '[ ]' and '[x]' across review
+    # and build runs, so the loop stops instead of auditing a corrupted plan.
+    "$RALPH" init
+    printf -- '- [x] **Shipped one**\n- [x] **Shipped two**\n' >> IMPLEMENTATION_PLAN.md
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+sed -i '0,/^- \[x\] \*\*Shipped two\*\*$/s//- [ ] **Shipped two**/' IMPLEMENTATION_PLAN.md
+echo '{"type":"result","result":"reviewing"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"review reduced the shipped item count from 2 to 1"* ]]
+    [[ "$output" == *"Restore IMPLEMENTATION_PLAN.md"* ]]
+    [[ "$output" != *"Completed"* ]]
+}
