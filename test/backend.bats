@@ -4,6 +4,7 @@ load test_helper
 
 @test "default backend is claude when -b flag is not set" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Backend: claude"* ]]
@@ -11,6 +12,7 @@ load test_helper
 
 @test "-b codex selects codex backend" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1 -b codex
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Backend: codex"* ]]
@@ -19,6 +21,7 @@ load test_helper
 
 @test "unknown backend produces error listing supported backends" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1 -b unknown
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"unknown backend 'unknown'"* ]]
@@ -27,6 +30,7 @@ load test_helper
 
 @test "dry-run with codex shows default model gpt-5.2-codex" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1 -b codex
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Model:   gpt-5.2-codex"* ]]
@@ -35,6 +39,7 @@ load test_helper
 
 @test "dry-run with claude shows default model opus" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Model:   opus"* ]]
@@ -42,6 +47,7 @@ load test_helper
 
 @test "-m flag overrides default model for any backend" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1 -b codex -m custom-model
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Model:   custom-model"* ]]
@@ -50,6 +56,7 @@ load test_helper
 
 @test "-b copilot selects copilot backend" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1 -b copilot
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Backend: copilot"* ]]
@@ -59,6 +66,7 @@ load test_helper
 
 @test "dry-run with copilot shows default model claude-sonnet-4.6" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1 -b copilot
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Model:   claude-sonnet-4.6"* ]]
@@ -67,6 +75,7 @@ load test_helper
 
 @test "-m flag overrides default model for copilot" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1 -b copilot -m custom-copilot-model
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Model:   custom-copilot-model"* ]]
@@ -75,6 +84,7 @@ load test_helper
 
 @test "unknown backend error lists copilot among supported backends" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1 -b unknown
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"Supported backends:"*"copilot"* ]]
@@ -82,6 +92,7 @@ load test_helper
 
 @test "-b pi selects pi backend" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1 -b pi
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Backend: pi"* ]]
@@ -91,6 +102,7 @@ load test_helper
 
 @test "dry-run with pi shows default model anthropic/claude-opus-4-8" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1 -b pi
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Model:   anthropic/claude-opus-4-8"* ]]
@@ -99,6 +111,7 @@ load test_helper
 
 @test "-m flag overrides default model for pi" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1 -b pi -m custom-pi-model
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Model:   custom-pi-model"* ]]
@@ -107,6 +120,7 @@ load test_helper
 
 @test "unknown backend error lists pi among supported backends" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1 -b unknown
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"Supported backends:"*"pi"* ]]

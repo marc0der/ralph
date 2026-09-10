@@ -4,6 +4,7 @@ load test_helper
 
 @test "build --dry-run prints claude command without executing" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
@@ -11,6 +12,7 @@ load test_helper
 
 @test "build --dry-run prints push command without executing" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"[dry-run] Would run: git push"* ]]
@@ -18,6 +20,7 @@ load test_helper
 
 @test "build --dry-run shows prompt content" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"[dry-run] Prompt content"* ]]
@@ -39,6 +42,7 @@ load test_helper
 
 @test "build --dry-run respects iteration count" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 3
     [[ "$status" -eq 0 ]]
     local count
@@ -48,6 +52,7 @@ load test_helper
 
 @test "build --dry-run includes goal in prompt" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1 -g "Add REST endpoint"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Add REST endpoint"* ]]
