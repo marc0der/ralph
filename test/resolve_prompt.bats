@@ -45,3 +45,23 @@ resolve() {
     [[ "$status" -eq 0 ]]
     [[ "$output" == "PROMPT_build.md" ]]
 }
+
+@test "resolve_prompt works for review mode" {
+    run resolve review
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"prompts/review.md" ]]
+}
+
+@test "resolve_prompt local file takes priority over default for review" {
+    echo "local review" > PROMPT_review.md
+    run resolve review
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "PROMPT_review.md" ]]
+}
+
+@test "resolve_prompt errors when no review prompt found" {
+    rm -rf "$RALPH_CONFIG_DIR/prompts"
+    run resolve review
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"no prompt found for mode 'review'"* ]]
+}
