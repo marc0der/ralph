@@ -33,6 +33,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 |---------|---------|
 | `plan` | Run planning loop (max 6 iterations, exits on convergence) — reads specs/source, produces `IMPLEMENTATION_PLAN.md` |
 | `build` | Run build loop (default: 50 iterations) — picks next task, implements, tests, commits, pushes |
+| `review` | Run review loop (max 6 iterations, exits on convergence) — audits `- [x]` items against the specs they cite, files findings as new `- [ ]` items |
 | `sandbox` | Enter/manage devcontainer (`sandbox`, `sandbox clean`, `sandbox --rebuild`) |
 | `init` | Initialize workspace artifacts and directories |
 | `archive` | Move artifacts to `.ralph/<timestamp>/` |
@@ -46,13 +47,17 @@ Ralph is a single Bash script (`ralph`) with these commands:
 4. Substitute `{{GOAL}}` into prompt via bash parameter expansion
 5. Pipe the prompt to the backend command in a loop (e.g., `claude -p` or `codex exec`), writing the raw backend stream to a file — `iter-NNN.stream.jsonl` in the run's directory under `.ralph/metrics/` when metrics are enabled, a per-run temp file otherwise
 6. Parse that stream file with the summary jq filter using backend-specific flags, push changes after each iteration. Under `--verbose` the stream is also teed through a per-backend live filter, which renders each tool call and assistant message to stderr as it arrives
-7. Detect an early exit. Build mode watches `HEAD` and stops after 2 consecutive noops, unless `-n` was passed. Plan mode never commits, so it fingerprints `IMPLEMENTATION_PLAN.md` plus `specs/` via `plan_state_hash` and stops on the first pass that changes neither; `-n` caps a plan run but never disables the check
+7. Detect an early exit. Build mode watches `HEAD` and stops after 2 consecutive noops, unless `-n` was passed. Plan and review mode never commit, so `mode_converges_on_plan` routes both through the same check: they fingerprint `IMPLEMENTATION_PLAN.md` plus `specs/` via `plan_state_hash` and stop on the first pass that changes neither; `-n` caps such a run but never disables the check. `convergence_message` derives the exit line from the mode, so a converged review also reports how many shipped items it audited
+
+Build and review each carry a hard precondition that runs unconditionally beside `require_init_artifacts`, before `hard_override` decides the iteration count. `require_open_items` stops a build whose plan holds no `- [ ]` item. `require_review_preconditions` stops a review unless both artifacts exist, at least one item is `- [x]`, and no item is `- [ ]` — review audits a fully shipped plan, so pending work goes through `build` first.
 
 ### The implementation plan contract
 
 `specs/` states *what* to build; `IMPLEMENTATION_PLAN.md` states *how*. Both prompts enforce a closed six-field item schema (title, `Spec`, `Scope`, `Files`, `Steps`, `Done when`), a cap of 150 words / 14 lines / 8 steps per item, and Simplified Technical English. The plan file holds exactly three headings and never carries outcomes, evidence or status — those belong in `PROGRESS.md`.
 
-Items are mutable during the plan phase and immutable during the build phase, where the only legal edits are ticking a checkbox, marking an item `- [~]`, and appending a new item. Markers are `- [ ]`, `- [x]`, and `- [~]` (superseded or blocked). `calculate_build_iterations` counts only `^- \[ \]`, so `[~]` items neither size the build loop nor count as shipped work. When changing these rules, keep `prompts/plan.md`, `prompts/build.md` and `templates/IMPLEMENTATION_PLAN.md` in agreement — the prompts win on any disagreement.
+Items are mutable during the plan phase and immutable during the build phase, where the only legal edits are ticking a checkbox, marking an item `- [~]`, and appending a new item. Markers are `- [ ]`, `- [x]`, and `- [~]` (superseded or blocked). `calculate_build_iterations` counts only `^- \[ \]`, so `[~]` items neither size the build loop nor count as shipped work. When changing these rules, keep `prompts/plan.md`, `prompts/build.md`, `prompts/review.md` and `templates/IMPLEMENTATION_PLAN.md` in agreement — the prompts win on any disagreement.
+
+Review edits the plan under the plan-phase rules, plus three of its own. It may refine, reorder and supersede open items, but it never alters a `- [x]` marker: a shipped item that fails its claim becomes a new item naming the defect, because un-ticking hides that a defect escaped and lets an item oscillate between `[ ]` and `[x]` across review and build runs. Every supersession review makes is recorded in `PROGRESS.md`, because the next plan run resolves a `[~]` item by reading that entry and will otherwise resurrect the item as open. Review never creates or edits anything under `specs/` — authoring its own anchor would both manufacture findings and defeat convergence, since `plan_state_hash` fingerprints `specs/` too.
 
 ### Sandbox
 
