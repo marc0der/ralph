@@ -577,6 +577,8 @@ resolve_prompt() {
 # Verify workspace artifacts produced by 'ralph init' are present.
 # Plan needs IMPLEMENTATION_PLAN.md (the template the agent fills in).
 # Build needs both IMPLEMENTATION_PLAN.md and PROGRESS.md.
+# Review needs both too: it audits the plan and writes supersession entries to
+# PROGRESS.md, so the second requirement is real and not symmetry.
 require_init_artifacts() {
     local mode="$1"
     local required=()
@@ -584,6 +586,7 @@ require_init_artifacts() {
     case "$mode" in
         plan)  required=(IMPLEMENTATION_PLAN.md) ;;
         build) required=(IMPLEMENTATION_PLAN.md PROGRESS.md) ;;
+        review) required=(IMPLEMENTATION_PLAN.md PROGRESS.md) ;;
     esac
 
     local missing=()
@@ -624,6 +627,25 @@ count_plan_items() {
 require_open_items() {
     if [[ "$(count_plan_items '^- \[ \]')" -eq 0 ]]; then
         echo "Error: no incomplete items in IMPLEMENTATION_PLAN.md. Run 'ralph plan' first." >&2
+        exit 1
+    fi
+}
+
+# Refuse to start a review that has nothing settled to audit.
+# Like require_open_items this is a hard stop beside require_init_artifacts, so
+# '-n' cannot bypass it. Items marked '[~]' neither anchor nor block a review.
+require_review_preconditions() {
+    if [[ "$(count_plan_items '^- \[x\]')" -eq 0 ]]; then
+        echo "Error: no shipped items in IMPLEMENTATION_PLAN.md — nothing to review." >&2
+        echo "Review audits '- [x]' items. An already archived plan lives in .ralph/<timestamp>/." >&2
+        exit 1
+    fi
+
+    # Pass 1 must start from a plan with no open work: review ranks its own
+    # findings against each other, never against work it did not derive.
+    if [[ "$(count_plan_items '^- \[ \]')" -gt 0 ]]; then
+        echo "Error: IMPLEMENTATION_PLAN.md still holds incomplete items." >&2
+        echo "Run 'ralph build' to finish them before running 'ralph review'." >&2
         exit 1
     fi
 }
@@ -900,10 +922,13 @@ cmd_loop() {
     # resolution, CLI lookup, or git work so the user gets immediate feedback.
     require_init_artifacts "$mode"
 
-    # Hard stop, checked unconditionally: a build with no open item has no work
-    # to pick up, and '-n' must not turn that into a run of empty iterations.
+    # Hard stops, checked unconditionally: a build with no open item has no work
+    # to pick up, a review with no shipped item has nothing to audit, and '-n'
+    # must not turn either into a run of empty iterations.
     if [[ "$mode" == "build" ]]; then
         require_open_items
+    elif [[ "$mode" == "review" ]]; then
+        require_review_preconditions
     fi
 
     # Resolve backend: CLI flag > default
@@ -918,8 +943,9 @@ cmd_loop() {
     # Resolve iteration count from defaults/heuristics when -n wasn't passed.
     if ! $hard_override; then
         case "$mode" in
-            plan)  max_iterations=$PLAN_DEFAULT_CAP ;;
-            build) max_iterations=$(calculate_build_iterations) ;;
+            plan)   max_iterations=$PLAN_DEFAULT_CAP ;;
+            build)  max_iterations=$(calculate_build_iterations) ;;
+            review) max_iterations=$PLAN_DEFAULT_CAP ;;
         esac
     fi
 
@@ -1505,7 +1531,7 @@ cmd_loop() {
 # Main dispatch
 case "${1:-}" in
     sandbox)    shift; cmd_sandbox "$@" ;;
-    plan|build) cmd_loop "$@" ;;
+    plan|build|review) cmd_loop "$@" ;;
     metrics)    shift; cmd_metrics "$@" ;;
     init)       shift; cmd_init "$@" ;;
     clean)      cmd_clean ;;
