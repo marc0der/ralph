@@ -70,3 +70,12 @@ exit "${MOCK_EXIT:-0}"
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 }
+
+# Helper: append one real open item to the plan. `ralph init` scaffolds a plan
+# whose only column-zero entry is the exemplar under `## Entry Format`, and
+# `plan_items_body` strips that, so an initialised workspace holds zero open
+# items — and build hard-stops on a plan with no `- [ ]` line. Every build test
+# that wants the loop to actually run must seed a real item first.
+seed_open_item() {
+    echo "- [ ] **Task**" >> IMPLEMENTATION_PLAN.md
+}
