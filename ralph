@@ -8,7 +8,7 @@ CONFIG_DIR="${RALPH_CONFIG_DIR:-$HOME/.config/ralph}"
 # well before this (build mode calculates its own count from the plan)
 PLAN_DEFAULT_CAP=6
 
-ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md PROMPT_plan.md PROMPT_build.md)
+ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md PROMPT_plan.md PROMPT_build.md PROMPT_review.md)
 ARCHIVE_DIR=".ralph"
 
 # Path of the per-run raw stream temp file, or empty when there is none.
@@ -340,7 +340,7 @@ cmd_init() {
     fi
     # Ensure file ends with a newline before appending
     [[ -s .gitignore && $(tail -c1 .gitignore) != "" ]] && echo >> .gitignore
-    local ignore_entries=("IMPLEMENTATION_PLAN.md" "PROGRESS.md" ".ralph/" "PROMPT_plan.md" "PROMPT_build.md")
+    local ignore_entries=("IMPLEMENTATION_PLAN.md" "PROGRESS.md" ".ralph/" "PROMPT_plan.md" "PROMPT_build.md" "PROMPT_review.md")
     for entry in "${ignore_entries[@]}"; do
         if ! grep -qxF "$entry" .gitignore; then
             echo "$entry" >> .gitignore
@@ -356,7 +356,7 @@ cmd_init() {
             echo "Run the installer first: ./install.sh"
             exit 1
         fi
-        for file in plan.md build.md; do
+        for file in plan.md build.md review.md; do
             scaffold "PROMPT_${file}" "$prompts_dir/$file"
         done
     fi

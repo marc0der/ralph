@@ -17,6 +17,7 @@ echo "  CLI:     $BIN_DIR/ralph"
 mkdir -p "$CONFIG_DIR/prompts"
 cp "$SCRIPT_DIR/prompts/plan.md" "$CONFIG_DIR/prompts/plan.md"
 cp "$SCRIPT_DIR/prompts/build.md" "$CONFIG_DIR/prompts/build.md"
+cp "$SCRIPT_DIR/prompts/review.md" "$CONFIG_DIR/prompts/review.md"
 echo "  Prompts:    $CONFIG_DIR/prompts/"
 
 # Install templates
