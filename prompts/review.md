@@ -147,7 +147,7 @@ An item nobody can verify never completes. The build loop then selects it foreve
 Review adds three rules of its own:
 
 - **Never alter a `- [x]` marker.** A shipped item that fails its claim produces a new `Critical:` item naming the defect and the spec clause it violates. Un-ticking is forbidden. The `[x]` records that the work was committed, and erasing it hides that a defect escaped. It would also let an item oscillate between `[ ]` and `[x]` across review and build runs, which never converges.
-- **Record every supersession.** When you mark an item `[~]`, append a `PROGRESS.md` entry stating why. The next `plan` run resolves a `[~]` item by reading that entry. A supersession with no entry leaves that run nothing to read, and it resurrects the item as open.
+- **Record every supersession.** When you mark an item `[~]`, append a `PROGRESS.md` entry stating why. Follow the template defined in its header. The next `plan` run resolves a `[~]` item by reading that entry. A supersession with no entry leaves that run nothing to read, and it resurrects the item as open.
 - **Resolve a blocked finding instead of re-filing it.** When `build` cannot implement a finding it marks the item `[~]` and records the contradiction in `PROGRESS.md`. Read that entry and append a *different* replacement item that routes around the blocker. Never re-file the original verbatim. Never stay silent because a `[~]` item for the same defect already exists.
 
 ### Never write these in the plan
