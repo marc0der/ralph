@@ -22,6 +22,7 @@ Rules:
 - Cite a spec file plus an item number or a section name in `Spec`.
 - Write at most 150 words and 14 lines per item. Write at most 10 words per title.
 - Write at most 2 sentences for `Scope`. Write at most 2 sentences for `Done when`.
+- Name a symbol, file, flag, output, or error path of the item in `Done when`. Never make a whole-suite run the entire criterion.
 - Write at most 8 steps. Write one action per step. Write at most 20 words per step.
 - Split any item that needs a ninth step. That item is too large for one iteration.
 - Name symbols, option paths, literal values, and files to copy an idiom from.
