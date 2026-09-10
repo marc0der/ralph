@@ -192,7 +192,7 @@ ralph — autonomous AI coding agent loop runner
 Usage:
   ralph sandbox [--rebuild]
   ralph sandbox clean
-  ralph <plan|build> [options]
+  ralph <plan|build|review> [options]
   ralph init
   ralph clean
   ralph archive
@@ -204,6 +204,7 @@ Modes:
   sandbox clean  Remove the devcontainer for the current project
   plan           Analyse specs and source, create/update IMPLEMENTATION_PLAN.md
   build          Pick the next item, implement, test, commit, push
+  review         Audit shipped items against their specs, file findings as new plan items
   init           Initialise workspace (PROGRESS.md, IMPLEMENTATION_PLAN.md, specs/)
   clean          Delete IMPLEMENTATION_PLAN.md and PROGRESS.md
   archive        Move IMPLEMENTATION_PLAN.md and PROGRESS.md to .ralph/<timestamp>/
@@ -216,14 +217,15 @@ Init options:
   -p, --prompts      Also copy prompt templates for local customisation
 
 Options:
-  -n, --iterations N   Max iterations (plan default: 6, build: calculated from
-                       the plan). In build mode this also disables the noop
-                       exit; in plan mode it caps the run but never disables
-                       the convergence exit
+  -n, --iterations N   Max iterations (plan and review default: 6, build:
+                       calculated from the plan). In build mode this also
+                       disables the noop exit; in plan and review modes it caps
+                       the run but never disables the convergence exit
   -g, --goal TEXT      Goal to inject into the prompt template
   -m, --model MODEL    Model to use (default depends on backend)
   -b, --backend NAME   Backend to use: claude, codex, copilot, pi (default: claude)
-      --skip-push      Don't push after each build iteration (plan never pushes)
+      --skip-push      Don't push after each build iteration (plan and review
+                       never push)
       --dry-run        Print what would be executed without running
       --no-metrics     Don't record per-iteration metrics under .ralph/metrics/
   -v, --verbose        Stream backend activity live; show commands, exit codes and the raw stream path
@@ -237,6 +239,8 @@ Examples:
   ralph build -n 10 -m sonnet
   ralph build -b codex
   ralph build --iterations 5 --goal "Add PATCH endpoint"
+  ralph build && ralph review && ralph build
+  ralph review -b codex
   ralph sandbox
   ralph sandbox --rebuild
   ralph sandbox clean
