@@ -122,3 +122,67 @@ load test_helper
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Max:     2 iterations"* ]]
 }
+
+@test "review exits on the first pass that changes nothing" {
+    "$RALPH" init
+    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    mkdir -p "$TEST_DIR/bin"
+    # Review iterations never commit, so convergence is measured against the
+    # plan artifacts, not HEAD — exactly as in plan mode.
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"result","result":"reviewing"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Review converged — pass 1 found nothing new"* ]]
+    [[ "$output" == *"Audited 1 shipped items"* ]]
+    [[ "$output" == *"Completed 1 iterations"* ]]
+}
+
+@test "review convergence exit still applies when -n is passed" {
+    "$RALPH" init
+    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    mkdir -p "$TEST_DIR/bin"
+    # -n caps a review run but must not disable convergence, unlike build mode.
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"result","result":"reviewing"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review -n 12 --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Review converged — pass 1 found nothing new"* ]]
+    [[ "$output" == *"Completed 1 iterations"* ]]
+}
+
+@test "review continues while passes keep filing findings" {
+    "$RALPH" init
+    printf -- '- [x] **Shipped one**\n- [x] **Shipped two**\n' >> IMPLEMENTATION_PLAN.md
+    mkdir -p "$TEST_DIR/bin"
+    # Files a finding on passes 1 and 2, then goes quiet on pass 3. The audited
+    # count is ralph's own tally of '- [x]' items, so the findings the pass adds
+    # must not inflate it.
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+CALL_LOG="$TEST_DIR/call_count"
+count=0
+[[ -f "\$CALL_LOG" ]] && count=\$(cat "\$CALL_LOG")
+count=\$((count + 1))
+echo "\$count" > "\$CALL_LOG"
+if [[ "\$count" -le 2 ]]; then
+    echo "- [ ] **Critical: finding \$count**" >> IMPLEMENTATION_PLAN.md
+fi
+echo '{"type":"result","result":"reviewing"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Review converged — pass 3 found nothing new"* ]]
+    [[ "$output" == *"Audited 2 shipped items"* ]]
+    [[ "$output" == *"Completed 3 iterations"* ]]
+}
