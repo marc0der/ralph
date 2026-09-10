@@ -29,6 +29,7 @@ load test_helper
     grep -qxF ".ralph/" .gitignore
     grep -qxF "PROMPT_plan.md" .gitignore
     grep -qxF "PROMPT_build.md" .gitignore
+    grep -qxF "PROMPT_review.md" .gitignore
 }
 
 @test "init adds entries to existing .gitignore" {
@@ -100,6 +101,7 @@ load test_helper
     [[ "$status" -eq 0 ]]
     [[ -f "PROMPT_plan.md" ]]
     [[ -f "PROMPT_build.md" ]]
+    [[ -f "PROMPT_review.md" ]]
 }
 
 @test "init without --prompts does not create prompt files" {
