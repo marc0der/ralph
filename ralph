@@ -611,17 +611,29 @@ plan_items_body() {
     fi
 }
 
-# Calculate build iterations from IMPLEMENTATION_PLAN.md.
-# Counts incomplete items (- [ ]) and adds 20% headroom (rounded up, minimum 1).
-# Caller must ensure IMPLEMENTATION_PLAN.md exists (see require_init_artifacts).
-calculate_build_iterations() {
-    local count
-    count=$(plan_items_body | grep -c '^- \[ \]' || true)
+# Count plan items whose marker matches a grep regex, e.g. '^- \[x\]'.
+# Echoes 0 rather than failing when nothing matches, so callers can arithmetic
+# on the result unconditionally under 'set -e'.
+count_plan_items() {
+    plan_items_body | grep -c "$1" || true
+}
 
-    if [[ "$count" -eq 0 ]]; then
+# Refuse to start a build against a plan with nothing left to do.
+# This is a hard stop, not an iteration heuristic: it runs beside
+# require_init_artifacts so '-n' cannot bypass it.
+require_open_items() {
+    if [[ "$(count_plan_items '^- \[ \]')" -eq 0 ]]; then
         echo "Error: no incomplete items in IMPLEMENTATION_PLAN.md. Run 'ralph plan' first." >&2
         exit 1
     fi
+}
+
+# Calculate build iterations from IMPLEMENTATION_PLAN.md.
+# Counts incomplete items (- [ ]) and adds 20% headroom (rounded up, minimum 1).
+# Caller must ensure at least one open item exists (see require_open_items).
+calculate_build_iterations() {
+    local count
+    count=$(count_plan_items '^- \[ \]')
 
     # 20% headroom, rounded up: ceil(count * 1.2)
     echo $(( (count * 6 + 4) / 5 ))
@@ -887,6 +899,12 @@ cmd_loop() {
     # Fail fast if 'ralph init' hasn't been run — checked before any backend
     # resolution, CLI lookup, or git work so the user gets immediate feedback.
     require_init_artifacts "$mode"
+
+    # Hard stop, checked unconditionally: a build with no open item has no work
+    # to pick up, and '-n' must not turn that into a run of empty iterations.
+    if [[ "$mode" == "build" ]]; then
+        require_open_items
+    fi
 
     # Resolve backend: CLI flag > default
     backend="${backend:-claude}"

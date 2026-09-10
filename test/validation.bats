@@ -126,6 +126,16 @@ load test_helper
     [[ "$output" == *"no incomplete items"* ]]
 }
 
+@test "build -n 5 fails with no incomplete items" {
+    # The hard stop is not part of the iteration heuristic: '-n' picks the
+    # iteration count, it does not grant permission to run against no work.
+    echo "- [x] **Completed task**" > IMPLEMENTATION_PLAN.md
+    touch PROGRESS.md
+    run "$RALPH" build -n 5 --dry-run
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"no incomplete items"* ]]
+}
+
 @test "build ignores the Entry Format template entry" {
     # The scaffolded plan carries an example entry at column zero. Counting it
     # would send the build loop off to implement the template itself.
