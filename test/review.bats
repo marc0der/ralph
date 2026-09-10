@@ -2,6 +2,23 @@
 
 load test_helper
 
+# Helper: mock claude that emits a full result event but changes neither the
+# plan artifacts nor HEAD, so the pass reads as a converged review.
+create_review_noop_backend() {
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+echo '{"type":"result","subtype":"success","duration_ms":500,"duration_api_ms":400,"num_turns":2,"result":"Nothing to do.","session_id":"s2","total_cost_usd":0.01,"usage":{"input_tokens":10,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":5}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+}
+
+latest_metrics_file() {
+    # shellcheck disable=SC2012  # newest-by-mtime needs ls; paths are ralph-generated (no odd filenames)
+    ls -1t .ralph/metrics/*/metrics.jsonl | head -1
+}
+
 @test "review runs against a plan of shipped items" {
     "$RALPH" init
     printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
@@ -185,4 +202,75 @@ MOCK
     [[ "$output" == *"Review converged — pass 3 found nothing new"* ]]
     [[ "$output" == *"Audited 2 shipped items"* ]]
     [[ "$output" == *"Completed 3 iterations"* ]]
+}
+
+@test "review never pushes even without --skip-push (no remote configured)" {
+    # IMPLEMENTATION_PLAN.md and PROGRESS.md are both gitignored, so a review
+    # pass produces nothing to push and HEAD cannot move. Only build reaches
+    # the push block.
+    "$RALPH" init
+    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"result","result":"reviewing"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    # No 'origin' remote exists; if review attempted a push it would fail.
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review -n 1
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"Push failed"* ]]
+    [[ "$output" == *"Completed 1 iteration"* ]]
+}
+
+@test "review accepts --skip-push as an inert flag" {
+    # Spec section 8 keeps the flag surface identical across the three modes,
+    # so --skip-push must be accepted rather than rejected, and must not
+    # change a review run that never pushes in the first place.
+    "$RALPH" init
+    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"result","result":"reviewing"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review -n 1 --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"unknown option"* ]]
+    [[ "$output" == *"Completed 1 iteration"* ]]
+}
+
+@test "review mode records metrics" {
+    # Metrics need no schema change for review: the mode is tagged as its own
+    # and plan_items_completed is always 0, because review never ticks a
+    # checkbox — it only appends findings as new open items.
+    "$RALPH" init
+    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    create_review_noop_backend
+
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" review -n 1 -y
+
+    local line
+    line=$(tail -1 "$(latest_metrics_file)")
+    [[ $(jq -r '.mode' <<<"$line") == "review" ]]
+    [[ $(jq -r '.turns' <<<"$line") == "2" ]]
+    [[ $(jq -r '.plan_items_completed' <<<"$line") == "0" ]]
+}
+
+@test "review iteration that changes nothing records noop=true" {
+    # Review commits nothing, so HEAD-based noop detection would call every
+    # pass a noop. The flag comes from the plan-state fingerprint instead.
+    "$RALPH" init
+    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    create_review_noop_backend
+
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" review -n 1 --skip-push -y
+
+    local line
+    line=$(tail -1 "$(latest_metrics_file)")
+    [[ $(jq -r '.mode' <<<"$line") == "review" ]]
+    [[ $(jq -r '.git.noop' <<<"$line") == "true" ]]
 }
