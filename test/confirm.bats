@@ -16,7 +16,7 @@ MOCK
 # Minimal build workspace: init artifacts plus one incomplete task.
 setup_build_workspace() {
     "$RALPH" init
-    echo "- [ ] **Task**" >> IMPLEMENTATION_PLAN.md
+    seed_open_item
 }
 
 # Writes a python pty harness that runs a command with a pseudo-terminal as
