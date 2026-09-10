@@ -31,21 +31,22 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `sandbox --rebuild` | Rebuild the container image from scratch                                   |
 | `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` (max 6 iterations; exits as soon as a pass changes nothing) |
 | `build`           | Pick the next item, implement, test, commit, push (default: 50 iterations)   |
+| `review`          | Audit shipped items against their specs, file findings as new plan items (max 6 iterations; exits as soon as a pass changes nothing) |
 | `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`). Pass `--prompts` to also copy prompt templates for local customisation |
 | `archive`         | Move `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` to `.ralph/<timestamp>/`    |
 | `clean`           | Delete `IMPLEMENTATION_PLAN.md` and `PROGRESS.md`                           |
 | `metrics`         | Summarise a run's loop metrics: per-iteration table plus totals (latest run, or pass a `metrics.jsonl` path) |
 | `version`         | Print version                                                                |
 
-### Options (plan and build)
+### Options (plan, build and review)
 
 | Flag                 | Description                                              |
 |----------------------|----------------------------------------------------------|
-| `-n`, `--iterations` | Max iterations. In build mode this also disables the noop exit; in plan mode it caps the run but never disables the convergence exit |
+| `-n`, `--iterations` | Max iterations. In build mode this also disables the noop exit; in plan and review modes it caps the run but never disables the convergence exit |
 | `-g`, `--goal`       | Goal injected into the prompt template                   |
 | `-m`, `--model`      | Model to use (default depends on backend)                |
 | `-b`, `--backend`    | Backend to use: `claude`, `codex`, `copilot`, `pi` (default: `claude`) |
-| `--skip-push`        | Don't push after each build iteration (plan never pushes) |
+| `--skip-push`        | Don't push after each build iteration (plan and review never push) |
 | `--dry-run`          | Print what would be executed without running              |
 | `--no-metrics`       | Don't record per-iteration metrics under `.ralph/metrics/` |
 | `-v`, `--verbose`    | Stream backend activity live, and show commands, exit codes and the raw stream path |
@@ -53,7 +54,7 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 
 ### Loop metrics
 
-Every real (non-dry-run) `plan` or `build` run records one JSON line per iteration to `.ralph/metrics/<branch>-<timestamp>-<pid>/metrics.jsonl`, alongside the raw backend event stream (`iter-NNN.stream.jsonl`) for deeper analysis. Captured per iteration: wall-clock and API duration, turn count, cost (USD), token usage (input, output, cache read/write), git activity (commits, files changed, insertions/deletions), `IMPLEMENTATION_PLAN.md` items completed, a tool-call histogram, and a noop flag. The loop prints a one-line summary after each iteration, and `ralph metrics` prints the per-iteration table and run totals. Result-event fields are populated for the `claude` backend; other backends record timing and git activity with the rest as nulls. `.ralph/` is gitignored by `ralph init`, so metrics never touch the working tree the loop commits from.
+Every real (non-dry-run) `plan`, `build` or `review` run records one JSON line per iteration to `.ralph/metrics/<branch>-<timestamp>-<pid>/metrics.jsonl`, alongside the raw backend event stream (`iter-NNN.stream.jsonl`) for deeper analysis. Captured per iteration: wall-clock and API duration, turn count, cost (USD), token usage (input, output, cache read/write), git activity (commits, files changed, insertions/deletions), `IMPLEMENTATION_PLAN.md` items completed, a tool-call histogram, and a noop flag. The loop prints a one-line summary after each iteration, and `ralph metrics` prints the per-iteration table and run totals. Result-event fields are populated for the `claude` backend; other backends record timing and git activity with the rest as nulls. `.ralph/` is gitignored by `ralph init`, so metrics never touch the working tree the loop commits from.
 
 ### Live backend output
 
@@ -76,6 +77,8 @@ ralph plan -b codex -g "design the auth module"     # plan with codex
 ralph build --dry-run -b codex                      # dry-run with codex
 ralph build -b copilot -n 10                        # 10 iterations with copilot
 ralph build -b pi -n 10                             # 10 iterations with pi
+ralph build && ralph review && ralph build          # ship, audit, fix the findings
+ralph review -b codex                               # audit using codex backend
 ralph archive                                       # archive before starting fresh
 ralph init                                          # initialise workspace
 ralph init --prompts                                # also copy prompts for customisation
@@ -131,8 +134,8 @@ sdk env install
 
 Ralph looks for prompts in this order:
 
-1. **Project-local** — `PROMPT_plan.md` / `PROMPT_build.md` in the working directory
-2. **Installed defaults** — `~/.config/ralph/prompts/plan.md` / `build.md`
+1. **Project-local** — `PROMPT_plan.md` / `PROMPT_build.md` / `PROMPT_review.md` in the working directory
+2. **Installed defaults** — `~/.config/ralph/prompts/plan.md` / `build.md` / `review.md`
 
 The default prompts reference Anthropic model names (Sonnet, Opus) for subagent selection. If you're using a non-Claude backend, run `ralph init --prompts` to copy the defaults into your project and edit them to suit your backend.
 
@@ -150,7 +153,7 @@ Ralph iterations create and maintain these files in your project:
 
 **Note:** `CLAUDE.md` and `AGENTS.md` are your project's own configuration files for Claude Code and Codex respectively — ralph reads them but never creates or modifies them. The prompt templates reference both files so each backend gets relevant project-specific guidance.
 
-`PROMPT_plan.md` and `PROMPT_build.md` are optional project-local prompt overrides (see [Prompt resolution](#prompt-resolution)).
+`PROMPT_plan.md`, `PROMPT_build.md` and `PROMPT_review.md` are optional project-local prompt overrides (see [Prompt resolution](#prompt-resolution)).
 
 ### The implementation plan contract
 
@@ -186,6 +189,8 @@ ralph build -n 10 -m sonnet      # a cheaper model follows the steps
 ```
 
 ### Starting a new goal
+
+Run `ralph review` before `archive` or `clean` — both remove `IMPLEMENTATION_PLAN.md`, which is the only record of what the cycle shipped, so a closed-out cycle can no longer be audited.
 
 When switching to a new goal, clear out stale artifacts first:
 
