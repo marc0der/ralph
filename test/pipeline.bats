@@ -6,6 +6,7 @@ load test_helper
 
 @test "--verbose flag is accepted without error (build, dry-run)" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1 --verbose
     [[ "$status" -eq 0 ]]
 }
@@ -18,6 +19,7 @@ load test_helper
 
 @test "-v shorthand is accepted without error" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1 -v
     [[ "$status" -eq 0 ]]
 }
@@ -26,6 +28,7 @@ load test_helper
 
 @test "--verbose dry-run output includes the backend command line" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1 --verbose
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
@@ -35,6 +38,7 @@ load test_helper
 
 @test "pipeline failure (backend exits non-zero) produces error with iteration and exit code" {
     "$RALPH" init
+    seed_open_item
     # Create a mock backend that exits non-zero
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
@@ -55,6 +59,7 @@ MOCK
 # nothing to name and another run is the only way to see the output.
 @test "pipeline failure error message suggests --verbose and --dry-run" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
@@ -72,6 +77,7 @@ MOCK
 
 @test "jq failure is reported distinctly from a backend failure" {
     "$RALPH" init
+    seed_open_item
     # Create a mock backend that outputs invalid JSON
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
@@ -90,6 +96,7 @@ MOCK
 
 @test "backend stderr remains visible in non-verbose mode" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
@@ -106,6 +113,7 @@ MOCK
 
 @test "non-verbose non-failure run produces no extra verbose output" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
@@ -123,6 +131,7 @@ MOCK
 
 @test "codex jq filter extracts agent_message text from realistic JSONL" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/codex" <<'MOCK'
 #!/usr/bin/env bash
@@ -140,6 +149,7 @@ MOCK
 
 @test "codex jq filter takes last agent_message when multiple exist" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/codex" <<'MOCK'
 #!/usr/bin/env bash
@@ -159,6 +169,7 @@ MOCK
 
 @test "codex jq filter falls back to command transcript when no agent_message" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/codex" <<'MOCK'
 #!/usr/bin/env bash
@@ -177,6 +188,7 @@ MOCK
 
 @test "codex jq filter includes multiple completed commands in transcript" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/codex" <<'MOCK'
 #!/usr/bin/env bash
@@ -199,6 +211,7 @@ MOCK
 
 @test "codex jq filter prefers agent_message over command transcript" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/codex" <<'MOCK'
 #!/usr/bin/env bash
@@ -218,6 +231,7 @@ MOCK
 
 @test "codex jq filter returns empty output when no items exist" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/codex" <<'MOCK'
 #!/usr/bin/env bash
@@ -237,6 +251,7 @@ MOCK
 
 @test "copilot jq filter extracts assistant.message content from realistic JSONL" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/copilot" <<'MOCK'
 #!/usr/bin/env bash
@@ -255,6 +270,7 @@ MOCK
 
 @test "copilot jq filter falls back to tool.execution_complete transcript when no assistant.message" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/copilot" <<'MOCK'
 #!/usr/bin/env bash
@@ -274,6 +290,7 @@ MOCK
 
 @test "copilot jq filter prefers assistant.message over tool transcript" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/copilot" <<'MOCK'
 #!/usr/bin/env bash
@@ -292,6 +309,7 @@ MOCK
 
 @test "pi jq filter extracts assistant text from agent_end" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/pi" <<'MOCK'
 #!/usr/bin/env bash
@@ -307,6 +325,7 @@ MOCK
 
 @test "pi jq filter takes the last agent_end when auto-retry emits two" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/pi" <<'MOCK'
 #!/usr/bin/env bash
@@ -324,6 +343,7 @@ MOCK
 
 @test "pi jq filter falls back to bash tool transcript when no assistant text" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/pi" <<'MOCK'
 #!/usr/bin/env bash
@@ -340,6 +360,7 @@ MOCK
 
 @test "pi jq filter emits empty when no assistant text and no successful tool results" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/pi" <<'MOCK'
 #!/usr/bin/env bash
@@ -358,6 +379,7 @@ MOCK
 
 @test "codex dry-run shows prompt as a positional argument in the command line" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1 -b codex
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"[dry-run] Would run: codex exec"*"<prompt>"* ]]
@@ -365,6 +387,7 @@ MOCK
 
 @test "claude dry-run does NOT show prompt as a positional argument" {
     "$RALPH" init
+    seed_open_item
     run "$RALPH" build --dry-run -n 1
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
@@ -376,6 +399,7 @@ MOCK
 
 @test "codex mock backend receives the prompt as a CLI argument (not on stdin)" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     local argfile="$TEST_DIR/received_arg.txt"
     # Mock codex that writes its last CLI argument to a file
@@ -401,6 +425,7 @@ MOCK
 
 @test "claude mock backend receives the prompt on stdin (not as a CLI argument)" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     local stdinfile="$TEST_DIR/received_stdin.txt"
     # Mock claude that captures stdin
@@ -426,6 +451,7 @@ MOCK
 
 @test "--verbose output includes exit codes after each iteration" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
@@ -444,6 +470,7 @@ MOCK
 
 @test "--verbose output includes backend command before execution" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
@@ -465,6 +492,7 @@ MOCK
 
 @test "--verbose renders tool calls live on stderr" {
     "$RALPH" init
+    seed_open_item
     create_streaming_backend
 
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
@@ -475,6 +503,7 @@ MOCK
 
 @test "--verbose renders assistant text live on stderr" {
     "$RALPH" init
+    seed_open_item
     create_streaming_backend
 
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
@@ -487,6 +516,7 @@ MOCK
 # also proves the summary survives the live-render branch being skipped.
 @test "non-verbose run renders no live lines but still prints the summary" {
     "$RALPH" init
+    seed_open_item
     create_streaming_backend
 
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
@@ -502,6 +532,7 @@ MOCK
 # the assistant text that followed it. Both halves are asserted here.
 @test "--verbose renders a tool call whose input has the wrong type" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
@@ -525,6 +556,7 @@ MOCK
 # the nested toolCall items the summary filter reads from agent_end.
 @test "--verbose renders pi tool calls live on stderr" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/pi" <<'MOCK'
 #!/usr/bin/env bash
@@ -552,6 +584,7 @@ MOCK
 
 @test "--verbose prints the raw stream path, not the raw JSON body" {
     "$RALPH" init
+    seed_open_item
     create_streaming_backend
 
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
@@ -569,6 +602,7 @@ MOCK
 # BACKEND_STDIN_PROMPT=false, so nothing feeds the pipe and a `cat` would block.
 @test "a backend without a live filter keeps the raw dump under --verbose" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/codex" <<'MOCK'
 #!/usr/bin/env bash
@@ -591,6 +625,7 @@ MOCK
 # diagnostics. backend_codex now assigns "", which wins over the environment.
 @test "an exported BACKEND_JQ_LIVE does not reach a backend without one" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/codex" <<'MOCK'
 #!/usr/bin/env bash
@@ -618,6 +653,7 @@ MOCK
 # print the whole stream again, burying the live output it had just produced.
 @test "--no-metrics --verbose renders live and names no stream" {
     "$RALPH" init
+    seed_open_item
     create_streaming_backend
     mkdir -p "$TEST_DIR/tmp"
 
@@ -647,6 +683,7 @@ MOCK
 # created, or one the EXIT trap deletes, is a path the user cannot open.
 @test "unwritable metrics renders live and names no stream" {
     "$RALPH" init
+    seed_open_item
     create_streaming_backend
 
     # A file squatting on the path denies the mkdir even when tests run as
@@ -675,6 +712,7 @@ MOCK
 # have to look at where `raw_file` sits rather than at the metrics flag.
 @test "a metrics run degraded to the temp file names no stream" {
     "$RALPH" init
+    seed_open_item
     create_streaming_backend
 
     local real_mkdir
@@ -724,6 +762,7 @@ MOCK
 # where the filters' `gsub` is absent.
 @test "a broken live filter falls back to the raw dump" {
     "$RALPH" init
+    seed_open_item
     create_streaming_backend
 
     local real_jq
@@ -762,6 +801,7 @@ MOCK
 # guarded, so a local file fault degrades one iteration instead of the run.
 @test "a removed stream file does not stop the loop under --verbose" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     # codex ships no live filter, so this takes the raw-dump branch — the one
     # that reads the file back. BACKEND_STDIN_PROMPT=false for codex, so the
@@ -799,6 +839,7 @@ MOCK
 
 @test "backend exit code survives the tee pipeline under --verbose" {
     "$RALPH" init
+    seed_open_item
     create_streaming_backend
 
     MOCK_EXIT=42 PATH="$TEST_DIR/bin:$PATH" \
@@ -830,6 +871,7 @@ MOCK
 # adopted as the iteration result, so only reading the stream file catches it.
 @test "backend stderr stays out of the raw stream under --verbose" {
     "$RALPH" init
+    seed_open_item
     create_streaming_backend
     mv "$TEST_DIR/bin/claude" "$TEST_DIR/bin/streaming-events"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
@@ -883,6 +925,7 @@ MOCK
 # nine lines that follow the garbage are what tell the two apart.
 @test "a non-JSON stdout line does not truncate the raw stream" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
@@ -930,6 +973,7 @@ MOCK
 # which is the common case, produced an empty pair around nothing at all.
 @test "a silent backend prints no stderr markers under --verbose" {
     "$RALPH" init
+    seed_open_item
     create_streaming_backend
 
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
@@ -944,6 +988,7 @@ MOCK
 # the backend really does write to stderr.
 @test "a noisy backend still frames its stderr under --verbose" {
     "$RALPH" init
+    seed_open_item
     create_streaming_backend
     mv "$TEST_DIR/bin/claude" "$TEST_DIR/bin/streaming-events"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
@@ -976,6 +1021,7 @@ MOCK
 # mid-line while the backend still exits 0.
 @test "a stream write failure leaves the loop running" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
@@ -1020,6 +1066,7 @@ MOCK
 # closes.
 @test "live lines arrive on stderr before the backend exits" {
     "$RALPH" init
+    seed_open_item
     create_streaming_backend
 
     local err="$TEST_DIR/live.err"
@@ -1272,6 +1319,7 @@ MOCK
 # 2. Deferred expansion keeps the path data instead of code.
 @test "a quoted TMPDIR does not break the exit trap" {
     "$RALPH" init
+    seed_open_item
     create_streaming_backend
     quoted_tmp="$TEST_DIR/o'brien"
     mkdir -p "$quoted_tmp"
@@ -1295,6 +1343,7 @@ MOCK
 # Retention, not the presence of a live filter, is what decides.
 @test "the jq failure hint names a retained stream" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     # codex takes the prompt as a CLI argument, so the mock must not read stdin.
     cat > "$TEST_DIR/bin/codex" <<'MOCK'
@@ -1323,6 +1372,7 @@ MOCK
 # nothing at all when --verbose is what produced the failing run.
 @test "the backend failure hint names a retained stream" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
@@ -1348,6 +1398,7 @@ MOCK
 # warning is not gated on --verbose, so every `ralph build --no-metrics` saw it.
 @test "the empty-stream warning names no temp path" {
     "$RALPH" init
+    seed_open_item
     mkdir -p "$TEST_DIR/bin"
     # A backend that emits nothing at all and exits clean: the stream file is
     # created and stays empty, which is the case this warning exists for.
@@ -1378,6 +1429,7 @@ MOCK
 # summary must still reach stdout from that same variable.
 @test "the variable capture fallback still summarises under --verbose" {
     "$RALPH" init
+    seed_open_item
     create_streaming_backend
     mkdir -p "$TEST_DIR/tmp"
 
