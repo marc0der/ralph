@@ -22,11 +22,15 @@ Gather context by reading these sources. If your harness supports subagents, use
 
 ## Phase 2: Audit
 
-Audit **every** `- [x]` item. Coverage is never sampled, never capped, and never deferred to a later pass.
+Audit **every** `- [x]` item. Coverage is never sampled and never deferred to a later pass.
 
-### Fan out
+Coverage and the finding budget cap different things. You read every shipped item. You file at most 5. Never narrow the audit because the budget is small — you cannot rank findings you never looked for.
 
-One context cannot hold every shipped item plus its spec plus the code. If your harness supports subagents, dispatch subagents that each audit **3 items** with fresh context, then aggregate their findings yourself. Use your strongest reasoning model for the audit. If your harness has no subagents, audit the items yourself in the same slices of 3 items.
+### Audit in one context
+
+Audit every shipped item yourself, in one context. Use your strongest reasoning model. Never dispatch one subagent per item or per slice of items.
+
+You must rank your findings against each other before you write any of them. A context that holds one slice of the plan cannot do that. It scores its slice against nothing and reports everything it sees. Reading source in parallel stays correct. Splitting the judgement does not.
 
 Never run build or test commands in more than one subagent at a time.
 
@@ -48,6 +52,8 @@ A finding names something the audited item itself names — a symbol, a file, a 
 ### Findings must be anchored
 
 Every finding traces to a requirement in the spec file named by a shipped item's `Spec:` field. If nothing in `specs/` states the behaviour, it is not a defect and you do not file it.
+
+**The clause you cite must describe program behaviour.** A flag, an exit code, an error message, a file the tool writes, or an order the tool enforces. A clause that prescribes the text of a document anchors nothing. Stale wording in `README.md`, `CLAUDE.md` or `AGENTS.md` is never a finding. Citing the spec clause that asked for that wording does not make it one.
 
 **Never create or edit anything under `specs/`.** Authoring a spec would let you manufacture your own anchor: invent a requirement on one pass, then file findings against that invention on the next. It would also defeat convergence, which fingerprints `specs/` as well as the plan.
 
@@ -106,7 +112,7 @@ Every finding carries one of two levels. The level must be decidable from the it
 | Level | Definition |
 |-------|------------|
 | **Critical** | A symbol, file, flag or behaviour the item names is absent, or behaves against the item or against the spec in its `Spec:` field. |
-| **Major** | The item's claim holds, but the spec requirement it serves is only partly met, or no test proves it. |
+| **Major** | The item's claim holds, but the spec requirement it serves is only partly implemented. |
 
 Write the level as the first word of the title, followed by a colon:
 
@@ -116,9 +122,27 @@ Write the level as the first word of the title, followed by a colon:
 
 Position alone cannot carry severity, because your findings sit in the same list as the planning agent's items with nothing else to distinguish them. A title keeps the level greppable across passes and needs no seventh field.
 
+Both levels need the same proof. Name a behaviour the spec requires. Show the tree does not have it. `Major` is not a weaker standard of evidence. It names a different target: the spec requirement behind the item, not the item's own claim.
+
 There is no third level. A convention violation that no spec mandates is not a review finding. `CLAUDE.md` and `AGENTS.md` are not anchors.
 
+**Never file any of these, at any level:**
+
+- An absent test, a thin test, or an assertion you want to be stronger. Test debt belongs to the planning phase.
+- Stale or incomplete wording in any document.
+- A naming preference, a style preference, or a convention preference.
+
 Rank every `Critical:` finding above every `Major:` finding.
+
+### Finding budget
+
+`IMPLEMENTATION_PLAN.md` holds at most **5 open findings** at one time.
+
+Count the `- [ ]` items in the plan before you write anything. If the file holds 5, file nothing and change nothing. If it holds fewer, file at most the difference.
+
+Rank every finding you made against every other finding before you choose. File the worst. Drop the rest. Name a dropped finding in your final message if you want, but never write it to the plan. A later run finds it again after `build` clears the queue.
+
+The budget is the work of the pass. An audit that files everything it noticed made no judgement, and it buries the one defect that mattered under the twenty that did not.
 
 ### Markers
 
@@ -198,6 +222,8 @@ You have no human to ask. Resolve every open question yourself.
 
 Stop when the audit finds nothing new. A pass that files no finding, refines no open item, and supersedes nothing changes no file, and the loop exits on it.
 
+A pass that is already at the finding budget also changes no file, and the loop exits on the same rule. That is correct. The queue is full, and `build` must drain it before another audit adds to it.
+
 Do not add sections. Do not restate what you audited in the plan. Do not re-file a finding the plan already holds. Do not re-word an open item to look productive. An unchanged plan is a finished audit.
 
 ---
@@ -209,5 +235,7 @@ Do not add sections. Do not restate what you audited in the plan. Do not re-file
 - **Never create or edit anything under `specs/`**
 - **Never alter a `- [x]` marker**
 - Never assume functionality is missing — confirm with a code search first
-- Every finding is anchored on a spec and local to one shipped item
+- Every finding is anchored on a spec clause describing program behaviour, and local to one shipped item
+- Never file an absent test, stale document wording, or a style preference, at any level
+- File at most 5 open findings, and audit the whole plan in one context
 - Report coverage, unanchored observations, and unresolved questions in your final message, never in a file

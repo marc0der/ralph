@@ -61,6 +61,18 @@ once, naming the failing tests. It never produces one finding per item.
 Every finding traces to a requirement in the spec file named by a shipped item's `Spec:` field. If
 nothing in `specs/` specifies the behaviour, it is not a defect for review to file.
 
+**The cited clause must specify program behaviour** — a flag, an exit code, an error message, a file
+the tool writes, or an order it enforces. A clause that prescribes the text of a document anchors
+nothing.
+
+This closes a gap the first rule leaves open. Section 3 already denies `CLAUDE.md` and `AGENTS.md`
+the role of anchor, which stops review filing a finding because the tree contradicts a convention
+those files record. It does not stop the reverse: section 12 of this spec *prescribes* the content of
+`CLAUDE.md`, `AGENTS.md` and `README.md`, so a stale sentence in one of them is a legitimate
+deviation from a legitimate spec clause. Review duly filed items to correct documentation wording,
+citing section 12, and broke no rule doing it. Anchors restricted to behaviour close the gap for
+every spec at once, where deleting section 12's prescriptions would close it only for this one.
+
 **Review never creates or edits anything under `specs/`.** An observation that no spec covers is
 reported in the pass's final assistant message — which the loop's summary filter prints and the
 retained `iter-NNN.stream.jsonl` keeps — and written to no file. Authoring a spec would let the
@@ -73,19 +85,23 @@ fingerprints `specs/` as well as the plan.
 Every pass audits **every** `- [x]` item. Coverage is not sampled, capped or deferred to a later
 pass.
 
-One backend context cannot reliably hold 33 items plus their specs plus the code, so the review
-prompt requires the agent to **fan out**: dispatch subagents that each audit a bounded slice of the
-shipped items with fresh context, and aggregate their findings in the parent. `prompts/build.md`
-already uses this idiom ("use fast ones for search and read operations").
+**One context audits the whole plan.** The prompt forbids dispatching one subagent per item or per
+slice of items. Parallel reading of source and tests stays available, as it is in `prompts/plan.md`
+and `prompts/build.md`; it is the *judgement* that must not be split.
 
-**The fan-out unit is the item, not the spec.** A slice holds one item, or a small fixed number of
-items, and the prompt states that number. Grouping by `Spec:` file does not bound anything: all 33
-shipped items in this repository's plan cite `specs/verbose-live-streaming.md`, so a per-spec fan-out
-would dispatch a single subagent holding the whole audit and change nothing.
+A sliced audit cannot rank. Section 3's budget requires the pass to order every finding against
+every other finding and file only the worst, and a subagent holding 3 of 33 items scores its slice
+against nothing. It returns everything it noticed, and the parent is instructed to aggregate rather
+than to triage — so the slices sum instead of competing. The run that motivated this rule filed one
+finding per shipped item: 16 findings against 16 items, all at the lower severity, none of them a
+defect.
 
-Each pass must state its coverage — the number of items audited against the number in the plan. On backends without subagents (`codex`, `copilot`, `pi`) the fan-out instruction
-is inert and the run degrades to a single context; the coverage statement is then the only signal
-that a sweep fell short, so it is required on every backend.
+Coverage and ranking pull against each other only if the audit is memory-bound. It is not: the
+budget caps *output*, not how much the pass reads, and the pass may read the plan and the tree in
+whatever order and with whatever parallel reads it needs.
+
+Each pass must state its coverage — the number of items audited against the number in the plan. It
+is the only signal that a sweep fell short, so it is required on every backend.
 
 ## 3. Severity
 
@@ -95,7 +111,18 @@ so that two passes over the same state agree.
 | Level | Definition |
 |-------|------------|
 | **Critical** | A symbol, file, flag or behaviour the item names is absent, or behaves against the item or against the spec in its `Spec:` field. |
-| **Major** | The item's claim holds, but the spec requirement it serves is only partly met, or no test proves it. |
+| **Major** | The item's claim holds, but the spec requirement it serves is only partly implemented. |
+
+Both levels carry the same burden of proof: name a behaviour the spec requires, and show the tree
+does not have it. `Major` is not a weaker standard of evidence — it names a different target, the
+spec requirement behind the item rather than the item's own claim.
+
+The `or no test proves it` clause that `Major` originally carried is deleted. It was satisfiable
+against nearly every shipped item, because absent coverage is always arguable, so it turned review
+from an audit into an enumeration of test debt. Test debt is a planning concern: section 15 argues
+that sharper `Done when` criteria are the fix, and `prompts/plan.md` now requires them. Three classes
+are therefore unfileable at any level: an absent or thin test, stale wording in any document, and a
+naming, style or convention preference.
 
 There is no third level. A convention violation that no spec mandates is not a review finding —
 `CLAUDE.md` and `AGENTS.md` are not anchors, and a tier resting on them could not cite a spec file in
@@ -115,6 +142,24 @@ changes the file hash, and the convergence exit never fires.
 
 Critical findings sit above Major findings. Section 7 guarantees the plan holds no other open items
 when a review run starts, so findings are only ever ranked against each other.
+
+### Finding budget
+
+`IMPLEMENTATION_PLAN.md` holds **at most 5 open findings** at one time. A pass counts the `- [ ]`
+items before it writes, and files at most the difference. A pass that finds the plan already at 5
+files nothing.
+
+**The cap is an invariant on the plan, not a counter per pass.** Stated per pass it would bound
+nothing: the loop runs up to 6 passes, so 5 each would permit 30 items and merely spread the
+inflation across the run. Stated as a standing limit it self-enforces and needs no new state, since
+the plan file is the counter. Section 7 guarantees a run starts at zero open items, so the standing
+cap and a per-run cap are the same number.
+
+The budget is what makes a pass an audit. Ranking is only meaningful when something is dropped: a
+pass that files everything it noticed has exercised no judgement, and it buries the defect that
+mattered under the ones that did not. Dropped findings are not lost — a dropped finding may be named
+in the final message, never in the plan, and a later run rediscovers it once `build` has drained the
+queue.
 
 ## 4. Editing rules
 
@@ -161,6 +206,9 @@ Review loops like plan, not like build.
   review's own output and nothing else. Each pass re-audits every `- [x]` item and reconciles those
   open findings: refining them so they state work that is still needed, merging overlaps, and
   superseding any that later evidence made obsolete.
+- A pass already at the section 3 budget files nothing, so it leaves the plan unchanged and the
+  convergence exit fires on it. This is the intended end of a saturated run: the queue is full, and
+  `build` must drain it before another audit adds to it.
 - Convergence: a pass that leaves the plan unchanged has found nothing new and has nothing left to
   refine. The loop exits early.
 - `-n` caps a review run but never disables the convergence exit, matching plan mode.
