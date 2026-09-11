@@ -52,11 +52,13 @@ Build and review each carry a hard precondition that runs unconditionally beside
 
 ### The implementation plan contract
 
-`specs/` states *what* to build; `IMPLEMENTATION_PLAN.md` states *how*. Both prompts enforce a closed six-field item schema (title, `Spec`, `Scope`, `Files`, `Steps`, `Done when`), a cap of 150 words / 14 lines / 8 steps per item, and Simplified Technical English. The plan file holds exactly three headings and never carries outcomes, evidence or status — those belong in `PROGRESS.md`.
+`specs/` states *what* to build; `IMPLEMENTATION_PLAN.md` states *how*. All three prompts enforce a closed six-field item schema (title, `Spec`, `Scope`, `Files`, `Steps`, `Done when`), a cap of 150 words / 14 lines / 8 steps per item, and Simplified Technical English. The plan file holds exactly three headings and never carries outcomes, evidence or status — those belong in `PROGRESS.md`.
 
 Items are mutable during the plan phase and immutable during the build phase, where the only legal edits are ticking a checkbox, marking an item `- [~]`, and appending a new item. Markers are `- [ ]`, `- [x]`, and `- [~]` (superseded or blocked). `calculate_build_iterations` counts only `^- \[ \]`, so `[~]` items neither size the build loop nor count as shipped work. When changing these rules, keep `prompts/plan.md`, `prompts/build.md`, `prompts/review.md` and `templates/IMPLEMENTATION_PLAN.md` in agreement — the prompts win on any disagreement.
 
 Review edits the plan under the plan-phase rules, plus three of its own. It may refine, reorder and supersede open items, but it never alters a `- [x]` marker: a shipped item that fails its claim becomes a new item naming the defect, because un-ticking hides that a defect escaped and lets an item oscillate between `[ ]` and `[x]` across review and build runs. Every supersession review makes is recorded in `PROGRESS.md`, because the next plan run resolves a `[~]` item by reading that entry and will otherwise resurrect the item as open. Review never creates or edits anything under `specs/` — authoring its own anchor would both manufacture findings and defeat convergence, since `plan_state_hash` fingerprints `specs/` too.
+
+A review pass files **at most 5 open findings**. The cap is a standing limit on `IMPLEMENTATION_PLAN.md`, not a per-pass quota, so a pass that finds the queue already full changes nothing and the loop converges on it. One context audits the whole plan: the judgement is never split across subagents, because a subagent holding a slice of the items cannot rank its findings against the rest, and slices sum instead of competing. Every finding anchors on a spec clause that describes program behaviour — an absent test, stale wording in any document, and a naming or style preference are unfileable at any severity, and a spec clause prescribing documentation text anchors nothing.
 
 ### Sandbox
 
