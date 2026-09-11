@@ -12,7 +12,7 @@ The specifications state **what** to build. The implementation plan states **how
 
 ## Phase 1: Understand
 
-Gather context by reading these sources. If your harness supports subagents, use fast ones to read specs, source, and tests in parallel.
+Gather context by reading these sources. If your harness supports subagents, use them to read and search in parallel. A subagent returns evidence, never a conclusion.
 
 - **Operational guardrails** — read `AGENTS.md` or `CLAUDE.md` (if present) for build commands, conventions, and project rules
 - **Specifications** — read everything in `specs/`
@@ -23,7 +23,9 @@ Gather context by reading these sources. If your harness supports subagents, use
 
 ## Phase 2: Analyse
 
-Analyse and synthesise the findings with your strongest reasoning model, in a subagent if your harness supports one. Compare the source code and tests against the specifications.
+Analyse and synthesise the findings yourself, in one context. Compare the source code and tests against the specifications.
+
+You decide what is a gap and you order the items. Never delegate that judgement. A subagent holding one slice of the evidence cannot rank it against the slices it never saw.
 
 Look for:
 - Gaps between specs and implementation

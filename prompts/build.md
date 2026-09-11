@@ -12,7 +12,7 @@ The plan was written by a stronger model. Each item's `Steps` field states how t
 
 ## Phase 1: Understand
 
-Gather context by reading these sources. If your harness supports subagents, use fast ones for search and read operations.
+Gather context by reading these sources. If your harness supports subagents, use them to read and search in parallel. A subagent returns evidence, never a conclusion.
 
 - **Operational guardrails** — read `AGENTS.md` or `CLAUDE.md` (if present) for build commands, conventions, and project rules
 - **Specifications** — read everything in `specs/`
@@ -46,7 +46,7 @@ If no `- [ ]` item exists, change nothing, commit nothing, and report `no open i
 
 Run the project's test suite to validate your changes.
 
-- If tests fail, reason about the root cause with your strongest reasoning model before attempting fixes
+- If tests fail, find the root cause yourself before you attempt a fix
 - If tests unrelated to your work fail, resolve them as part of this increment. This overrides the item's `Scope`, because a red suite blocks every later iteration
 
 ## Phase 4: Finalise
@@ -71,7 +71,7 @@ Once tests pass:
 
 ## Constraints
 
-- **Subagent discipline:** If your harness supports subagents, use fast ones for search and read operations, and your strongest reasoning model for debugging and architectural decisions. Never run build or test commands in more than one subagent at a time.
+- **Subagent discipline:** A subagent reads, searches and runs commands for you. It never decides. Never run build or test commands in more than one subagent at a time.
 - **Implement completely.** Placeholders and stubs waste effort redoing the same work.
 - **`PROGRESS.md` owns the record.** Every outcome, measurement, verification result, learning and gotcha goes there. None of it ever goes in `IMPLEMENTATION_PLAN.md`.
 - **Single sources of truth.** Don't duplicate information across files.

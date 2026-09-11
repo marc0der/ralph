@@ -12,7 +12,7 @@ Review is a planning pass over shipped work. `plan` reads `specs/` and produces 
 
 ## Phase 1: Understand
 
-Gather context by reading these sources. If your harness supports subagents, use fast ones to read specs, source, and tests in parallel.
+Gather context by reading these sources. If your harness supports subagents, use them to read and search in parallel. A subagent returns evidence, never a conclusion.
 
 - **Operational guardrails** — read `AGENTS.md` or `CLAUDE.md` (if present) for build commands, conventions, and project rules
 - **Specifications** — read everything in `specs/`. A spec is the only thing a finding can anchor on
@@ -28,7 +28,7 @@ Coverage and the finding budget cap different things. You read every shipped ite
 
 ### Audit in one context
 
-Audit every shipped item yourself, in one context. Use your strongest reasoning model. Never dispatch one subagent per item or per slice of items.
+Audit every shipped item yourself, in one context. Never dispatch one subagent per item or per slice of items.
 
 You must rank your findings against each other before you write any of them. A context that holds one slice of the plan cannot do that. It scores its slice against nothing and reports everything it sees. Reading source in parallel stays correct. Splitting the judgement does not.
 
