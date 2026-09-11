@@ -68,7 +68,7 @@ Each item uses these six fields, in this order, and no others:
 - `Steps` carry the how. Name symbols, option paths, attribute names, literal values, and files to copy an idiom from.
 - **Never cite line numbers. Never paste code.** Every named token must be greppable, because the item runs many commits after you write it.
 - `Files` lists paths only.
-- `Spec` cites a spec file plus an item number or a section name.
+- `Spec` cites a spec file plus an item number or a section name. A review finding instead cites `IMPLEMENTATION_PLAN.md` plus the quoted title of the item it audits. Leave that form alone.
 
 ### Markers
 

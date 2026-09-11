@@ -36,7 +36,7 @@ If no `- [ ]` item exists, change nothing, commit nothing, and report `no open i
 - Search the codebase before writing new code; the functionality may already exist
 - You may add logging to debug issues
 
-**Never edit a file in `specs/`.** The specs are the decision record and the plan items point at them. If the spec contradicts the item, or the item cannot be implemented as written:
+**Never edit a file in `specs/`.** The specs are the decision record and the plan items point at them. A review finding points at the plan item it audits instead, so it has no spec clause to contradict. If the spec contradicts the item, or the item cannot be implemented as written:
 
 1. Mark the item `- [~]` in `IMPLEMENTATION_PLAN.md`. Change nothing else about it.
 2. Record the contradiction in `PROGRESS.md`, with enough detail for the next planning run to resolve it.

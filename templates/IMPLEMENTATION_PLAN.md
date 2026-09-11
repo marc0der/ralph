@@ -19,7 +19,8 @@ Rules:
 
 - Order is priority. The build agent picks the top incomplete item.
 - The spec states what to build. The item states how to build it.
-- Cite a spec file plus an item number or a section name in `Spec`.
+- Cite a spec file plus an item number or a section name in `Spec`. A review finding instead cites
+  `IMPLEMENTATION_PLAN.md` plus the quoted title of the item it audits.
 - Write at most 150 words and 14 lines per item. Write at most 10 words per title.
 - Write at most 2 sentences for `Scope`. Write at most 2 sentences for `Done when`.
 - Name a symbol, file, flag, output, or error path of the item in `Done when`. Never make a whole-suite run the entire criterion.
