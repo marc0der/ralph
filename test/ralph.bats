@@ -43,7 +43,7 @@ load test_helper
     # Spec (review-phase.md section 8) fixes this wording: review audits work
     # already shipped and files what it finds as new plan items, which is what
     # distinguishes it from plan (writes the plan) and build (executes it).
-    [[ "$output" == *"review"*"Audit shipped items against their specs, file findings as new plan items"* ]]
+    [[ "$output" == *"review"*"Audit shipped items against the plan, file findings as new plan items"* ]]
 }
 
 @test "ralph --help states review's iteration default and convergence behaviour" {

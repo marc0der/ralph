@@ -4,21 +4,39 @@ Ralph has two phases. `plan` reads `specs/` and writes work items. `build` imple
 at a time and commits. Nothing audits the result.
 
 The build agent is the only witness to its own work. It ticks its own checkbox and writes its own
-`PROGRESS.md` entry. When a shipped item satisfies its `Done when` in letter but misses the spec it
-cites, or when the plan item itself drifted from that spec during planning, no phase in the loop can
-detect it. The next `ralph plan` run re-derives the plan from `specs/` and treats every `- [x]` item
-as settled history.
+`PROGRESS.md` entry. When a shipped item satisfies its `Done when` in letter but never implemented
+what the item names, or when the code it committed is defective, no phase in the loop can detect it.
+The next `ralph plan` run re-derives the plan from `specs/` and treats every `- [x]` item as settled
+history.
 
 This spec adds a third phase, `review`, that attacks shipped work and files what it finds as new
 plan items.
 
 ## 1. Model
 
-**Review is a planning pass over shipped work.**
+**Review audits build fidelity.**
 
-`plan` reads `specs/` and produces items. `review` reads *what was shipped* and produces items. Both
-write `IMPLEMENTATION_PLAN.md`, both converge when a pass changes nothing, and both leave the
-implementing to `build`.
+`plan` reads `specs/` and produces items. `review` reads *what was shipped against those items* and
+produces items. Both write `IMPLEMENTATION_PLAN.md`, both converge when a pass changes nothing, and
+both leave the implementing to `build`.
+
+### Planning is trusted
+
+Review never judges the plan. `plan` loops to convergence over `specs/`, so by the time `build`
+starts, the plan is a settled artifact: it has already decided what the specs require, how to
+decompose it, and in what order. Review's only question is whether `build` honoured it.
+
+This is a boundary, not a simplification. A reviewer that may also fault the plan has no fixed
+standard to measure against — it can always find the work wanting by proposing an item the planner
+did not write, and the run that motivated this rule did exactly that. It audited a three-item plan,
+confirmed all three items were implemented correctly, and then reported the *feature* as
+unimplemented because the plan had never scoped the rest of it. That judgement may be right, but it
+belongs to `plan`, which owns decomposition and can act on it. Filed as a review finding it is
+unfalsifiable, and it makes the plan a moving target that no `build` run can ever satisfy.
+
+The boundary also keeps the phases independently fixable. A bad plan is a planning defect, fixed by
+another `ralph plan` run over the specs. A bad implementation of a good plan is a build defect, and
+that is the only thing review reports.
 
 The handoff needs no new mechanism. Findings become `- [ ]` items, `calculate_build_iterations`
 already counts exactly those, and the cycle is:
@@ -35,20 +53,30 @@ duplicate an item it can already see.
 
 Review anchors on `- [x]` items in `IMPLEMENTATION_PLAN.md`. For each one it makes two checks:
 
-1. **Code against the item.** Is the claim the item makes true of the tree? See the falsification
-   rule below — the reviewer must prove a specific failure, not merely observe that the suite is red.
-2. **Item against its spec.** Does the item, as written and as implemented, satisfy the requirement
-   in the file named by its `Spec:` field? This catches drift introduced during planning, which
-   `build` structurally cannot see: build executes the item's `Steps` as written and never questions
-   whether the item served its spec.
+1. **Fidelity.** Did `build` implement what the item names, across its `Scope`, `Files`, `Steps` and
+   `Done when`? See the falsification rule below — the reviewer must prove a specific failure, not
+   merely observe that the suite is red.
+2. **Code quality.** Did `build` write defective code — a bug, an unhandled error, an unhandled edge
+   case — anywhere in the commits that shipped the item? An item can be followed to the letter and
+   still ship something broken, and `build` is the only witness to that too. The unit is the commit,
+   not the item's `Files`: `prompts/build.md` Phase 3 requires `build` to fix an unrelated red suite
+   and explicitly overrides the item's `Scope` to do it, so code outside the `Scope` ships under the
+   item and is audited with it.
+
+Check 1 asks whether `build` followed the item. Check 2 asks whether the code it wrote works.
+Nothing else is in range. `specs/` is not an input to a review pass at all, which states the
+section 1 boundary as a rule about what to read rather than a rule about how to judge — an easier
+instruction to follow, and an easier one to see broken in a transcript. Ralph does not enforce it:
+no backend is launched with a path restriction, so the ban lives in the prompt like every other
+rule here.
 
 Evidence comes from the tree, the test suite, `git log` / `git diff`, and `PROGRESS.md`. `PROGRESS.md`
 is read as a *claim* to be verified, never as proof. Section 4 states the one exception.
 
 ### Findings must be item-local
 
-A finding must name something the audited item itself names — a symbol, file, flag, command or
-behaviour — and prove it is absent or behaves against the item.
+A finding must belong to one shipped item. It proves that `build` missed something the item names —
+a symbol, file, flag, command or behaviour — or that the code the item wrote is defective.
 
 **A failing test suite is not per-item evidence.** Most real `Done when` criteria include a
 whole-suite conjunct: in this repository, 32 of 35 read `bats test/ passes and <small extra>`. That
@@ -56,29 +84,25 @@ conjunct is true or false for every shipped item simultaneously, so a red suite 
 falsify all of them at once. A red suite produces **at most one finding for the whole run**, filed
 once, naming the failing tests. It never produces one finding per item.
 
-### Findings must be anchored
+### The plan is the requirement
 
-Every finding traces to a requirement in the spec file named by a shipped item's `Spec:` field. If
-nothing in `specs/` specifies the behaviour, it is not a defect for review to file.
+Every finding traces to a shipped item. The item states the work, so the item — not `specs/`, not a
+convention document, not the reviewer's own judgement — decides whether `build` fell short.
 
-**The cited clause must specify program behaviour** — a flag, an exit code, an error message, a file
-the tool writes, or an order it enforces. A clause that prescribes the text of a document anchors
-nothing.
+This also disposes of the documentation-wording problem the spec-anchored rule could not solve.
+Section 12 of this spec *prescribes* the content of `CLAUDE.md`, `AGENTS.md` and `README.md`. While
+findings anchored on spec clauses, a stale sentence in one of those files was a legitimate deviation
+from a legitimate clause, so review duly filed items to correct documentation wording and broke no
+rule doing it. The behaviour-only restriction on anchors was an attempt to close that off. With the
+plan as the only requirement the question resolves on its own, and section 3 states the rule: a
+document is in range exactly when a shipped item named it and told `build` what to write.
 
-This closes a gap the first rule leaves open. Section 3 already denies `CLAUDE.md` and `AGENTS.md`
-the role of anchor, which stops review filing a finding because the tree contradicts a convention
-those files record. It does not stop the reverse: section 12 of this spec *prescribes* the content of
-`CLAUDE.md`, `AGENTS.md` and `README.md`, so a stale sentence in one of them is a legitimate
-deviation from a legitimate spec clause. Review duly filed items to correct documentation wording,
-citing section 12, and broke no rule doing it. Anchors restricted to behaviour close the gap for
-every spec at once, where deleting section 12's prescriptions would close it only for this one.
-
-**Review never creates or edits anything under `specs/`.** An observation that no spec covers is
-reported in the pass's final assistant message — which the loop's summary filter prints and the
-retained `iter-NNN.stream.jsonl` keeps — and written to no file. Authoring a spec would let the
-reviewer manufacture its own anchor: it could invent a requirement on one pass and file findings
-against that invention on the next. It would also defeat convergence, because `plan_state_hash`
-fingerprints `specs/` as well as the plan.
+**Review never reads, creates or edits anything under `specs/`.** An observation that belongs to no
+shipped item is reported in the pass's final assistant message — which the loop's summary filter
+prints and the retained `iter-NNN.stream.jsonl` keeps — and written to no file. Not reading `specs/`
+serves section 1: a reviewer cannot second-guess a decision it never read. Not writing `specs/`
+additionally stops it manufacturing its own standard, and would otherwise defeat convergence,
+because `plan_state_hash` fingerprints `specs/` as well as the plan.
 
 ### Coverage
 
@@ -105,28 +129,46 @@ is the only signal that a sweep fell short, so it is required on every backend.
 
 ## 3. Severity
 
-Findings carry one of two levels. The level must be decidable from the item, its spec and the tree,
-so that two passes over the same state agree.
+Findings carry one of two levels. The level must be decidable from the item and the tree, so that
+two passes over the same state agree.
 
 | Level | Definition |
 |-------|------------|
-| **Critical** | A symbol, file, flag or behaviour the item names is absent, or behaves against the item or against the spec in its `Spec:` field. |
-| **Major** | The item's claim holds, but the spec requirement it serves is only partly implemented. |
+| **Critical** | `build` did not implement what the item names. A symbol, file, flag or behaviour the item names is absent, or behaves against the item. |
+| **Major** | `build` implemented the item, but the code is defective: a bug, an unhandled error, or an unhandled edge case. |
 
-Both levels carry the same burden of proof: name a behaviour the spec requires, and show the tree
-does not have it. `Major` is not a weaker standard of evidence — it names a different target, the
-spec requirement behind the item rather than the item's own claim.
+The two levels are the two checks in section 2. `Critical` is check 1 failing and `Major` is check 2
+failing, so every finding carries the level of the check that produced it and no separate judgement
+is needed.
 
-The `or no test proves it` clause that `Major` originally carried is deleted. It was satisfiable
-against nearly every shipped item, because absent coverage is always arguable, so it turned review
-from an audit into an enumeration of test debt. Test debt is a planning concern: section 15 argues
-that sharper `Done when` criteria are the fix, and `prompts/plan.md` now requires them. Three classes
-are therefore unfileable at any level: an absent or thin test, stale wording in any document, and a
-naming, style or convention preference.
+Both levels carry the same burden of proof: name a behaviour, and show the tree does not have it.
+`Major` is not a weaker standard of evidence — it names a different target, the code `build` wrote
+rather than the item's own claim.
 
-There is no third level. A convention violation that no spec mandates is not a review finding —
-`CLAUDE.md` and `AGENTS.md` are not anchors, and a tier resting on them could not cite a spec file in
-the mandatory `Spec:` field without breaking the item schema.
+**Where both levels fit, the finding is `Critical`.** Any part of what the item names being absent
+is check 1 failing, so a named behaviour that works on one code path and not another is `Critical`.
+Without this tie-break the two definitions overlap across the whole partial-implementation band —
+old `Major` covered it explicitly — and two passes could label the same finding differently, change
+the plan, and defeat the convergence exit.
+
+Two classes the old rules banned outright are readmitted, both as check 1 and therefore both
+`Critical`. A **test** is in range when the item called for one: the `Steps` or `Done when` name a
+test and no test asserts the behaviour the item names. A **document** is in range when the item
+named it and stated what to write. In each case the item asked for a specific deliverable and the
+deliverable is absent, which is an unmet step like any other.
+
+The line that matters is *the item asked for it*. The deleted `or no test proves it` clause was
+satisfiable against nearly every shipped item because absent coverage is always arguable; "no test
+asserts the behaviour this item names" is a fact about the tree, and a test that does assert it
+closes the item however weak the reviewer finds it. The same line governs documents: prescribed
+wording is auditable, stale wording at large is not.
+
+Three classes remain unfileable at any level: a test the item never called for, wording in a
+document no shipped item named, and a naming, style or convention preference. A fourth is added by
+section 1: an item the reviewer would have planned differently.
+
+There is no third level. A convention violation is not a review finding — `CLAUDE.md` and `AGENTS.md`
+record conventions rather than work, and the plan is the only requirement review measures against.
 
 **Severity is written in the title**, as its first word followed by a colon:
 
@@ -176,9 +218,9 @@ Review takes the seven editing rules in `prompts/plan.md` in full:
 Review adds three rules of its own:
 
 - **Never alter a `- [x]` marker.** A shipped item that fails its claim produces a new Critical item
-  naming the defect and the spec clause it violates. Un-ticking is forbidden: the `[x]` records that
-  the work was committed, and erasing it hides that a defect escaped. It would also let an item
-  oscillate between `[ ]` and `[x]` across review and build runs, which never converges.
+  naming the defect. Un-ticking is forbidden: the `[x]` records that the work was committed, and
+  erasing it hides that a defect escaped. It would also let an item oscillate between `[ ]` and
+  `[x]` across review and build runs, which never converges.
 - **Record every supersession.** When review marks an item `[~]`, it appends a `PROGRESS.md` entry
   stating why. Rule 7 tells the next `plan` run to resolve a `[~]` item by reading its `PROGRESS.md`
   entry; a supersession with no entry leaves that run nothing to read, and it will resurrect the item
@@ -192,8 +234,25 @@ Review adds three rules of its own:
   blocked is the only account of it that exists.
 
 Findings are written as ordinary plan items: six fields, at most 150 words, 14 lines and 8 steps,
-Simplified Technical English, `Spec:` pointing at the spec the finding is anchored on. The plan
-records work to do, never evidence — the reviewer states the fix, not the argument for it.
+Simplified Technical English. The `Spec:` field names the audited item — `IMPLEMENTATION_PLAN.md`
+plus the item's quoted title — which keeps the six-field schema closed while saying truthfully what
+the finding traces to.
+
+Inheriting the audited item's own `Spec:` value was the alternative and is rejected. It would hand
+the finding a spec citation review never read, and `prompts/build.md` Phase 2 instructs `build` to
+mark an item `[~]` when the spec contradicts it: a `Major` code-quality finding carrying a clause
+that says nothing about the defect invites exactly that supersession. It would also break the
+meaning the field carries for every other reader, since `prompts/plan.md` and
+`templates/IMPLEMENTATION_PLAN.md` define `Spec` as the requirement the item serves.
+
+The title is quoted rather than a position. Review inserts and reorders open items, so an index goes
+stale as soon as an item lands above it, and the plan's own rule forbids citing line numbers for the
+same reason. A shipped item's title is stable: review never moves or alters a `- [x]` item.
+
+A run-wide red-suite finding is the one finding that belongs to no single item. It writes
+`IMPLEMENTATION_PLAN.md` and the words `whole plan` in place of a title.
+
+The plan records work to do, never evidence — the reviewer states the fix, not the argument for it.
 
 ## 5. Iterations and convergence
 
@@ -214,8 +273,9 @@ Review loops like plan, not like build.
 - `-n` caps a review run but never disables the convergence exit, matching plan mode.
 
 Convergence is measured with the existing `plan_state_hash`. It fingerprints
-`IMPLEMENTATION_PLAN.md` plus `specs/`; review never writes `specs/`, so in practice it fingerprints
-the plan.
+`IMPLEMENTATION_PLAN.md` plus `specs/`; review neither reads nor writes `specs/`, so in practice it
+fingerprints the plan. The `specs/` term is inert for review rather than wrong, and it is left in
+place because plan mode needs it and both modes share the one function.
 
 ### The exit line must state what was audited
 
@@ -309,7 +369,7 @@ flags, for example `ralph review -b codex`, and the README recommends it.
 Every one of these `usage()` strings changes, not only the mode list:
 
 - The synopsis line `ralph <plan|build> [options]` becomes `ralph <plan|build|review> [options]`.
-- The Modes list gains: `review — Audit shipped items against their specs, file findings as new plan
+- The Modes list gains: `review — Audit shipped items against the plan, file findings as new plan
   items`.
 - The `-n` description ("plan default: 6, build: calculated from the plan") names review's default
   of 6 and states that review behaves as plan does.
@@ -412,8 +472,9 @@ All tests use `--dry-run` or mock backends. No real backend CLI is required.
 - A review ledger, verdict artifact or `REVIEW.md`.
 - Reviewing an archived plan in place, or a plan path argument for `ralph review`.
 - Per-mode default models, or enforcing a different backend for review.
-- Findings that no spec anchors, and any severity tier resting on `CLAUDE.md` or `AGENTS.md`.
-- Review editing `specs/`, source files, or any `- [x]` marker.
+- Findings that belong to no shipped item, and any severity tier resting on `CLAUDE.md` or `AGENTS.md`.
+- Review judging the plan, rather than `build`'s implementation of it.
+- Review reading or editing `specs/`, source files, or any `- [x]` marker.
 - Commits, pushes and pull request comments.
 
 ## 15. Follow-up: harden `Done when`

@@ -31,7 +31,7 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `sandbox --rebuild` | Rebuild the container image from scratch                                   |
 | `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` (max 6 iterations; exits as soon as a pass changes nothing) |
 | `build`           | Pick the next item, implement, test, commit, push (default: 50 iterations)   |
-| `review`          | Audit shipped items against their specs, file findings as new plan items (max 6 iterations; exits as soon as a pass changes nothing) |
+| `review`          | Audit shipped items against the plan, file findings as new plan items (max 6 iterations; exits as soon as a pass changes nothing) |
 | `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`). Pass `--prompts` to also copy prompt templates for local customisation |
 | `archive`         | Move `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` to `.ralph/<timestamp>/`    |
 | `clean`           | Delete `IMPLEMENTATION_PLAN.md` and `PROGRESS.md`                           |
