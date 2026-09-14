@@ -1652,6 +1652,18 @@ cmd_auto() {
         esac
     done
 
+    # Container guard (§7). auto runs an unsupervised loop with the backend's
+    # permission flag on; outside a container the whole tree and $HOME are
+    # reachable. Refuse unless --force, which is the isolated-runner escape
+    # hatch. auto prints its own one-line notice, not cmd_loop's backend banner.
+    if [[ "${DEVCONTAINER:-false}" != "true" ]]; then
+        if ! $force; then
+            echo "Error: 'auto' refuses to run outside a container; use --force if this runner is already isolated." >&2
+            exit 1
+        fi
+        echo "auto: running outside a container with --force." >&2
+    fi
+
     # shellcheck disable=SC2034  # Consumed by later items (phase loop, guards, report)
     local _auto_vars=("$goal" "$model" "$backend" "$skip_push" "$dry_run" "$no_metrics" "$verbose" "$resume" "$force")
 }
