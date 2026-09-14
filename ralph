@@ -1696,9 +1696,6 @@ cmd_auto() {
         echo "auto: running outside a container with --force." >&2
     fi
 
-    # shellcheck disable=SC2034  # dry_run is consumed by a later item.
-    local _auto_vars=("$dry_run")
-
     # Report state (§6). One row state per phase, indexed 1-6. The report is the
     # product of the command, so auto_report prints it on every exit path:
     # success, abort, rejected precondition, and interrupt. States seed to
@@ -1778,6 +1775,23 @@ cmd_auto() {
     $skip_push        && child_flags+=(--skip-push)
     $no_metrics       && child_flags+=(--no-metrics)
     $verbose          && child_flags+=(-v)
+
+    # Dry run (§8). Print the six phases and, for each loop phase, the exact
+    # child command line auto would invoke with the resolved goal/model/backend.
+    # Evaluate no guard and invoke no phase: a dry run that moved the plan is the
+    # one destructive thing about it, so it must not run archive/init.
+    if $dry_run; then
+        echo "auto: dry run — the six phases in order (guards are evaluated at run time):" >&2
+        local dn=0 dphase
+        for dphase in "${RALPH_PHASES[@]}"; do
+            dn=$((dn + 1))
+            case $dphase in
+                archive|init) printf '  %d %-9s %s\n' "$dn" "$dphase" "$RALPH_SELF $dphase" >&2 ;;
+                *)            printf '  %d %-9s %s\n' "$dn" "$dphase" "$RALPH_SELF $dphase ${child_flags[*]} -y" >&2 ;;
+            esac
+        done
+        return 0
+    fi
 
     # Phase loop (§3, §4). Each phase is a child of RALPH_SELF so a cmd_loop
     # failure path (a non-zero backend, a jq failure, a rejected push) becomes
