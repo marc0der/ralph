@@ -1646,10 +1646,53 @@ cmd_loop() {
     fi
 }
 
+cmd_auto() {
+    # Flag parsing only. The phase loop, guards, container check, state file
+    # and report are added by later items. '-n' is rejected here because each
+    # phase resolves its own iteration count (see specs/auto-lifecycle.md §8).
+    local goal=""
+    local model=""
+    local backend=""
+    local skip_push=false
+    local dry_run=false
+    local no_metrics=false
+    local verbose=false
+    local resume=false
+    local force=false
+
+    local args
+    args=$(getopt -o n:g:m:b:vyh --long iterations:,goal:,model:,backend:,skip-push,dry-run,no-metrics,verbose,yes,help,resume,force -n 'ralph auto' -- "$@")
+    eval set -- "$args"
+
+    while true; do
+        case "$1" in
+            -n|--iterations)
+                echo "Error: 'auto' does not accept -n/--iterations; each phase resolves its own iteration count." >&2
+                exit 1 ;;
+            -g|--goal)     goal="$2";       shift 2 ;;
+            -m|--model)    model="$2";      shift 2 ;;
+            -b|--backend)  backend="$2";    shift 2 ;;
+            --skip-push)   skip_push=true;  shift ;;
+            --dry-run)     dry_run=true;    shift ;;
+            --no-metrics)  no_metrics=true; shift ;;
+            -v|--verbose)  verbose=true;    shift ;;
+            -y|--yes)      shift ;;
+            --resume)      resume=true;     shift ;;
+            --force)       force=true;      shift ;;
+            -h|--help)     usage ;;
+            --)            shift; break ;;
+        esac
+    done
+
+    # shellcheck disable=SC2034  # Consumed by later items (phase loop, guards, report)
+    local _auto_vars=("$goal" "$model" "$backend" "$skip_push" "$dry_run" "$no_metrics" "$verbose" "$resume" "$force")
+}
+
 # Main dispatch
 case "${1:-}" in
     sandbox)    shift; cmd_sandbox "$@" ;;
     plan|build|review) cmd_loop "$@" ;;
+    auto)       shift; cmd_auto "$@" ;;
     metrics)    shift; cmd_metrics "$@" ;;
     init)       shift; cmd_init "$@" ;;
     clean)      cmd_clean ;;
