@@ -1696,8 +1696,62 @@ cmd_auto() {
         echo "auto: running outside a container with --force." >&2
     fi
 
-    # shellcheck disable=SC2034  # Consumed by later items (phase loop, guards, report)
-    local _auto_vars=("$goal" "$model" "$backend" "$skip_push" "$dry_run" "$no_metrics" "$verbose" "$resume" "$force")
+    # shellcheck disable=SC2034  # resume and dry_run are consumed by later items.
+    local _auto_vars=("$resume" "$dry_run")
+
+    # Flags forwarded to the plan/build/review children. archive and init take
+    # no such flags, so they are invoked bare. Every child gets -y: auto is the
+    # unattended runner and answers its own prompts (§7).
+    local child_flags=()
+    [[ -n $goal ]]    && child_flags+=(-g "$goal")
+    [[ -n $model ]]   && child_flags+=(-m "$model")
+    [[ -n $backend ]] && child_flags+=(-b "$backend")
+    $skip_push        && child_flags+=(--skip-push)
+    $no_metrics       && child_flags+=(--no-metrics)
+    $verbose          && child_flags+=(-v)
+
+    # Phase loop (§3, §4). Each phase is a child of RALPH_SELF so a cmd_loop
+    # failure path (a non-zero backend, a jq failure, a rejected push) becomes
+    # an exit status auto decides on, instead of taking the lifecycle down, and
+    # so each phase's traps and globals stay its own. The state file and the
+    # report are added by later items; here a child failure just exits 1.
+    local phase_num=0 phase
+    for phase in "${RALPH_PHASES[@]}"; do
+        phase_num=$((phase_num + 1))
+
+        # Guards read the plan as it stands on disk right now, never a decision
+        # made earlier in the run. build (4, 6) needs both artifacts and an
+        # open item; review (5) needs both artifacts, a shipped item, and no
+        # open item. A guarded-out phase is skipped, not an abort.
+        case $phase_num in
+            4|6)
+                if [[ ! -f IMPLEMENTATION_PLAN.md || ! -f PROGRESS.md ]] || ! have_open_items; then
+                    continue
+                fi ;;
+            5)
+                if [[ ! -f IMPLEMENTATION_PLAN.md || ! -f PROGRESS.md ]] || ! have_shipped_items || have_open_items; then
+                    continue
+                fi ;;
+        esac
+
+        case $phase in
+            archive|init) "$RALPH_SELF" "$phase" ;;
+            *)            "$RALPH_SELF" "$phase" "${child_flags[@]}" -y ;;
+        esac || exit 1
+
+        # Phase 2 asserts what init was supposed to scaffold. cmd_init exits 0
+        # even when a template is missing, leaving the artifact absent, so plan
+        # (phase 3) would hard-stop and abort. Fail the lifecycle here instead.
+        if [[ $phase_num -eq 2 ]]; then
+            local f
+            for f in IMPLEMENTATION_PLAN.md PROGRESS.md; do
+                if [[ ! -f $f ]]; then
+                    echo "Error: '$f' is missing after init; check the template in $CONFIG_DIR/templates." >&2
+                    exit 1
+                fi
+            done
+        fi
+    done
 }
 
 # Main dispatch
