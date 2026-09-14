@@ -1712,6 +1712,7 @@ cmd_auto() {
         echo "" >&2
         echo "Artifacts: IMPLEMENTATION_PLAN.md and PROGRESS.md in the tree; previous cycle under $ARCHIVE_DIR/<timestamp>/." >&2
         [[ -n $auto_resume_notice ]] && echo "$auto_resume_notice" >&2
+        return 0
     }
     # Interrupt (§5). Ctrl-C reaches the whole process group, so the child exits
     # 130 under its own trap and auto records the phase in flight, prints the
