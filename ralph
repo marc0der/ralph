@@ -1696,8 +1696,38 @@ cmd_auto() {
         echo "auto: running outside a container with --force." >&2
     fi
 
-    # shellcheck disable=SC2034  # resume and dry_run are consumed by later items.
-    local _auto_vars=("$resume" "$dry_run")
+    # shellcheck disable=SC2034  # dry_run is consumed by a later item.
+    local _auto_vars=("$dry_run")
+
+    # Resume entry (§5). A plain run starts at phase 1 and clears any stale
+    # state file. --resume re-enters at the recorded phase, floored at
+    # RESUME_FLOOR (3) so it never re-runs archive/init over the very artifacts
+    # it exists to preserve. It reads 'phase' by field, never sourcing the
+    # file, and refuses when the file, the field, or an artifact is missing.
+    local start_phase=1
+    if $resume; then
+        if [[ ! -f $AUTO_STATE_FILE ]]; then
+            echo "Error: no interrupted lifecycle to resume (no $AUTO_STATE_FILE)." >&2
+            exit 1
+        fi
+        local recorded_phase
+        recorded_phase=$(sed -n 's/^phase=//p' "$AUTO_STATE_FILE" | head -n1)
+        if [[ ! $recorded_phase =~ ^[1-6]$ ]]; then
+            echo "Error: '$AUTO_STATE_FILE' has no valid 'phase' (1-6) to resume." >&2
+            exit 1
+        fi
+        local f
+        for f in IMPLEMENTATION_PLAN.md PROGRESS.md; do
+            if [[ ! -f $f ]]; then
+                echo "Error: cannot resume; '$f' is absent." >&2
+                exit 1
+            fi
+        done
+        start_phase=$recorded_phase
+        [[ $start_phase -lt $RESUME_FLOOR ]] && start_phase=$RESUME_FLOOR
+    else
+        rm -f "$AUTO_STATE_FILE"
+    fi
 
     # Flags forwarded to the plan/build/review children. archive and init take
     # no such flags, so they are invoked bare. Every child gets -y: auto is the
@@ -1713,11 +1743,14 @@ cmd_auto() {
     # Phase loop (§3, §4). Each phase is a child of RALPH_SELF so a cmd_loop
     # failure path (a non-zero backend, a jq failure, a rejected push) becomes
     # an exit status auto decides on, instead of taking the lifecycle down, and
-    # so each phase's traps and globals stay its own. The state file and the
-    # report are added by later items; here a child failure just exits 1.
-    local phase_num=0 phase
+    # so each phase's traps and globals stay its own. On a child failure auto
+    # records the state file and exits 1; the report is added by a later item.
+    local phase_num=0 phase child_exit
     for phase in "${RALPH_PHASES[@]}"; do
         phase_num=$((phase_num + 1))
+
+        # Under --resume, phases below the entry point are passed over.
+        [[ $phase_num -lt $start_phase ]] && continue
 
         # Guards read the plan as it stands on disk right now, never a decision
         # made earlier in the run. build (4, 6) needs both artifacts and an
@@ -1734,10 +1767,21 @@ cmd_auto() {
                 fi ;;
         esac
 
+        child_exit=0
         case $phase in
             archive|init) "$RALPH_SELF" "$phase" ;;
             *)            "$RALPH_SELF" "$phase" "${child_flags[@]}" -y ;;
-        esac || exit 1
+        esac || child_exit=$?
+        if [[ $child_exit -ne 0 ]]; then
+            mkdir -p "$ARCHIVE_DIR"
+            {
+                echo "phase=$phase_num"
+                echo "phase_name=$phase"
+                echo "child_exit=$child_exit"
+                echo "failed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            } > "$AUTO_STATE_FILE"
+            exit 1
+        fi
 
         # Phase 2 asserts what init was supposed to scaffold. cmd_init exits 0
         # even when a template is missing, leaving the artifact absent, so plan
@@ -1752,6 +1796,10 @@ cmd_auto() {
             done
         fi
     done
+
+    # Reaching phase 6 is a completed lifecycle, including one that skipped
+    # phases; remove the state file so a later --resume finds nothing.
+    rm -f "$AUTO_STATE_FILE"
 }
 
 # Main dispatch
