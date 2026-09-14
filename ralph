@@ -11,6 +11,26 @@ PLAN_DEFAULT_CAP=6
 ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md PROMPT_plan.md PROMPT_build.md PROMPT_review.md)
 ARCHIVE_DIR=".ralph"
 
+# Absolute path of the running script, resolved once before any command can
+# chdir, so `auto` can invoke each phase as a child of itself (§4). Follows
+# symlinks portably (macOS has no `readlink -f`); PATH lookup already hands the
+# resolved path to $0.
+RALPH_SELF="${BASH_SOURCE[0]}"
+while [[ -L $RALPH_SELF ]]; do
+    _ralph_dir=$(cd -P "$(dirname "$RALPH_SELF")" && pwd)
+    RALPH_SELF=$(readlink "$RALPH_SELF")
+    [[ $RALPH_SELF != /* ]] && RALPH_SELF="$_ralph_dir/$RALPH_SELF"
+done
+RALPH_SELF="$(cd -P "$(dirname "$RALPH_SELF")" && pwd)/$(basename "$RALPH_SELF")"
+
+# `auto` lifecycle state (specs/auto-lifecycle.md §5, §2).
+# shellcheck disable=SC2034  # Consumed by cmd_auto in a later change.
+AUTO_STATE_FILE="$ARCHIVE_DIR/auto-state"
+# shellcheck disable=SC2034  # Consumed by cmd_auto in a later change.
+RALPH_PHASES=(archive init plan build review build)
+# shellcheck disable=SC2034  # Consumed by cmd_auto in a later change.
+RESUME_FLOOR=3
+
 # Path of the per-run raw stream temp file, or empty when there is none.
 # Script-scoped so the EXIT trap can read it after cmd_loop's locals are gone,
 # which lets the trap defer expansion instead of baking the path into its body.
