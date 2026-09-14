@@ -711,6 +711,25 @@ plan_state_hash() {
     } 2>/dev/null | md5_hash
 }
 
+# List every git repository beneath the working directory with its HEAD.
+# A build iteration commits into a nested repository without moving the
+# workspace HEAD, so the verdict compares these listings instead. Any
+# difference — a moved HEAD, a repository that appeared or vanished — is a
+# change. `-prune` keeps find out of the .git directories themselves; it does
+# not prune their parents, so a repository nested inside a watched one is
+# watched too.
+repo_state() {
+    local repo
+    while IFS= read -r gitpath; do
+        repo=${gitpath%/.git}
+        # -q --verify is required: plain `rev-parse HEAD` prints "HEAD" on
+        # stdout in a commitless repository, so the fallback would append to
+        # that output rather than replace it.
+        printf '%s %s\n' "$repo" \
+            "$(git -C "$repo" rev-parse -q --verify HEAD 2>/dev/null || echo -)"
+    done < <(find . -maxdepth 6 -name .git -prune -print 2>/dev/null) | LC_ALL=C sort
+}
+
 truncate_line() {
     local text="$1" max="$2"
     if [[ ${#text} -gt $max ]]; then
@@ -750,7 +769,7 @@ iso_utc() {
 write_iteration_metrics() {
     local metrics_file="$1" raw_file="$2" mode="$3" branch="$4" backend="$5" model="$6"
     local iteration="$7" started="$8" ended="$9" head_before="${10}" head_after="${11}" plan_done_before="${12}"
-    local plan_noop="${13:-}"
+    local noop_override="${13:-}"
 
     local commits=0 stat="" files="" ins="" del="" noop=true
     if [[ "$head_before" != "$head_after" ]]; then
@@ -763,10 +782,12 @@ write_iteration_metrics() {
     fi
     files=${files:-0}; ins=${ins:-0}; del=${del:-0}
 
-    # Plan iterations never commit, so HEAD cannot describe them. The caller
-    # passes a verdict derived from the plan artifacts instead.
-    if [[ -n "$plan_noop" ]]; then
-        noop=$plan_noop
+    # The workspace HEAD cannot describe every iteration: plan and review never
+    # commit, and a build may commit only inside a nested repository. The caller
+    # passes the verdict it computed instead. The counts above stay
+    # workspace-only.
+    if [[ -n "$noop_override" ]]; then
+        noop=$noop_override
     fi
 
     local plan_done_after=0 plan_delta=0
@@ -1146,7 +1167,9 @@ cmd_loop() {
         # Snapshot HEAD to detect noops. Plan and review never commit, so they
         # fingerprint the artifacts they are allowed to change instead.
         local head_before plan_state_before="" plan_state_after=""
+        local state_before="" state_after=""
         head_before=$(git rev-parse HEAD)
+        state_before=$(repo_state)
         if mode_converges_on_plan "$mode"; then
             plan_state_before=$(plan_state_hash)
         fi
@@ -1469,16 +1492,26 @@ cmd_loop() {
             # Print jq output (unchanged behaviour)
             echo "$jq_output"
 
+            # Unconditional: change detection must survive --no-metrics, so this
+            # cannot live inside the metrics block below.
+            state_after=$(repo_state)
+
             # Fingerprint the plan artifacts after the pass. The non-committing
             # modes use this instead of HEAD for both the metrics noop flag and
             # convergence.
-            local plan_noop=""
+            local noop_override=""
             if mode_converges_on_plan "$mode"; then
                 plan_state_after=$(plan_state_hash)
                 if [[ "$plan_state_before" == "$plan_state_after" ]]; then
-                    plan_noop=true
+                    noop_override=true
                 else
-                    plan_noop=false
+                    noop_override=false
+                fi
+            else
+                if [[ "$state_before" == "$state_after" ]]; then
+                    noop_override=true
+                else
+                    noop_override=false
                 fi
             fi
 
@@ -1502,7 +1535,7 @@ cmd_loop() {
                 if write_iteration_metrics "$metrics_file" "${raw_file:-/dev/null}" "$mode" \
                     "$current_branch" "$BACKEND_NAME" "$model" "$iteration" \
                     "$iter_start" "$iter_end" "$head_before" "$head_after_m" \
-                    "$plan_done_before" "$plan_noop"; then
+                    "$plan_done_before" "$noop_override"; then
                     echo ""
                     truncate_line "Metrics: $(fmt_duration $((iter_end - iter_start))) wall$(metrics_summary_suffix "$metrics_file")" "$line_width"
                 else
@@ -1550,7 +1583,8 @@ cmd_loop() {
             fi
         fi
 
-        # Early exit. Build mode watches HEAD and tolerates one noop; -n overrides it.
+        # Early exit. Build mode watches every git repository beneath the
+        # workspace and tolerates one noop; -n overrides it.
         # Plan and review never commit (IMPLEMENTATION_PLAN.md is gitignored), so
         # they watch the plan artifacts instead. A pass that changes nothing has
         # converged, and there is no second-chance iteration to wait for: -n caps
@@ -1562,9 +1596,7 @@ cmd_loop() {
                     break
                 fi
             elif ! $hard_override; then
-                local head_after
-                head_after=$(git rev-parse HEAD)
-                if [[ "$head_before" == "$head_after" ]]; then
+                if [[ "$state_before" == "$state_after" ]]; then
                     consecutive_noops=$((consecutive_noops + 1))
                     if [[ $consecutive_noops -ge 2 ]]; then
                         echo -e "\nNo changes detected for 2 consecutive iterations — exiting early."
