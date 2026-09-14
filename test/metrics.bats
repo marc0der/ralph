@@ -258,3 +258,34 @@ MOCK
     [[ $(jq -r '.turns' <<<"$line") == "3" ]]
     [[ $(jq -r '.cost_usd' <<<"$line") == "0.02" ]]
 }
+
+# A build iteration that commits only inside a nested repository leaves the
+# workspace HEAD where it was. The caller now overrides the noop flag with the
+# repository-listing verdict, while the counts stay workspace-only (spec
+# section 4), so this record reads noop=false with commits=0.
+@test "a nested-only commit records noop=false with zero commits" {
+    "$RALPH" init
+    printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
+    echo "source/" >> .gitignore
+    mkdir -p source/svc
+    git -C source/svc init --quiet
+    git -C source/svc config user.email "nested@test.com"
+    git -C source/svc config user.name "Nested"
+    git -C source/svc commit --allow-empty -m "nested initial" --quiet
+
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+git -C source/svc commit --allow-empty -m "nested work" --quiet
+echo '{"type":"result","result":"done"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" build -n 1 --skip-push -y
+
+    local line
+    line=$(tail -1 "$(latest_metrics_file)")
+    [[ $(jq -r '.git.noop' <<<"$line") == "false" ]]
+    [[ $(jq -r '.git.commits' <<<"$line") == "0" ]]
+}
