@@ -80,3 +80,50 @@ MOCK
 seed_open_item() {
     echo "- [ ] **Task**" >> IMPLEMENTATION_PLAN.md
 }
+
+# Helper: append one real shipped item to the plan. Review hard-stops unless the
+# plan holds at least one `- [x]` item and no `- [ ]` item, so a review or
+# lifecycle test that wants phase 5/6 to run must seed a shipped item.
+seed_shipped_item() {
+    echo "- [x] **Shipped task**" >> IMPLEMENTATION_PLAN.md
+}
+
+# Helper: phase-aware, committing mock backend. Unlike create_streaming_backend
+# it can move the plan and HEAD, which a lifecycle test needs: build's noop exit
+# watches HEAD, and plan/review converge on the plan's hash. It reads the prompt
+# on stdin — the config dir gives each mode a distinct body (plan.md/build.md/
+# review.md above) — and acts by mode:
+#   plan   append one item on the first pass only, so the second pass converges
+#   build  tick one open item and commit, moving HEAD
+#   review append a finding unless MOCK_REVIEW_NOOP is set, else do nothing
+# Knobs (read at run time):
+#   MOCK_EXIT         exit code (default 0) — forces a phase to fail
+#   MOCK_REVIEW_NOOP  when set, review files nothing (phase 6 then skips)
+create_committing_backend() {
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+prompt=$(cat)
+plan=IMPLEMENTATION_PLAN.md
+if echo "$prompt" | grep -qi 'plan prompt'; then
+    grep -q 'mock-planned-item' "$plan" 2>/dev/null || \
+        echo '- [ ] **mock-planned-item**' >> "$plan"
+elif echo "$prompt" | grep -qi 'build prompt'; then
+    # Tick the first open item, then commit so HEAD moves.
+    if grep -q '^- \[ \]' "$plan" 2>/dev/null; then
+        sed -i '0,/^- \[ \]/s//- [x]/' "$plan"
+    fi
+    echo "build $(date +%s%N)" >> mock-build-output.txt
+    git add mock-build-output.txt
+    git commit -q -m "mock build commit" >/dev/null 2>&1
+elif echo "$prompt" | grep -qi 'review prompt'; then
+    if [[ -z "${MOCK_REVIEW_NOOP:-}" ]]; then
+        echo '- [ ] **mock-review-finding**' >> "$plan"
+    fi
+fi
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"done here"}]}}'
+echo '{"type":"result","subtype":"success","duration_ms":1,"duration_api_ms":1,"num_turns":1,"result":"done here","session_id":"s1","total_cost_usd":0.0,"usage":{"input_tokens":1,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":1}}'
+exit "${MOCK_EXIT:-0}"
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+}
