@@ -625,11 +625,22 @@ count_plan_items() {
     plan_items_body | grep -c "$1" || true
 }
 
+# Predicates over the plan item counts, so that require_open_items,
+# require_review_preconditions and auto's guards all read "can this mode run?"
+# the same way. Return 0 (true) when the marker is present.
+have_open_items() {
+    [[ "$(count_plan_items '^- \[ \]')" -gt 0 ]]
+}
+
+have_shipped_items() {
+    [[ "$(count_plan_items '^- \[x\]')" -gt 0 ]]
+}
+
 # Refuse to start a build against a plan with nothing left to do.
 # This is a hard stop, not an iteration heuristic: it runs beside
 # require_init_artifacts so '-n' cannot bypass it.
 require_open_items() {
-    if [[ "$(count_plan_items '^- \[ \]')" -eq 0 ]]; then
+    if ! have_open_items; then
         echo "Error: no incomplete items in IMPLEMENTATION_PLAN.md. Run 'ralph plan' first." >&2
         exit 1
     fi
@@ -639,7 +650,7 @@ require_open_items() {
 # Like require_open_items this is a hard stop beside require_init_artifacts, so
 # '-n' cannot bypass it. Items marked '[~]' neither anchor nor block a review.
 require_review_preconditions() {
-    if [[ "$(count_plan_items '^- \[x\]')" -eq 0 ]]; then
+    if ! have_shipped_items; then
         echo "Error: no shipped items in IMPLEMENTATION_PLAN.md — nothing to review." >&2
         echo "Review audits '- [x]' items. An already archived plan lives in .ralph/<timestamp>/." >&2
         exit 1
@@ -647,7 +658,7 @@ require_review_preconditions() {
 
     # Pass 1 must start from a plan with no open work: review ranks its own
     # findings against each other, never against work it did not derive.
-    if [[ "$(count_plan_items '^- \[ \]')" -gt 0 ]]; then
+    if have_open_items; then
         echo "Error: IMPLEMENTATION_PLAN.md still holds incomplete items." >&2
         echo "Run 'ralph build' to finish them before running 'ralph review'." >&2
         exit 1
