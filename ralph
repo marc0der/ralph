@@ -739,8 +739,7 @@ plan_state_hash() {
 # difference — a moved HEAD, a repository that appeared or vanished — is a
 # change. `-prune` keeps find out of the .git directories themselves; it does
 # not prune their parents, so a repository nested inside a watched one is
-# watched too. The scan follows symlinks, so a `source -> /shared/checkouts`
-# link is watched as if the clones sat under `source/`.
+# watched too. `-L` follows symlinked checkouts.
 repo_state() {
     local repo
     while IFS= read -r gitpath; do
@@ -750,10 +749,6 @@ repo_state() {
         # that output rather than replace it.
         printf '%s %s\n' "$repo" \
             "$(git -C "$repo" rev-parse -q --verify HEAD 2>/dev/null || echo -)"
-        # -L follows a symlinked checkout, which is a repository the agent can
-        # commit into. 2>/dev/null also discards find's `File system loop
-        # detected` diagnostic for a link such as `self -> .`; find declines to
-        # descend, and -maxdepth bounds the walk regardless.
     done < <(find -L . -maxdepth 6 -name .git -prune -print 2>/dev/null) | LC_ALL=C sort
 }
 
@@ -1193,10 +1188,6 @@ cmd_loop() {
 
         # Snapshot HEAD to detect noops. Plan and review never commit, so they
         # fingerprint the artifacts they are allowed to change instead.
-        # `-q --verify ... || echo -` is the form repo_state uses: a commitless
-        # workspace records `-` rather than aborting the run on git's raw
-        # `fatal: ambiguous argument 'HEAD'`, so the workspace reads like the
-        # entry it is in the repository listing.
         local head_before plan_state_before="" plan_state_after=""
         local state_before="" state_after=""
         head_before=$(git rev-parse -q --verify HEAD 2>/dev/null || echo -)
@@ -1552,9 +1543,6 @@ cmd_loop() {
                 local iter_end head_after_m
                 # Fallbacks keep the never-interrupt-the-loop contract even if
                 # date or git fail mid-run (worst case: zero-length iteration).
-                # The HEAD snapshot matches head_before's form, so a commitless
-                # workspace compares `-` against `-` and reads as a noop, and
-                # the iteration that makes the first commit reads as a change.
                 iter_end=$(date +%s) || iter_end=$iter_start
                 head_after_m=$(git rev-parse -q --verify HEAD 2>/dev/null || echo -)
                 # An empty raw_file reaches jq as an empty filename, which it
@@ -1599,13 +1587,6 @@ cmd_loop() {
             if $dry_run; then
                 echo "[dry-run] Would run: git push origin $current_branch"
             elif ! $skip_push; then
-                # A workspace with no 'origin' or no commit has nothing for the
-                # push to do — a meta repository often carries neither — so the
-                # block skips and says so instead of failing the run
-                # (specs/meta-repo-hardening.md section 3). Both facts are read
-                # every iteration, never cached: the iteration that just ran may
-                # be the one that added the remote or made the first commit. A
-                # push that reaches git and is rejected is still a failure.
                 if ! git remote get-url origin >/dev/null 2>&1; then
                     echo "No 'origin' remote — skipping push."
                 elif ! git rev-parse -q --verify HEAD >/dev/null 2>&1; then
