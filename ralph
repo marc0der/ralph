@@ -1594,19 +1594,32 @@ cmd_loop() {
             if $dry_run; then
                 echo "[dry-run] Would run: git push origin $current_branch"
             elif ! $skip_push; then
-                local push_output
-                if ! push_output=$(git push origin "$current_branch" 2>&1); then
-                    if echo "$push_output" | grep -q "has no upstream branch"; then
-                        echo "No upstream branch found. Setting upstream..."
-                        git push -u origin "$current_branch"
-                    else
-                        echo "Push failed:" >&2
+                # A workspace with no 'origin' or no commit has nothing for the
+                # push to do — a meta repository often carries neither — so the
+                # block skips and says so instead of failing the run
+                # (specs/meta-repo-hardening.md section 3). Both facts are read
+                # every iteration, never cached: the iteration that just ran may
+                # be the one that added the remote or made the first commit. A
+                # push that reaches git and is rejected is still a failure.
+                if ! git remote get-url origin >/dev/null 2>&1; then
+                    echo "No 'origin' remote — skipping push."
+                elif ! git rev-parse -q --verify HEAD >/dev/null 2>&1; then
+                    echo "No commit on the workspace branch — skipping push."
+                else
+                    local push_output
+                    if ! push_output=$(git push origin "$current_branch" 2>&1); then
+                        if echo "$push_output" | grep -q "has no upstream branch"; then
+                            echo "No upstream branch found. Setting upstream..."
+                            git push -u origin "$current_branch"
+                        else
+                            echo "Push failed:" >&2
+                            echo "$push_output" >&2
+                            exit 1
+                        fi
+                    elif $verbose; then
+                        echo "[verbose] Push output:" >&2
                         echo "$push_output" >&2
-                        exit 1
                     fi
-                elif $verbose; then
-                    echo "[verbose] Push output:" >&2
-                    echo "$push_output" >&2
                 fi
             fi
         fi
