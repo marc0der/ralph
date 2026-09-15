@@ -45,6 +45,6 @@
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
-  "postStartCommand": "sudo chmod 666 /var/run/docker.sock && git config --global include.path /home/node/.gitconfig.host && git config --global --add safe.directory /workspace; if [ -d /home/node/.gnupg ]; then sudo chown node:node /home/node/.gnupg && sudo chmod 700 /home/node/.gnupg; fi",
+  "postStartCommand": "sudo chmod 666 /var/run/docker.sock && git config --global include.path /home/node/.gitconfig.host && git config --global --add safe.directory '*'; if [ -d /home/node/.gnupg ]; then sudo chown node:node /home/node/.gnupg && sudo chmod 700 /home/node/.gnupg; fi",
   "waitFor": "postStartCommand"
 }
