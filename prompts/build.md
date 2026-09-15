@@ -60,6 +60,18 @@ Once tests pass:
    - **Never add a heading.** The file holds `# Implementation Plan`, `## Entry Format`, and `## Items`, and nothing else.
 2. Append an entry to `PROGRESS.md` following the template defined in its header (append-only — never edit previous entries)
 3. Commit the changes. Rules for this iteration:
+
+   **Where to commit** — the repository rules:
+
+   - Every changed path belongs to one repository: the one `git -C <dir> rev-parse --show-toplevel` prints for the path's directory. Group the changed paths by that repository before running any other git command.
+   - Run every git command for a group with `-C <toplevel>`. A bare `git status` from the workspace root shows nothing inside a gitignored nested repository, and a bare `git add` of a path inside a nested repository **exits 0 and stages nothing** — with or without `-f`, ignored or not.
+   - After staging, `git -C <toplevel> diff --staged --stat` must list every path in the group. An empty staged diff means the paths belong to another repository. Resolve again. Never retry with `-f`, `-A` or `.`.
+   - **Never `git add -A` or `git add .`**, in any repository, for any diff. From a meta repository root they stage a nested repository itself as a gitlink, and a commit of that pointer breaks every clone of the workspace.
+   - An item whose paths span two repositories produces one set of commits per repository.
+   - **Never commit on a detached `HEAD`.** Check `git -C <toplevel> symbolic-ref -q HEAD` first. When it fails, check out a branch before committing: the branch `AGENTS.md` or `CLAUDE.md` names for that repository when one is named, otherwise a new branch `ralph/<item-title-in-kebab-case>` created at the current commit. Record the branch in the `PROGRESS.md` entry.
+   - After committing in a nested repository, run `git status --short -- <path>` in the workspace. A ` M <path>` line means the repository is a submodule of the workspace. Stage that path and commit the pointer update in the workspace with the subject `chore: bump <path> to <short sha>`.
+   - Push every repository you committed in, from inside it: `git -C <toplevel> push`, with `-u origin <branch>` on a branch you created. Ralph pushes the workspace and only the workspace.
+
    - **Atomic commits**: if the working tree contains separable concerns **within this item** (e.g. a refactor *and* the feature it enables, or test additions that stand on their own), produce **one commit per concern**, in dependency order, instead of a single grab-bag commit.
    - **Selective staging**: stage explicit paths with `git add -- <paths>`. Never `git add -A` / `git add .`.
    - **Exclude loop artifacts**: do NOT stage or commit `IMPLEMENTATION_PLAN.md`, `PROGRESS.md`, `PROMPT_plan.md`, `PROMPT_build.md`, `PROMPT_review.md`, or the `.ralph/` directory — these are local-only.
