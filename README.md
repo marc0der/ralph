@@ -210,7 +210,7 @@ Archived artifacts are stored under `.ralph/` in your project directory, organis
 
 ## Commit conventions
 
-The build phase commits via the `/commit` skill bundled with ralph and scaffolded by `ralph init` into `.claude/skills/commit/SKILL.md`. The skill enforces an opinionated style:
+`prompts/build.md` states the commit procedure itself, so every backend follows the same rules with no harness-specific mechanism:
 
 - **[Conventional Commits](https://www.conventionalcommits.org/)** — `<type>(<scope>): <short imperative subject>`
 - **Atomic** — separable concerns become separate commits, even within a single build iteration
@@ -218,7 +218,7 @@ The build phase commits via the `/commit` skill bundled with ralph and scaffolde
 - **Optional short body** — up to 3 bulleted lines summarising what was implemented, only when the subject isn't self-explanatory
 - Loop-local artifacts (`IMPLEMENTATION_PLAN.md`, `PROGRESS.md`, `PROMPT_*.md`, `.ralph/`) are never staged
 
-The scaffolded skill lives in your project's `.claude/skills/` and is not gitignored by `ralph init` — commit it to share with your team, or edit it locally if you want different conventions.
+To use different conventions, copy the prompt into your project with `ralph init --prompts` and edit `PROMPT_build.md`.
 
 ## Permissions and safety
 

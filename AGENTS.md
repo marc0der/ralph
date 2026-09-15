@@ -77,7 +77,6 @@ Uses the `devcontainer` CLI to manage container lifecycle. Key details:
 - `~/.config/ralph/prompts/` — default plan/build prompt templates
 - `~/.config/ralph/templates/` — artifact templates (PROGRESS.md)
 - `~/.config/ralph/container/` — devcontainer config + Dockerfile
-- `~/.config/ralph/skills/` — bundled Claude Code skills (e.g. `commit`) scaffolded into `<workspace>/.claude/skills/` by `ralph init`
 
 Override with `RALPH_BIN_DIR` and `RALPH_CONFIG_DIR`.
 
@@ -90,9 +89,9 @@ Override with `RALPH_BIN_DIR` and `RALPH_CONFIG_DIR`.
 
 ## Workflow conventions
 
-- Use the `/commit` skill to commit changes. The skill is bundled with ralph and scaffolded into `<workspace>/.claude/skills/commit/SKILL.md` by `ralph init`, so it is available to the agent inside the sandbox.
-- The skill produces fine-grained atomic commits with short imperative subjects and an optional 3-bullet body. When the working tree contains separable concerns, the skill splits them into multiple commits in a single invocation.
-- If the skill is unavailable, follow the [Conventional Commits](https://www.conventionalcommits.org/) standard.
+- Follow the [Conventional Commits](https://www.conventionalcommits.org/) standard: `<type>(<scope>): <subject>`, imperative subject of at most 50 characters, optional body of at most 3 bulleted lines.
+- Produce fine-grained atomic commits. When the working tree contains separable concerns, split them into separate commits in dependency order.
+- `prompts/build.md` states the same rules for the agent inside the sandbox; keep the two in agreement.
 
 ## Shell scripting conventions
 
