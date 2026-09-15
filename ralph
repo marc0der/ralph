@@ -328,7 +328,6 @@ cmd_init() {
 
     local templates_dir="$CONFIG_DIR/templates"
 
-    # Workspace artifacts
     if [[ -f "$templates_dir/PROGRESS.md" ]]; then
         scaffold "PROGRESS.md" "$templates_dir/PROGRESS.md"
     else
@@ -348,7 +347,6 @@ cmd_init() {
         echo "Created: specs/"
     fi
 
-    # Add ralph artifacts to .gitignore
     if [[ ! -f ".gitignore" ]]; then
         touch .gitignore
         echo "Created: .gitignore"
@@ -363,7 +361,6 @@ cmd_init() {
         fi
     done
 
-    # Optional: copy prompt templates for local customisation
     if $with_prompts; then
         local prompts_dir="$CONFIG_DIR/prompts"
         if [[ ! -d "$prompts_dir" ]]; then
@@ -432,7 +429,6 @@ cmd_sandbox() {
 
     mkdir -p "$HOME/.claude" "$HOME/.codex" "$HOME/.copilot" "$HOME/.pi/agent"
 
-    # Runtime mounts (conditional on host file existence)
     local mounts=()
     local ralph_bin
     ralph_bin="$(command -v ralph)"
@@ -530,7 +526,6 @@ cmd_sandbox() {
         mount_flags+=("--mount" "$mount")
     done
 
-    # Start or reuse container
     local up_args=(
         "--workspace-folder" "$PWD"
         "--config" "$config"
@@ -544,7 +539,6 @@ cmd_sandbox() {
     echo "Starting sandbox..."
     devcontainer up "${up_args[@]}"
 
-    # Drop into shell
     devcontainer exec \
         --workspace-folder "$PWD" \
         --config "$config" \
@@ -570,8 +564,7 @@ sandbox_clean() {
     echo "Removed sandbox container for $PWD"
 }
 
-# Resolve which prompt file to use.
-# Priority: project-local PROMPT_<mode>.md > installed default
+# Priority: project-local PROMPT_<mode>.md > installed default.
 resolve_prompt() {
     local mode="$1"
     local local_file="PROMPT_${mode}.md"
@@ -589,11 +582,8 @@ resolve_prompt() {
     fi
 }
 
-# Verify workspace artifacts produced by 'ralph init' are present.
-# Plan needs IMPLEMENTATION_PLAN.md (the template the agent fills in).
-# Build needs both IMPLEMENTATION_PLAN.md and PROGRESS.md.
-# Review needs both too: it audits the plan and writes supersession entries to
-# PROGRESS.md, so the second requirement is real and not symmetry.
+# Review needs PROGRESS.md as well as the plan: it writes supersession entries
+# there, so the second requirement is real and not symmetry.
 require_init_artifacts() {
     local mode="$1"
     local required=()
@@ -636,9 +626,8 @@ count_plan_items() {
     plan_items_body | grep -c "$1" || true
 }
 
-# Predicates over the plan item counts, so that require_open_items,
-# require_review_preconditions and auto's guards all read "can this mode run?"
-# the same way. Return 0 (true) when the marker is present.
+# Predicates shared by require_open_items, require_review_preconditions and
+# auto's guards, so every caller asks "can this mode run?" the same way.
 have_open_items() {
     [[ "$(count_plan_items '^- \[ \]')" -gt 0 ]]
 }
@@ -676,8 +665,6 @@ require_review_preconditions() {
     fi
 }
 
-# Calculate build iterations from IMPLEMENTATION_PLAN.md.
-# Counts incomplete items (- [ ]) and adds 20% headroom (rounded up, minimum 1).
 # Caller must ensure at least one open item exists (see require_open_items).
 calculate_build_iterations() {
     local count
@@ -687,11 +674,9 @@ calculate_build_iterations() {
     echo $(( (count * 6 + 4) / 5 ))
 }
 
-# Modes that never commit, so HEAD cannot measure their progress. They snapshot
-# the plan fingerprint instead and use it for both convergence and the metrics
-# noop flag. Kept as one predicate rather than three inline mode tests, so a
-# fourth non-committing mode cannot be wired into two of the sites and missed
-# in the third.
+# Modes that never commit, so HEAD cannot measure their progress: they snapshot
+# the plan fingerprint instead, for both convergence and the metrics noop flag.
+# One predicate, so a fourth such mode cannot be wired into two sites of three.
 mode_converges_on_plan() {
     case "$1" in
         plan|review) return 0 ;;
@@ -699,9 +684,8 @@ mode_converges_on_plan() {
     esac
 }
 
-# The early-exit line names the phase that converged. Review also reports the
-# size of the anchor set it swept: a clean review changes no file, makes no
-# commit and records a metrics line of zeros, which is otherwise
+# Review also reports the size of the anchor set it swept: a clean review
+# changes no file and records a metrics line of zeros, which is otherwise
 # indistinguishable from a backend that read the prompt and did nothing. Ralph
 # counts the shipped items itself rather than trusting the agent's own claim.
 convergence_message() {
@@ -950,7 +934,6 @@ cmd_loop() {
     local mode="$1"
     shift
 
-    # Parse flags
     local max_iterations=""
     local goal=""
     local model=""
@@ -1004,16 +987,13 @@ cmd_loop() {
         require_review_preconditions
     fi
 
-    # Resolve backend: CLI flag > default
     backend="${backend:-claude}"
     resolve_backend "$backend"
 
-    # Apply backend default model if -m not explicitly passed
     if [[ -z "$model" ]]; then
         model="$BACKEND_DEFAULT_MODEL"
     fi
 
-    # Resolve iteration count from defaults/heuristics when -n wasn't passed.
     if ! $hard_override; then
         case "$mode" in
             plan)   max_iterations=$PLAN_DEFAULT_CAP ;;
@@ -1022,13 +1002,11 @@ cmd_loop() {
         esac
     fi
 
-    # Verify backend CLI is available (not needed for dry-run)
     if ! $dry_run && ! command -v "$BACKEND_CLI" >/dev/null 2>&1; then
         echo "Error: '$BACKEND_CLI' CLI not found in PATH." >&2
         exit 1
     fi
 
-    # Verify git is available and we're inside a repo
     if ! command -v git >/dev/null 2>&1; then
         echo "Error: 'git' not found in PATH." >&2
         exit 1
@@ -1044,10 +1022,8 @@ cmd_loop() {
     local current_branch
     current_branch=$(git branch --show-current)
 
-    # Build the backend command array now that model is resolved
     build_backend_cmd "$model"
 
-    # Metrics capture (on by default for real runs; see --no-metrics)
     local metrics_enabled=true
     ($dry_run || $no_metrics) && metrics_enabled=false
     local metrics_dir="" metrics_file=""
@@ -1172,7 +1148,6 @@ cmd_loop() {
         trap 'rm -f -- "$RALPH_TEMP_STREAM"' EXIT
     fi
 
-    # Clean exit on interrupt signals
     trap 'echo -e "\nInterrupted at iteration $iteration / $max_iterations" >&2; exit 130' SIGINT SIGTERM
 
     while [[ $iteration -lt $max_iterations ]]; do
@@ -1204,14 +1179,12 @@ cmd_loop() {
             shipped_before=$(count_plan_items '^- \[x\]')
         fi
 
-        # Snapshot metrics baseline for this iteration
         local iter_start plan_done_before=0
         iter_start=$(date +%s)
         if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
             plan_done_before=$(plan_items_body | grep -c '^- \[x\]' || true)
         fi
 
-        # Inject {{GOAL}} into prompt using bash substitution
         local prompt
         prompt=$(<"$prompt_file")
         prompt="${prompt//\{\{GOAL\}\}/${goal:-No specific goal provided}}"
@@ -1256,19 +1229,15 @@ cmd_loop() {
             # Retention decides what a diagnostic may name. A metrics run keeps
             # iter-NNN.stream.jsonl for later analysis; every other path lands
             # on the per-run temp file, which the next iteration truncates and
-            # the EXIT trap deletes. Naming that file sends the user after bytes
-            # that are gone before the prompt returns.
-            #
-            # Where the file sits decides this, not whether metrics are on: an
-            # unwritable metrics directory degrades a metrics-enabled run to
-            # that same temp file, so the prefix test is the only thing that
-            # keeps a hint off a file the trap deletes.
+            # the EXIT trap deletes, so naming it sends the user after bytes
+            # that are gone before the prompt returns. Where the file sits
+            # decides this, not whether metrics are on: an unwritable metrics
+            # directory degrades a metrics-enabled run to that same temp file.
             local stream_retained=false
             if [[ -n "$raw_file" && -n "$metrics_dir" && "$raw_file" == "$metrics_dir/"* ]]; then
                 stream_retained=true
             fi
 
-            # Verbose: print backend command before execution
             if $verbose; then
                 if [[ "$BACKEND_STDIN_PROMPT" == "true" ]]; then
                     echo "[verbose] Backend command: ${BACKEND_CMD[*]}" >&2
@@ -1367,13 +1336,7 @@ cmd_loop() {
 
             # An absent or empty stream is neither a backend failure nor a jq
             # failure, so it warns on its own terms. Both other paths exit;
-            # this one carries on.
-            #
-            # Only a retained stream may be named. The non-retained path is the
-            # per-run temp file, which the next iteration truncates and the EXIT
-            # trap deletes, so printing it once per iteration of a plain
-            # `ralph build --no-metrics` sent the user after bytes that are gone
-            # before the prompt returns. Describe it instead.
+            # this one carries on. Only a retained stream may be named.
             #
             # The empty-raw_file case warns too. It is the worst degradation —
             # no file was writable anywhere, so this iteration's stream lives
@@ -1394,13 +1357,10 @@ cmd_loop() {
             # copy: re-printing it only buries the live output. So a verbose
             # iteration prints exactly one form, and rendering decides which.
             #
-            # Retention only decides whether that form may name a file. The
-            # non-retained stream is the per-run temp file, which the next
-            # iteration truncates and the EXIT trap deletes, so it is reported
-            # as not retained rather than pointed at. Keying the dump on
-            # retention instead made `--no-metrics --verbose` render live *and*
-            # dump the same bytes again, which is the one outcome section 7
-            # replaced the dump to avoid.
+            # Retention only decides whether that form may name a file. Keying
+            # the dump on retention instead made `--no-metrics --verbose` render
+            # live *and* dump the same bytes again, which is the one outcome
+            # section 7 replaced the dump to avoid.
             #
             # A renderer that never ran (no live filter, as with codex and
             # copilot) or died rendered nothing, so the dump is that
@@ -1413,7 +1373,6 @@ cmd_loop() {
                 fi
             fi
 
-            # Verbose: show raw backend output before jq
             if $verbose; then
                 if $stream_pointer; then
                     echo "[verbose] Raw stream: $raw_file" >&2
@@ -1463,7 +1422,6 @@ cmd_loop() {
                 exit "$backend_exit"
             fi
 
-            # Run jq separately on captured output
             local jq_output=""
             local jq_exit=0
             if [[ -n "$raw_file" && -r "$raw_file" ]]; then
@@ -1506,12 +1464,10 @@ cmd_loop() {
                 fi
             fi
 
-            # Verbose: show exit codes
             if $verbose; then
                 echo "[verbose] Exit codes — backend: $backend_exit, jq: $jq_exit" >&2
             fi
 
-            # Print jq output (unchanged behaviour)
             echo "$jq_output"
 
             # Unconditional: change detection must survive --no-metrics, so this
@@ -1643,9 +1599,8 @@ cmd_loop() {
 }
 
 cmd_auto() {
-    # Flag parsing only. The phase loop, guards, container check, state file
-    # and report are added by later items. '-n' is rejected here because each
-    # phase resolves its own iteration count (see specs/auto-lifecycle.md §8).
+    # '-n' is rejected because each phase resolves its own iteration count
+    # (see specs/auto-lifecycle.md §8).
     local goal=""
     local model=""
     local backend=""
@@ -1794,12 +1749,11 @@ cmd_auto() {
     # failure path (a non-zero backend, a jq failure, a rejected push) becomes
     # an exit status auto decides on, instead of taking the lifecycle down, and
     # so each phase's traps and globals stay its own. On a child failure auto
-    # records the state file and exits 1; the report is added by a later item.
+    # records the state file and exits 1.
     local phase_num=0 phase child_exit
     for phase in "${RALPH_PHASES[@]}"; do
         phase_num=$((phase_num + 1))
 
-        # Under --resume, phases below the entry point are passed over.
         [[ $phase_num -lt $start_phase ]] && continue
 
         # Guards read the plan as it stands on disk right now, never a decision
@@ -1864,7 +1818,7 @@ cmd_auto() {
     auto_report
 }
 
-# Main dispatch
+# Main dispatch — test/resolve_prompt.bats sources everything above this line
 case "${1:-}" in
     sandbox)    shift; cmd_sandbox "$@" ;;
     plan|build|review) cmd_loop "$@" ;;
