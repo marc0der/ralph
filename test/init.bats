@@ -69,31 +69,6 @@ load test_helper
     [[ "$output" == *"Skipped: PROGRESS.md already exists"* ]]
     [[ "$output" == *"Skipped: IMPLEMENTATION_PLAN.md already exists"* ]]
     [[ "$output" == *"Skipped: specs/ already exists"* ]]
-    [[ "$output" == *"Skipped: .claude/skills/commit/SKILL.md already exists"* ]]
-}
-
-@test "init scaffolds the commit skill into .claude/skills/" {
-    run "$RALPH" init
-    [[ "$status" -eq 0 ]]
-    [[ -f ".claude/skills/commit/SKILL.md" ]]
-    grep -q "commit skill" .claude/skills/commit/SKILL.md
-}
-
-@test "init does not overwrite an existing commit skill" {
-    mkdir -p .claude/skills/commit
-    echo "# user's customised skill" > .claude/skills/commit/SKILL.md
-    run "$RALPH" init
-    [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Skipped: .claude/skills/commit/SKILL.md already exists"* ]]
-    grep -q "user's customised skill" .claude/skills/commit/SKILL.md
-}
-
-@test "init warns when the bundled commit skill is missing from config" {
-    rm -rf "$RALPH_CONFIG_DIR/skills"
-    run "$RALPH" init
-    [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Warning: commit skill not found"* ]]
-    [[ ! -f ".claude/skills/commit/SKILL.md" ]]
 }
 
 @test "init --prompts copies prompt templates" {

@@ -348,15 +348,6 @@ cmd_init() {
         echo "Created: specs/"
     fi
 
-    # Bundled Claude Code skills (e.g. /commit) — scaffold into project-local .claude/skills/
-    local skills_dir="$CONFIG_DIR/skills"
-    if [[ -f "$skills_dir/commit/SKILL.md" ]]; then
-        mkdir -p ".claude/skills/commit"
-        scaffold ".claude/skills/commit/SKILL.md" "$skills_dir/commit/SKILL.md"
-    else
-        echo "Warning: commit skill not found at $skills_dir/commit/SKILL.md"
-    fi
-
     # Add ralph artifacts to .gitignore
     if [[ ! -f ".gitignore" ]]; then
         touch .gitignore

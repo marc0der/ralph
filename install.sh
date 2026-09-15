@@ -32,11 +32,6 @@ cp "$SCRIPT_DIR/container/Dockerfile" "$CONFIG_DIR/container/Dockerfile"
 cp "$SCRIPT_DIR/container/devcontainer.json" "$CONFIG_DIR/container/devcontainer.json"
 echo "  Container:  $CONFIG_DIR/container/"
 
-# Install bundled Claude Code skills
-mkdir -p "$CONFIG_DIR/skills/commit"
-cp "$SCRIPT_DIR/skills/commit/SKILL.md" "$CONFIG_DIR/skills/commit/SKILL.md"
-echo "  Skills:     $CONFIG_DIR/skills/"
-
 # Check PATH
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     echo ""

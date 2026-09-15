@@ -20,7 +20,7 @@ setup() {
 
     # Set up mock ralph config dir
     export RALPH_CONFIG_DIR="$TEST_DIR/.ralph-config"
-    mkdir -p "$RALPH_CONFIG_DIR/templates" "$RALPH_CONFIG_DIR/prompts" "$RALPH_CONFIG_DIR/skills/commit"
+    mkdir -p "$RALPH_CONFIG_DIR/templates" "$RALPH_CONFIG_DIR/prompts"
     echo "# Progress" > "$RALPH_CONFIG_DIR/templates/PROGRESS.md"
     # Use the real plan template, not a stub: it carries the '## Items' heading
     # and a column-zero exemplar entry, and item counting depends on both.
@@ -29,7 +29,6 @@ setup() {
     echo "# Plan prompt" > "$RALPH_CONFIG_DIR/prompts/plan.md"
     echo "# Build prompt" > "$RALPH_CONFIG_DIR/prompts/build.md"
     echo "# Review prompt" > "$RALPH_CONFIG_DIR/prompts/review.md"
-    echo "# commit skill" > "$RALPH_CONFIG_DIR/skills/commit/SKILL.md"
 }
 
 # Clean up after each test
