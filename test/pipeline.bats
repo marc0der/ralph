@@ -1486,3 +1486,85 @@ MOCK
     [[ "$output" != *"Push failed"* ]]
     [[ "$output" != *"No commit on the workspace branch"* ]]
 }
+
+# Helper: give the workspace a real, pushable `origin`. A bare repository in
+# $TEST_DIR is the cheapest remote that accepts a push, and it lets a test read
+# the remote's branch back to prove the push landed.
+add_bare_origin() {
+    git init --bare --quiet "$TEST_DIR/remote.git"
+    git remote add origin "$TEST_DIR/remote.git"
+}
+
+# The skip is pinned to its two conditions. A workspace that *can* be pushed
+# must still be pushed, and a push git rejects must still fail the run —
+# otherwise the skip has widened into the failure path it was carved out of.
+@test "a workspace with a bare origin still pushes" {
+    "$RALPH" init
+    seed_open_item
+    create_committing_backend
+    add_bare_origin
+    local branch before
+    branch=$(git branch --show-current)
+    before=$(git rev-parse HEAD)
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"skipping push."* ]]
+    [[ "$output" != *"Push failed"* ]]
+    # The remote branch moved, and it moved to where the workspace now stands.
+    local remote_head
+    remote_head=$(git --git-dir="$TEST_DIR/remote.git" rev-parse "$branch")
+    [[ "$remote_head" != "$before" ]]
+    [[ "$remote_head" == "$(git rev-parse HEAD)" ]]
+}
+
+@test "an origin that is not a repository still fails the push" {
+    "$RALPH" init
+    seed_open_item
+    create_committing_backend
+    # The remote exists and has a URL, so the first condition passes; git then
+    # reaches the URL and rejects. That is a failure, not a fact to skip over.
+    git remote add origin "$TEST_DIR/not-a-repo"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Push failed:"* ]]
+    [[ "$output" != *"skipping push."* ]]
+}
+
+@test "--skip-push prints neither skip line without an origin" {
+    "$RALPH" init
+    seed_open_item
+    create_committing_backend
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build --skip-push
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"No 'origin' remote"* ]]
+    [[ "$output" != *"No commit on the workspace branch"* ]]
+}
+
+@test "a commitless workspace with an origin skips the push" {
+    # Re-init to drop setup()'s `initial` commit: the remote resolves but there
+    # is no HEAD to push, which is the second condition.
+    rm -rf .git
+    git init --quiet
+    git config user.email "test@test.com"
+    git config user.name "Test"
+    "$RALPH" init
+    # Two open items make the cap 3, so the 2-noop exit is what ends the run
+    # rather than an exhausted iteration count.
+    printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
+    add_bare_origin
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"result","result":"nothing to do"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"No commit on the workspace branch — skipping push."* ]]
+    [[ "$output" != *"No 'origin' remote"* ]]
+    [[ "$output" != *"Push failed"* ]]
+}
