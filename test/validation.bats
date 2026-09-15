@@ -26,7 +26,6 @@ load test_helper
 }
 
 @test "build fails when claude is not in PATH" {
-    # Provide init artifacts so iteration calculation succeeds
     echo "- [ ] **Task one**" > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
     # Keep system paths but remove any directory containing claude
@@ -40,7 +39,6 @@ load test_helper
 }
 
 @test "build -b codex fails when codex is not in PATH" {
-    # Provide init artifacts so iteration calculation succeeds
     echo "- [ ] **Task one**" > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
     # Codex is almost certainly not installed, so just verify the error names the right binary
@@ -54,7 +52,6 @@ load test_helper
 }
 
 @test "build -b copilot fails when copilot is not in PATH" {
-    # Provide init artifacts so iteration calculation succeeds
     echo "- [ ] **Task one**" > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
     # Copilot is almost certainly not installed, so just verify the error names the right binary
@@ -68,7 +65,6 @@ load test_helper
 }
 
 @test "build -b pi fails when pi is not in PATH" {
-    # Provide init artifacts so iteration calculation succeeds
     echo "- [ ] **Task one**" > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
     # Pi is preinstalled in the devcontainer image, so we must strip it; on a clean

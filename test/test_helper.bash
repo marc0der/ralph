@@ -1,7 +1,5 @@
-# Common test helper for ralph BATS tests
 bats_require_minimum_version 1.5.0
 
-# Path to the ralph script under test
 export RALPH="$BATS_TEST_DIRNAME/../ralph"
 
 # Tests assert ralph's host-side behaviour (e.g. the outside-container warning).
@@ -9,7 +7,6 @@ export RALPH="$BATS_TEST_DIRNAME/../ralph"
 # flips that branch — unset it so every test sees the same host-side defaults.
 unset DEVCONTAINER
 
-# Create a temporary directory for each test with mock config
 setup() {
     TEST_DIR="$(mktemp -d)"
     cd "$TEST_DIR" || return 1
@@ -18,7 +15,6 @@ setup() {
     git config user.name "Test"
     git commit --allow-empty -m "initial" --quiet
 
-    # Set up mock ralph config dir
     export RALPH_CONFIG_DIR="$TEST_DIR/.ralph-config"
     mkdir -p "$RALPH_CONFIG_DIR/templates" "$RALPH_CONFIG_DIR/prompts"
     echo "# Progress" > "$RALPH_CONFIG_DIR/templates/PROGRESS.md"
@@ -31,12 +27,10 @@ setup() {
     echo "# Review prompt" > "$RALPH_CONFIG_DIR/prompts/review.md"
 }
 
-# Clean up after each test
 teardown() {
     rm -rf "$TEST_DIR"
 }
 
-# Helper: create a minimal .gitignore
 create_gitignore() {
     printf "%s" "${1:-}" > .gitignore
 }

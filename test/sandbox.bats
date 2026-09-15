@@ -162,8 +162,8 @@ MOCKEOF
     unset SSH_AUTH_SOCK
 }
 
-# OPENAI_API_KEY is the first provider key forwarded by cmd_sandbox (ralph:391),
-# but its tests were left out when the propagation pattern was introduced. This
+# OPENAI_API_KEY is the first provider key cmd_sandbox forwards, but its tests
+# were left out when the propagation pattern was introduced. This
 # pair backfills the gap so every `[[ -n "${VAR:-}" ]]` forwarding branch in
 # ralph has matching positive + negative coverage. Slotted before OPENROUTER to
 # keep test order in lock-step with the source order.

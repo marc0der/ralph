@@ -9,7 +9,6 @@ load test_helper
     [[ ! -f "IMPLEMENTATION_PLAN.md" ]]
     [[ ! -f "PROGRESS.md" ]]
     [[ -d ".ralph" ]]
-    # Verify files exist in the archive subdirectory
     local archive_dir
     archive_dir=$(find .ralph -mindepth 1 -maxdepth 1 -type d | head -1)
     [[ -f "${archive_dir}/IMPLEMENTATION_PLAN.md" ]]
