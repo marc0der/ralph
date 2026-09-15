@@ -739,7 +739,8 @@ plan_state_hash() {
 # difference — a moved HEAD, a repository that appeared or vanished — is a
 # change. `-prune` keeps find out of the .git directories themselves; it does
 # not prune their parents, so a repository nested inside a watched one is
-# watched too.
+# watched too. The scan follows symlinks, so a `source -> /shared/checkouts`
+# link is watched as if the clones sat under `source/`.
 repo_state() {
     local repo
     while IFS= read -r gitpath; do
@@ -749,7 +750,11 @@ repo_state() {
         # that output rather than replace it.
         printf '%s %s\n' "$repo" \
             "$(git -C "$repo" rev-parse -q --verify HEAD 2>/dev/null || echo -)"
-    done < <(find . -maxdepth 6 -name .git -prune -print 2>/dev/null) | LC_ALL=C sort
+        # -L follows a symlinked checkout, which is a repository the agent can
+        # commit into. 2>/dev/null also discards find's `File system loop
+        # detected` diagnostic for a link such as `self -> .`; find declines to
+        # descend, and -maxdepth bounds the walk regardless.
+    done < <(find -L . -maxdepth 6 -name .git -prune -print 2>/dev/null) | LC_ALL=C sort
 }
 
 truncate_line() {
