@@ -59,11 +59,14 @@ Once tests pass:
    - An appended item follows the same schema and the same limits as every other item: six fields, at most 150 words, at most 8 steps. Copy the shape from the `## Entry Format` section of the file.
    - **Never add a heading.** The file holds `# Implementation Plan`, `## Entry Format`, and `## Items`, and nothing else.
 2. Append an entry to `PROGRESS.md` following the template defined in its header (append-only — never edit previous entries)
-3. Commit the changes by invoking the **`/commit` skill**. Do NOT compose commits manually. Rules for this iteration:
-   - **Atomic commits**: if the working tree contains separable concerns **within this item** (e.g. a refactor *and* the feature it enables, or test additions that stand on their own), produce **multiple commits in one skill invocation** — one per concern — instead of a single grab-bag commit.
-   - **Selective staging**: never `git add -A` / `git add .`. Stage only the paths belonging to the current commit.
+3. Commit the changes. Rules for this iteration:
+   - **Atomic commits**: if the working tree contains separable concerns **within this item** (e.g. a refactor *and* the feature it enables, or test additions that stand on their own), produce **one commit per concern**, in dependency order, instead of a single grab-bag commit.
+   - **Selective staging**: stage explicit paths with `git add -- <paths>`. Never `git add -A` / `git add .`.
    - **Exclude loop artifacts**: do NOT stage or commit `IMPLEMENTATION_PLAN.md`, `PROGRESS.md`, `PROMPT_plan.md`, `PROMPT_build.md`, `PROMPT_review.md`, or the `.ralph/` directory — these are local-only.
-   - **Subject + optional short body**: short imperative subject; body, if used, is up to 3 bulleted lines summarising what was implemented.
+   - **Message format**: follow [Conventional Commits](https://www.conventionalcommits.org/) — `<type>(<scope>): <subject>`. Types are `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`. Mark a breaking change with `!` after the type or scope.
+   - **Subject**: imperative mood, lowercase, at most 50 characters, no trailing period. Scope is optional, lowercase, and names the affected area.
+   - **Body**: optional, at most 3 bulleted lines, only when the subject alone does not explain the change.
+   - Read `git log --oneline -10` first and match the repository's prevailing style. Write the message through a heredoc so the subject, body and footer keep their newlines.
 4. `git push`
 5. **Stop here.** Do not pick up another item — the next iteration starts fresh from Phase 1.
 
