@@ -1188,9 +1188,13 @@ cmd_loop() {
 
         # Snapshot HEAD to detect noops. Plan and review never commit, so they
         # fingerprint the artifacts they are allowed to change instead.
+        # `-q --verify ... || echo -` is the form repo_state uses: a commitless
+        # workspace records `-` rather than aborting the run on git's raw
+        # `fatal: ambiguous argument 'HEAD'`, so the workspace reads like the
+        # entry it is in the repository listing.
         local head_before plan_state_before="" plan_state_after=""
         local state_before="" state_after=""
-        head_before=$(git rev-parse HEAD)
+        head_before=$(git rev-parse -q --verify HEAD 2>/dev/null || echo -)
         state_before=$(repo_state)
         if mode_converges_on_plan "$mode"; then
             plan_state_before=$(plan_state_hash)
@@ -1542,10 +1546,12 @@ cmd_loop() {
             if $metrics_enabled; then
                 local iter_end head_after_m
                 # Fallbacks keep the never-interrupt-the-loop contract even if
-                # date or git fail mid-run (worst case: zero-length iteration /
-                # activity attributed as noop).
+                # date or git fail mid-run (worst case: zero-length iteration).
+                # The HEAD snapshot matches head_before's form, so a commitless
+                # workspace compares `-` against `-` and reads as a noop, and
+                # the iteration that makes the first commit reads as a change.
                 iter_end=$(date +%s) || iter_end=$iter_start
-                head_after_m=$(git rev-parse HEAD 2>/dev/null) || head_after_m=$head_before
+                head_after_m=$(git rev-parse -q --verify HEAD 2>/dev/null || echo -)
                 # An empty raw_file reaches jq as an empty filename, which it
                 # fails to open: `jq -cs` exits 2 under its own 2>/dev/null,
                 # backend_summary degrades to `{}`, and the record is written
