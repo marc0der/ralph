@@ -155,6 +155,16 @@ Ralph iterations create and maintain these files in your project:
 
 `PROMPT_plan.md`, `PROMPT_build.md` and `PROMPT_review.md` are optional project-local prompt overrides (see [Prompt resolution](#prompt-resolution)).
 
+### Meta repositories
+
+A meta repository is a workspace that holds a sync script and a manifest, clones each service into a gitignored directory such as `source/`, and carries no service code of its own. Ralph supports that shape alongside the single-service repository:
+
+- **Ralph watches every git repository beneath the workspace**, not only the workspace's own `HEAD`, and the scan follows symlinks — a `source -> /shared/checkouts` link is watched as if the clones sat under `source/`. So the noop exit reads an iteration that commits only inside `source/svc` as progress. The scan stops at depth 6.
+- **Ralph pushes the workspace only.** A meta repository often has no `origin`, so the push block prints `No 'origin' remote — skipping push.` and continues instead of failing the run; a workspace with no commit yet skips the same way. A push that git actually rejects is still a failure.
+- **The agent commits and pushes inside the repository that owns each file.** `prompts/build.md` resolves each changed path to its repository with `git -C <dir> rev-parse --show-toplevel`, then runs every git command there, the push included. Ralph itself pushes nothing nested.
+
+Write the workspace's `CLAUDE.md` (or `AGENTS.md`) for that split: name each service's own conventions file, so the agent reads it before it commits there. Where the sync script pins shas and leaves each clone on a detached `HEAD`, name the branch the agent is to commit on.
+
 ### The implementation plan contract
 
 `specs/` states **what** to build. `IMPLEMENTATION_PLAN.md` states **how** to build it. The plan is a work queue, not a scratchpad — every line in it is an instruction or a pass/fail criterion. Outcomes, evidence and learnings go to `PROGRESS.md`; decisions and their reasoning go to `specs/`.
@@ -295,6 +305,12 @@ If `git push` fails due to diverged history, pull and resolve conflicts manually
 
 **Resuming after a failed iteration**
 Just re-run `ralph build`. It picks up from the current state of `IMPLEMENTATION_PLAN.md` — no special recovery step is needed.
+
+**Build stops early in a meta repository**
+Check that `--skip-push` was not passed out of habit: ralph skips the push by itself when the workspace has no `origin`, and the flag also leaves real workspace commits unpushed. If the run still exits after two iterations while the agent is committing, check that no clone sits deeper than depth 6 below the workspace — the repository scan stops there, so a clone below it is invisible and its commits read as a noop.
+
+**Build never exits early**
+A test suite that creates git repositories under the project tree reads as progress on every iteration, because a `.git` that appears or vanishes between two snapshots is a change. The noop exit then never fires and the run reaches its iteration cap. Write such fixtures under `$TMPDIR` instead of under the workspace.
 
 **Sandbox container is stale or broken**
 Remove it and start fresh:
