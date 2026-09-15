@@ -19,15 +19,30 @@ seed_items() {
     done
 }
 
-# Create a nested repository at $1 with one commit, and gitignore its top
-# directory so the workspace repository never sees it.
-nested_repo() {
+# The symlinked-checkout case needs its link target outside the workspace, so
+# it makes a second temp directory. Cleaning that needs a teardown, which
+# replaces the helper's — so this one removes $TEST_DIR as well.
+teardown() {
+    rm -rf "$TEST_DIR"
+    [[ -n "${LINK_TARGET:-}" ]] && rm -rf "$LINK_TARGET"
+    return 0
+}
+
+# Create a repository at $1 with one commit. $1 may sit outside the workspace.
+init_repo() {
     local path="$1"
     mkdir -p "$path"
     git -C "$path" init --quiet
     git -C "$path" config user.email "nested@test.com"
     git -C "$path" config user.name "Nested"
     git -C "$path" commit --allow-empty -m "nested initial" --quiet
+}
+
+# Create a nested repository at $1 with one commit, and gitignore its top
+# directory so the workspace repository never sees it.
+nested_repo() {
+    local path="$1"
+    init_repo "$path"
     echo "${path%%/*}/" >> .gitignore
 }
 
@@ -262,6 +277,42 @@ on_iteration() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"No changes detected for 2 consecutive iterations"* ]]
     [[ "$output" == *"Completed 3 iterations"* ]]
+}
+
+# --- Symlinked checkouts ---
+
+@test "a commit in a repository reached through a symlink prevents the exit" {
+    "$RALPH" init
+    seed_items 3
+    # The realistic symlinked checkout points outside the workspace — that is
+    # why it is a symlink — so the target is a sibling temp directory. Without
+    # `find -L` the clone is invisible and the run stops at iteration 2.
+    LINK_TARGET="$(mktemp -d)"
+    init_repo "$LINK_TARGET/svc"
+    ln -s "$LINK_TARGET" source
+    echo "source/" >> .gitignore
+    create_nested_committing_backend
+
+    TARGET_REPO="source/svc" PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build --skip-push
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"No changes detected"* ]]
+    [[ "$output" == *"Completed 4 iterations"* ]]
+}
+
+@test "a symlink loop leaves the noop exit intact" {
+    "$RALPH" init
+    seed_items 3
+    nested_repo "source/svc"
+    # `self -> .` is a true loop: find reports it on stderr, which repo_state
+    # discards, and declines to descend. The listing must stay stable so two
+    # idle iterations still read as noops.
+    ln -s . self
+    create_idle_backend
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build --skip-push
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"No changes detected for 2 consecutive iterations"* ]]
+    [[ "$output" == *"Completed 2 iterations"* ]]
 }
 
 # --- Flag and mode interactions ---
