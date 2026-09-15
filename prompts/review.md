@@ -44,7 +44,7 @@ Make both checks for each `- [x]` item:
 
 Check 1 asks whether `build` followed the item. Check 2 asks whether the code it wrote works. Nothing else is in range.
 
-Evidence comes from the tree, the test suite, `git log`, `git diff`, and `PROGRESS.md`.
+Evidence comes from the tree, the test suite, `git log`, `git diff`, and `PROGRESS.md`. Run `git log` and `git diff` inside the repository that owns the item's `Files`; a path under a nested repository names that repository, and the workspace log does not show its commits.
 
 ### Findings must be item-local
 
