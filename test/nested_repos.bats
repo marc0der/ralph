@@ -19,9 +19,7 @@ seed_items() {
     done
 }
 
-# The symlinked-checkout case needs its link target outside the workspace, so
-# it makes a second temp directory. Cleaning that needs a teardown, which
-# replaces the helper's — so this one removes $TEST_DIR as well.
+# Replaces the helper's teardown, so it must remove $TEST_DIR as well.
 teardown() {
     rm -rf "$TEST_DIR"
     [[ -n "${LINK_TARGET:-}" ]] && rm -rf "$LINK_TARGET"
@@ -284,9 +282,6 @@ on_iteration() {
 @test "a commit in a repository reached through a symlink prevents the exit" {
     "$RALPH" init
     seed_items 3
-    # The realistic symlinked checkout points outside the workspace — that is
-    # why it is a symlink — so the target is a sibling temp directory. Without
-    # `find -L` the clone is invisible and the run stops at iteration 2.
     LINK_TARGET="$(mktemp -d)"
     init_repo "$LINK_TARGET/svc"
     ln -s "$LINK_TARGET" source
@@ -303,9 +298,6 @@ on_iteration() {
     "$RALPH" init
     seed_items 3
     nested_repo "source/svc"
-    # `self -> .` is a true loop: find reports it on stderr, which repo_state
-    # discards, and declines to descend. The listing must stay stable so two
-    # idle iterations still read as noops.
     ln -s . self
     create_idle_backend
 

@@ -513,17 +513,11 @@ MKDIREOF
 }
 
 # ─── safe.directory trust boundary ──────────────────────────────────────────
-# Asserted against the repository's own config, not the mock RALPH_CONFIG_DIR:
-# the value ships with ralph, so there is nothing per-test to vary.
 
 @test "devcontainer trusts every repository under the workspace" {
     local config="$BATS_TEST_DIRNAME/../container/devcontainer.json"
-    # Read the field with jq rather than grepping the raw file, so the case also
-    # proves the quoted glob left the JSON parseable.
     local post_start
     post_start=$(jq -r '.postStartCommand' "$config")
     [[ "$post_start" == *"safe.directory '*'"* ]]
-    # A nested clone owned by another uid fails every git command while only
-    # /workspace is trusted, which leaves repo_state a constant '-' for it.
     run ! grep -q "safe.directory /workspace" "$config"
 }

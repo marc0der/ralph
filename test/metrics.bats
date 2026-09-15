@@ -291,8 +291,6 @@ MOCK
 }
 
 # Discard the setup helper's initial commit so the workspace HEAD is unborn.
-# A meta repository can reach ralph in this state: the sync script clones the
-# services before anything is committed at the top level.
 reinit_commitless_workspace() {
     rm -rf .git
     git init --quiet
@@ -300,11 +298,6 @@ reinit_commitless_workspace() {
     git config user.name "Test"
 }
 
-# A commitless workspace used to abort the run: the plain `git rev-parse HEAD`
-# snapshot printed `fatal: ambiguous argument 'HEAD'` and exited 128 before the
-# first iteration. Both snapshots now fall back to `-`, so the workspace reads
-# like the commitless entry it is in the repository listing and the loop runs to
-# its ordinary noop exit (spec section 4).
 @test "commitless workspace completes an idle build and records two noops" {
     reinit_commitless_workspace
     "$RALPH" init
@@ -322,10 +315,8 @@ reinit_commitless_workspace() {
     [[ $(jq -rs 'map(.git.commits) | join(",")' "$f") == "0,0" ]]
 }
 
-# The iteration that makes the workspace's first commit flips `-` to a sha, so
-# the record reads noop=false. `commits` stays 0: `git rev-list --count -..<sha>`
-# fails into write_iteration_metrics' existing `|| echo 0`, which is the same
-# understatement a nested-only commit gets.
+# `commits` stays 0: `git rev-list --count -..<sha>` fails into
+# write_iteration_metrics' existing `|| echo 0`.
 @test "first commit on a commitless workspace records noop=false" {
     reinit_commitless_workspace
     "$RALPH" init

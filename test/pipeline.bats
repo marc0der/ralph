@@ -1469,12 +1469,6 @@ MOCK
     [[ -z "$(find "$TEST_DIR/tmp" -maxdepth 1 -name 'ralph.*' -print -quit)" ]]
 }
 
-# The push block skips what it cannot push (specs/meta-repo-hardening.md §3).
-# A meta repository commonly has no `origin`: the workspace holds only a sync
-# script and a manifest, the agent commits inside a gitignored clone, and
-# folding the missing remote into the failure path stopped the build at
-# iteration 1. The operator's `--skip-push` is a separate decision, so the
-# checks live inside that branch and cannot print when it is set.
 @test "a workspace with no origin skips the push instead of failing" {
     "$RALPH" init
     seed_open_item
@@ -1487,17 +1481,11 @@ MOCK
     [[ "$output" != *"No commit on the workspace branch"* ]]
 }
 
-# Helper: give the workspace a real, pushable `origin`. A bare repository in
-# $TEST_DIR is the cheapest remote that accepts a push, and it lets a test read
-# the remote's branch back to prove the push landed.
 add_bare_origin() {
     git init --bare --quiet "$TEST_DIR/remote.git"
     git remote add origin "$TEST_DIR/remote.git"
 }
 
-# The skip is pinned to its two conditions. A workspace that *can* be pushed
-# must still be pushed, and a push git rejects must still fail the run —
-# otherwise the skip has widened into the failure path it was carved out of.
 @test "a workspace with a bare origin still pushes" {
     "$RALPH" init
     seed_open_item
@@ -1511,7 +1499,6 @@ add_bare_origin() {
     [ "$status" -eq 0 ]
     [[ "$output" != *"skipping push."* ]]
     [[ "$output" != *"Push failed"* ]]
-    # The remote branch moved, and it moved to where the workspace now stands.
     local remote_head
     remote_head=$(git --git-dir="$TEST_DIR/remote.git" rev-parse "$branch")
     [[ "$remote_head" != "$before" ]]
@@ -1522,8 +1509,6 @@ add_bare_origin() {
     "$RALPH" init
     seed_open_item
     create_committing_backend
-    # The remote exists and has a URL, so the first condition passes; git then
-    # reaches the URL and rejects. That is a failure, not a fact to skip over.
     git remote add origin "$TEST_DIR/not-a-repo"
 
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build
@@ -1544,15 +1529,12 @@ add_bare_origin() {
 }
 
 @test "a commitless workspace with an origin skips the push" {
-    # Re-init to drop setup()'s `initial` commit: the remote resolves but there
-    # is no HEAD to push, which is the second condition.
+    # Re-init to drop setup()'s `initial` commit, so there is no HEAD to push.
     rm -rf .git
     git init --quiet
     git config user.email "test@test.com"
     git config user.name "Test"
     "$RALPH" init
-    # Two open items make the cap 3, so the 2-noop exit is what ends the run
-    # rather than an exhausted iteration count.
     printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
     add_bare_origin
     mkdir -p "$TEST_DIR/bin"
