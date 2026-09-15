@@ -1468,3 +1468,21 @@ MOCK
     # A failed mktemp must leave nothing behind for the EXIT trap to miss.
     [[ -z "$(find "$TEST_DIR/tmp" -maxdepth 1 -name 'ralph.*' -print -quit)" ]]
 }
+
+# The push block skips what it cannot push (specs/meta-repo-hardening.md §3).
+# A meta repository commonly has no `origin`: the workspace holds only a sync
+# script and a manifest, the agent commits inside a gitignored clone, and
+# folding the missing remote into the failure path stopped the build at
+# iteration 1. The operator's `--skip-push` is a separate decision, so the
+# checks live inside that branch and cannot print when it is set.
+@test "a workspace with no origin skips the push instead of failing" {
+    "$RALPH" init
+    seed_open_item
+    create_committing_backend
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"No 'origin' remote — skipping push."* ]]
+    [[ "$output" != *"Push failed"* ]]
+    [[ "$output" != *"No commit on the workspace branch"* ]]
+}
