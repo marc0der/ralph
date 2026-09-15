@@ -289,3 +289,64 @@ MOCK
     [[ $(jq -r '.git.noop' <<<"$line") == "false" ]]
     [[ $(jq -r '.git.commits' <<<"$line") == "0" ]]
 }
+
+# Discard the setup helper's initial commit so the workspace HEAD is unborn.
+# A meta repository can reach ralph in this state: the sync script clones the
+# services before anything is committed at the top level.
+reinit_commitless_workspace() {
+    rm -rf .git
+    git init --quiet
+    git config user.email "test@test.com"
+    git config user.name "Test"
+}
+
+# A commitless workspace used to abort the run: the plain `git rev-parse HEAD`
+# snapshot printed `fatal: ambiguous argument 'HEAD'` and exited 128 before the
+# first iteration. Both snapshots now fall back to `-`, so the workspace reads
+# like the commitless entry it is in the repository listing and the loop runs to
+# its ordinary noop exit (spec section 4).
+@test "commitless workspace completes an idle build and records two noops" {
+    reinit_commitless_workspace
+    "$RALPH" init
+    printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
+    create_noop_backend
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build --skip-push -y
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"No changes detected"* ]]
+
+    local f
+    f=$(latest_metrics_file)
+    [[ $(wc -l < "$f") -eq 2 ]]
+    [[ $(jq -rs 'map(.git.noop) | join(",")' "$f") == "true,true" ]]
+    [[ $(jq -rs 'map(.git.commits) | join(",")' "$f") == "0,0" ]]
+}
+
+# The iteration that makes the workspace's first commit flips `-` to a sha, so
+# the record reads noop=false. `commits` stays 0: `git rev-list --count -..<sha>`
+# fails into write_iteration_metrics' existing `|| echo 0`, which is the same
+# understatement a nested-only commit gets.
+@test "first commit on a commitless workspace records noop=false" {
+    reinit_commitless_workspace
+    "$RALPH" init
+    printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
+
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+echo "first" >> src.txt
+git add src.txt >/dev/null 2>&1
+git commit -q -m "first workspace commit"
+echo '{"type":"result","result":"done"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
+    [[ "$status" -eq 0 ]]
+
+    local line
+    line=$(tail -1 "$(latest_metrics_file)")
+    [[ $(jq -r '.git.noop' <<<"$line") == "false" ]]
+    [[ $(jq -r '.git.commits' <<<"$line") == "0" ]]
+}
