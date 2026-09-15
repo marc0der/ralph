@@ -137,11 +137,10 @@ repository.
 
 ### `prompts/build.md` carries its own git instructions
 
-Phase 4 step 3 today delegates the commit to a harness skill and forbids composing commits by hand.
-That step is replaced. The build prompt states the git procedure itself, in two rule blocks, so
-that every backend — with or without a skill mechanism, in a standalone repository or a meta
-repository — follows one procedure from one file. Nothing in `prompts/build.md` names a skill after
-this change.
+Phase 4 step 3 today states the message and staging rules but says nothing about which repository a
+commit belongs to, so it reads the same in a standalone repository and in a meta repository. That
+step is replaced. The build prompt states the whole git procedure, in two rule blocks, so that every
+backend follows one procedure from one file in either layout.
 
 **Where to commit** — the repository rules:
 
@@ -169,7 +168,8 @@ this change.
 - Push every repository you committed in, from inside it: `git -C <toplevel> push`, with
   `-u origin <branch>` on a branch you created. Ralph pushes the workspace and only the workspace.
 
-**How to commit** — the message and staging rules, which the prompt now owns:
+**How to commit** — the message and staging rules, which step 3 already carries and this block
+collects unchanged, except where a rule below names a repository:
 
 - Follow [Conventional Commits](https://www.conventionalcommits.org/): `<type>(<scope>): <subject>`.
   Types are `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`. Mark
@@ -295,7 +295,7 @@ exercise any of them.
 The prompt changes have no BATS coverage, by the repository's convention that no test asserts
 prose. Each plan item that edits `prompts/build.md` or `prompts/review.md` carries a `grep -c`
 criterion on a phrase it adds — `Where to commit`, `How to commit`, `repository that owns the
-item's` — in its `Done when`, and one item asserts that `grep -c '/commit' prompts/build.md` is 0.
+item's` — in its `Done when`.
 
 ## 10. Out of scope
 
@@ -305,8 +305,6 @@ item's` — in its `Done when`, and one item asserts that `grep -c '/commit' pro
 - Aggregate git counts across repositories in `metrics.jsonl`.
 - Reading `repos.json`, running the sync script, or any awareness of how clones arrived.
 - Following symlinks selectively, or refusing links that leave the workspace.
-- The bundled `/commit` skill: its content, its scaffold in `cmd_init`, its mention in `README.md`,
-  and its removal. `prompts/build.md` stops depending on it here; dismantling it is separate work.
 - Changes to `prompts/plan.md`, `cmd_archive`, `cmd_init`, `cmd_auto` or the sandbox's submodule
   refusal wording.
 - Any change to how plan and review converge.
