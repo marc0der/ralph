@@ -31,7 +31,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 
 | Command | Purpose |
 |---------|---------|
-| `plan` | Run planning loop (max 6 iterations, exits on convergence) — reads specs/source, produces `IMPLEMENTATION_PLAN.md` |
+| `plan` | Run planning loop (max 6 iterations, exits on convergence) — requires a goal (`-g`), reads specs/source, produces `IMPLEMENTATION_PLAN.md` |
 | `build` | Run build loop (default: 50 iterations) — picks next task, implements, tests, commits, pushes |
 | `review` | Run review loop (max 6 iterations, exits on convergence) — audits `- [x]` items against the plan items that produced them, files findings as new `- [ ]` items |
 | `sandbox` | Enter/manage devcontainer (`sandbox`, `sandbox clean`, `sandbox --rebuild`) |
@@ -44,7 +44,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 1. Validate CLI dependencies (selected backend's CLI binary, git)
 2. Resolve backend via `-b` flag (default: `claude`), which loads the backend's command builder, default model, and jq filter
 3. Resolve prompt template: project-local `PROMPT_<mode>.md` → installed default (`~/.config/ralph/prompts/`)
-4. Substitute `{{GOAL}}` into prompt via bash parameter expansion
+4. Substitute `{{GOAL}}` and then `{{WORKSPACE}}` into the prompt via bash parameter expansion. `{{GOAL}}` expands first, so a goal may itself carry `{{WORKSPACE}}`, and it reaches `plan` alone — `plan` and `auto` require `-g`, and `build` and `review` refuse it. `{{WORKSPACE}}` expands to `$PWD`, the workspace root, which anchors `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` in every prompt
 5. Pipe the prompt to the backend command in a loop (e.g., `claude -p` or `codex exec`), writing the raw backend stream to a file — `iter-NNN.stream.jsonl` in the run's directory under `.ralph/metrics/` when metrics are enabled, a per-run temp file otherwise
 6. Parse that stream file with the summary jq filter using backend-specific flags, push the workspace after each iteration, skipping when it has no `origin` or no commit. Under `--verbose` the stream is also teed through a per-backend live filter, which renders each tool call and assistant message to stderr as it arrives
 7. Detect an early exit. Build mode watches every git repository beneath the workspace, not just the workspace's own `HEAD`, and stops after 2 consecutive iterations in which none of them moved, unless `-n` was passed. `repo_state` builds that listing before and after each pass. Plan and review mode never commit, so `mode_converges_on_plan` routes both through the same check: they fingerprint `IMPLEMENTATION_PLAN.md` plus `specs/` via `plan_state_hash` and stop on the first pass that changes neither; `-n` caps such a run but never disables the check. `convergence_message` derives the exit line from the mode, so a converged review also reports how many shipped items it audited
