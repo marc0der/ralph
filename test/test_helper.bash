@@ -28,6 +28,21 @@ setup() {
     echo "# Plan prompt" > "$RALPH_CONFIG_DIR/prompts/plan.md"
     echo "# Build prompt" > "$RALPH_CONFIG_DIR/prompts/build.md"
     echo "# Review prompt" > "$RALPH_CONFIG_DIR/prompts/review.md"
+
+    # A backend reached without a test mock is a test bug, not a real API call.
+    # Built once per run, not per test: 4 files x 308 tests is measurable.
+    GUARD_BIN="${BATS_RUN_TMPDIR:-$TEST_DIR}/guard-bin"
+    if [[ ! -x "$GUARD_BIN/claude" ]]; then
+        mkdir -p "$GUARD_BIN"
+        local cli
+        for cli in claude codex copilot pi; do
+            printf '#!/usr/bin/env bash\necho "TEST BUG: %s reached an unmocked backend" >&2\nexit 99\n' "$cli" \
+                > "$GUARD_BIN/$cli.tmp"
+            chmod +x "$GUARD_BIN/$cli.tmp"
+            mv "$GUARD_BIN/$cli.tmp" "$GUARD_BIN/$cli"
+        done
+    fi
+    export PATH="$GUARD_BIN:$PATH"
 }
 
 teardown() {
