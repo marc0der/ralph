@@ -405,7 +405,8 @@ could never catch a regression.
 ## 10. Prompt and installation
 
 - `prompts/review.md` — the review agent prompt, carrying the rules in sections 2 to 7 and
-  substituting `{{GOAL}}` like the other two.
+  substituting `{{GOAL}}` like the other two. `specs/meta-repo-hardening.md` §12 removes that
+  substitution: `review` takes no goal.
 - `install.sh` copies it to `$CONFIG_DIR/prompts/review.md`.
 - `ralph init -p` scaffolds `PROMPT_review.md` alongside the other two.
 - `ralph init` adds `PROMPT_review.md` to the target project's `.gitignore` entries.

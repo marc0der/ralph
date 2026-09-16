@@ -355,7 +355,7 @@ ralph auto [options]
 
 | Flag | Behaviour |
 |------|-----------|
-| `-g, --goal TEXT` | Passed to `plan`, `build` and `review`. All three prompts substitute `{{GOAL}}` (`prompts/*.md:9`). |
+| `-g, --goal TEXT` | Required, and forwarded to the `plan` phase alone; `prompts/plan.md` substitutes `{{GOAL}}`. `specs/meta-repo-hardening.md` §12 supersedes the original rule, which passed the flag to all three loop phases. |
 | `-m, --model MODEL` | Passed through. One model for the lifecycle. |
 | `-b, --backend NAME` | Passed through. One backend for the lifecycle. |
 | `--skip-push` | Passed through. Inert for `plan` and `review`, as it already is (`ralph:1532`). |
@@ -480,7 +480,7 @@ Cases:
 - `--dry-run` invokes nothing: no archive, no artifacts created in an uninitialised workspace, no
   metrics directory, and it succeeds where a real run would have needed `init`.
 - `--dry-run` states that guards are evaluated at run time.
-- `-g`, `-m`, `-b` reach the children, asserted from the dry-run command line.
+- `-m` and `-b` reach the children, asserted from the dry-run command line. `specs/meta-repo-hardening.md` §12 moves `-g` to the plan phase alone and replaces its case.
 - `-v`, `--skip-push`, `--no-metrics` reach the children, asserted by behaviour as described above.
 - `-y` is accepted and changes nothing.
 - The report prints on success, on skip, on abort and on a resume.
