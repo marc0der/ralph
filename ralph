@@ -241,7 +241,7 @@ Options:
                        calculated from the plan). In build mode this also
                        disables the noop exit; in plan and review modes it caps
                        the run but never disables the convergence exit
-  -g, --goal TEXT      Goal to inject into the prompt template
+  -g, --goal TEXT      Goal to inject into the prompt template (plan and auto only; required)
   -m, --model MODEL    Model to use (default depends on backend)
   -b, --backend NAME   Backend to use: claude, codex, copilot, pi (default: claude)
       --skip-push      Don't push after each build iteration (plan and review
@@ -253,12 +253,12 @@ Options:
   -h, --help           Show this help message
 
 Examples:
-  ralph plan
-  ralph plan -n 2
+  ralph plan -g specs/checkout-flow.md
+  ralph plan -n 2 -g source/svc/specs/FT-008.md
   ralph plan -g "Migrate to hexagonal architecture"
   ralph build -n 10 -m sonnet
   ralph build -b codex
-  ralph build --iterations 5 --goal "Add PATCH endpoint"
+  ralph build --iterations 5
   ralph build && ralph review && ralph build
   ralph review -b codex
   ralph sandbox
