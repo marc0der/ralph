@@ -213,6 +213,7 @@ Usage:
   ralph sandbox [--rebuild]
   ralph sandbox clean
   ralph <plan|build|review> [options]
+  ralph auto [options]
   ralph init
   ralph clean
   ralph archive
@@ -225,6 +226,7 @@ Modes:
   plan           Analyse specs and source, create/update IMPLEMENTATION_PLAN.md
   build          Pick the next item, implement, test, commit, push
   review         Audit shipped items against the plan, file findings as new plan items
+  auto           Run the whole lifecycle: archive, init, plan, build, review, build
   init           Initialise workspace (PROGRESS.md, IMPLEMENTATION_PLAN.md, specs/)
   clean          Delete IMPLEMENTATION_PLAN.md and PROGRESS.md
   archive        Move IMPLEMENTATION_PLAN.md and PROGRESS.md to .ralph/<timestamp>/
@@ -235,6 +237,13 @@ Sandbox options:
 
 Init options:
   -p, --prompts      Also copy prompt templates for local customisation
+
+Auto options:
+      --resume         Re-enter the lifecycle at the phase in .ralph/auto-state;
+                       archive and init never re-run, so repair a failed phase
+                       by hand before resuming
+      --force          Run outside a container, for a runner already isolated
+  auto does not accept -n/--iterations; each phase resolves its own count
 
 Options:
   -n, --iterations N   Max iterations (plan and review default: 6, build:
@@ -261,6 +270,7 @@ Examples:
   ralph build --iterations 5
   ralph build && ralph review && ralph build
   ralph review -b codex
+  ralph auto -g specs/checkout-flow.md
   ralph sandbox
   ralph sandbox --rebuild
   ralph sandbox clean
