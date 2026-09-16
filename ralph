@@ -978,10 +978,19 @@ cmd_loop() {
     # resolution, CLI lookup, or git work so the user gets immediate feedback.
     require_init_artifacts "$mode"
 
-    # Hard stops, checked unconditionally: a build with no open item has no work
-    # to pick up, a review with no shipped item has nothing to audit, and '-n'
-    # must not turn either into a run of empty iterations.
-    if [[ "$mode" == "build" ]]; then
+    # Hard stops, checked unconditionally: a plan with no goal has nothing to
+    # plan against, a build with no open item has no work to pick up, a review
+    # with no shipped item has nothing to audit, and neither '-n' nor
+    # '--dry-run' may turn any of the three into a run of empty iterations.
+    if [[ "$mode" == "plan" ]]; then
+        # specs/meta-repo-hardening.md §12. plan derives its work from the goal;
+        # with none it plans against whatever specs/ it happens to resolve,
+        # which in a meta repository is the wrong node's.
+        if [[ -z "$goal" ]]; then
+            echo "Error: 'plan' requires a goal. Pass -g <specification or directory>." >&2
+            exit 1
+        fi
+    elif [[ "$mode" == "build" ]]; then
         require_open_items
     elif [[ "$mode" == "review" ]]; then
         require_review_preconditions
