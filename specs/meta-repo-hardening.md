@@ -131,9 +131,9 @@ and the metrics directory name are unaffected.
 ## 5. The agents commit where the file lives
 
 `specs/nested-git-repos.md` §9 kept the prompts out of scope. This spec brings two files in:
-`prompts/build.md` and `prompts/review.md`. `prompts/plan.md` is unchanged: its `Files` field
-already lists paths relative to the workspace root, and a path under `source/svc/` names its
-repository.
+`prompts/build.md` and `prompts/review.md`. `prompts/plan.md` is unchanged except as §12 states:
+its `Files` field lists paths relative to the workspace root, and a path under `source/svc/` names
+its repository.
 
 ### `prompts/build.md` carries its own git instructions
 
@@ -305,8 +305,8 @@ item's` — in its `Done when`.
 - Aggregate git counts across repositories in `metrics.jsonl`.
 - Reading `repos.json`, running the sync script, or any awareness of how clones arrived.
 - Following symlinks selectively, or refusing links that leave the workspace.
-- Changes to `prompts/plan.md`, `cmd_archive`, `cmd_init`, `cmd_auto` or the sandbox's submodule
-  refusal wording.
+- Changes to `prompts/plan.md` or `cmd_auto` except as §12 states, and changes to `cmd_archive`,
+  `cmd_init` or the sandbox's submodule refusal wording.
 - Any change to how plan and review converge.
 
 ## 11. Follow-ups
@@ -324,3 +324,223 @@ to ignore a repository that is present in `state_after` and absent from `state_b
 it is also absent from the *next* iteration's `state_before` — a repository that lives for one
 iteration was a fixture. That needs a three-snapshot window and a rule for the last iteration, and is
 worth specifying on its own terms.
+
+## 12. Addendum: the artifacts live at the workspace root
+
+Added 2026-09-15 after the runs of 2026-09-11 in a meta repository put `IMPLEMENTATION_PLAN.md`
+under a node directory. §10 excluded changes to `prompts/plan.md` and to `cmd_auto`. This addendum
+reopens both, only as far as the sections below state, and it settles which modes take a goal. How
+plan and review converge stays out of scope.
+
+### The failure
+
+The operator runs `ralph plan -g <path>` where the path names one specification deep in the tree,
+such as `citc/svc/features/FT-008.md`. That is one normal way to run ralph in a meta repository: this
+specification belongs to one service, so it lives beside or inside that service's clone, not under
+the workspace's own `specs/`. The node directory the path passes through carries its own `AGENTS.md`,
+`specs/`, `docs/` and `source/`, so it looks exactly like a project root.
+
+The bundled prompts name every artifact by a bare relative path: read `AGENTS.md`, read `specs/`,
+read `IMPLEMENTATION_PLAN.md` "if present", create or update `IMPLEMENTATION_PLAN.md`. Nothing anchors
+those paths. The agent resolved all of them against the node the goal named, ran
+`ls IMPLEMENTATION_PLAN.md` there, found nothing, and wrote a new plan at
+`citc/svc/IMPLEMENTATION_PLAN.md`. It never listed the workspace root. Two plan runs did this on the
+same afternoon; each spent several minutes and wrote a complete plan in the wrong place.
+
+Ralph then hid the failure. `plan_state_hash` fingerprints the root `IMPLEMENTATION_PLAN.md` and the
+root `specs/`, so the pass changed neither, the metrics recorded `noop: true`, and the loop printed
+`Plan converged — pass 1 changed nothing. Exiting early.` after one iteration. The operator saw a
+converged plan and an empty root file.
+
+The operator's workaround was one line at the top of a project-local `PROMPT_plan.md`: "This is a
+meta-repo. Place your IMPLEMENTATION_PLAN.md and PROGRESS.md in this base directory." The next run
+edited the root plan on all five iterations. The line works, but it is a per-project patch to a
+scaffolded copy that also overrides every later fix to the bundled prompt, and it exists for plan
+only.
+
+### Model
+
+Ralph knows where the root is. It runs in that directory, it scaffolds the artifacts there, and
+`require_init_artifacts` checks for the plan there — and, in build and review, the progress log —
+before the first iteration. Asking the model to infer the same fact from relative paths is the
+defect. One rule replaces the inference: **ralph names the root in the prompt.** The prompts state
+the absolute path of the two artifacts, and ralph substitutes it, the way it already substitutes
+`{{GOAL}}`.
+
+The anchor covers `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` and nothing else. **`specs/` stays
+unanchored.** In a meta repository a specification sits in one of two places. A feature that belongs
+to one service is specified inside that service's repository. A feature that spans several nodes is
+specified in the workspace's own `specs/`. Both places are legitimate and the goal names the one to
+plan against, so neither is the location to anchor: anchoring `specs/` to the root would tell the
+agent to ignore a specification inside a service, and anchoring it to the goal's node would hide a
+cross-node specification. The same holds for `AGENTS.md` and `CLAUDE.md`: a node's own guardrails are
+the ones the agent must read when it works in that node.
+
+No runtime check backs the rule. A scan for a stray artifact after each pass was considered and
+dropped: it adds a failure path for a defect the prompt removes at its source. The failure it would
+guard against is silent, and stays silent. `convergence_message` prints one line for a plan of
+thirty items and for an empty one, so a pass that ignores the anchor looks exactly like a pass that
+converged honestly, and the operator learns of it at the next `ralph build`. That loss is accepted
+here and recorded below.
+
+### The `{{WORKSPACE}}` substitution
+
+`cmd_loop` expands a second placeholder beside `{{GOAL}}`, with the same bash parameter expansion.
+`{{GOAL}}` expands first and `{{WORKSPACE}}` second, which is the order the two lines already sit
+in. The order is intended, not incidental: it lets a goal carry the placeholder, so
+`-g 'plan the work in {{WORKSPACE}}/specs/x.md'` reaches the agent with a real path. The replacement
+is quoted:
+
+```sh
+prompt="${prompt//\{\{WORKSPACE\}\}/"$PWD"}"
+```
+
+The quotes are load-bearing. `patsub_replacement` is on by default from bash 5.2, and the `node:20`
+image ships 5.2, so an unquoted `&` in the replacement expands to the text the pattern matched: with
+`PWD=/home/x&y/z` the unquoted form yields `/home/x{{WORKSPACE}}y/z` (verified on bash 5.3.9). The
+existing `{{GOAL}}` expansion carries the same defect today — `-g 'fix save & load'` reaches the
+agent as `fix save {{GOAL}} load` — and is quoted the same way in the same edit.
+
+`$PWD` is the directory ralph runs in, absolute, and it is the directory every other part of ralph
+already treats as the root: `cmd_init` scaffolds there, `require_init_artifacts` reads there,
+`plan_state_hash` hashes there. Inside the sandbox it is the container path, which is the path the
+agent's tools see, so no translation is needed. A local `PROMPT_<mode>.md` that carries no
+placeholder is unaffected, and `--dry-run` prints the expanded prompt, so the operator can read the
+path ralph handed the agent. The dry-run label reads `with goal and workspace substituted`.
+
+### The goal is required, and only `plan` takes one
+
+The stray plan had a second cause. `plan` derives its work from the goal, but `-g` is optional and
+`{{GOAL}}` falls back to `No specific goal provided`, so a bare `ralph plan` plans against whatever
+`specs/` it resolves — nothing relevant, in a meta repository. `build` and `review` have the opposite
+defect: they accept a goal that cannot change what they do, because their input is
+`IMPLEMENTATION_PLAN.md`. Three rules settle both:
+
+- **`plan` requires `-g`.** `cmd_loop` refuses a plan run with an empty goal:
+  `Error: 'plan' requires a goal. Pass -g <specification or directory>.` The check runs beside
+  `require_init_artifacts`, so neither `-n` nor `--dry-run` bypasses it. The
+  `${goal:-No specific goal provided}` fallback is deleted with the last caller that needs it.
+- **`build` and `review` reject `-g`.** They keep `g:` in the `getopt` spec and refuse the flag with
+  a reason, the way `cmd_auto` already refuses `-n`:
+  `Error: 'build' does not accept -g/--goal; the work comes from IMPLEMENTATION_PLAN.md.` A per-mode
+  `getopt` spec was rejected: `mode` is known before `getopt` runs, so dropping `g:` is possible, but
+  it yields a bare `invalid option -- 'g'` and states no reason.
+- **`auto` requires `-g`** and forwards it to the `plan` phase alone. `child_flags` keeps `-m`, `-b`,
+  `--skip-push`, `--no-metrics` and `-v` for every phase; `-g` leaves `child_flags` and joins the
+  plan phase's own command line.
+
+`prompts/build.md` and `prompts/review.md` lose their `## Goal` heading and their `{{GOAL}}` line:
+the placeholder has no value left to take. `{{GOAL}}` stays in `prompts/plan.md`. The banner's
+`Goal:` line already prints only when a goal is set, so it becomes a plan-only line with no change.
+
+The usage text states the new shape: `-g, --goal TEXT` reads
+`Goal to inject into the prompt template (plan and auto only; required)`.
+
+### Prompt changes
+
+The three bundled prompts change as follows, and in no other way:
+
+- One paragraph above the `---` rule: under the `## Goal` block in `plan`, and where that block used
+  to sit in `build` and `review`. "The workspace root is `{{WORKSPACE}}`. `IMPLEMENTATION_PLAN.md`
+  and `PROGRESS.md` live at the root and nowhere else. Read and write no other copy. Every path
+  written in `IMPLEMENTATION_PLAN.md` — `Spec:` and `Files` — is relative to the workspace root."
+- The paragraph carries one further sentence, keyed to each mode's own input. `plan`: "The goal may
+  name a specification or a directory anywhere beneath the root. When it does, also read the
+  `AGENTS.md` or `CLAUDE.md` and the `specs/` of the repository that owns that path." `build` and
+  `review` carry the same sentence keyed to the `Files` of the item in hand, because neither takes a
+  goal.
+- The Phase 1 bullets that read the plan and the progress log name
+  `{{WORKSPACE}}/IMPLEMENTATION_PLAN.md` and `{{WORKSPACE}}/PROGRESS.md`. Each bullet keeps its own
+  `(if present)` hedge: a plan run does not require `PROGRESS.md`.
+- The sentence that creates or updates the plan — Phase 3 in plan and review, Phase 4 step 1 in
+  build — names `{{WORKSPACE}}/IMPLEMENTATION_PLAN.md`. In build (Phase 4 step 2) and review (the
+  **Record every supersession** rule) the sentence that appends the progress entry names
+  `{{WORKSPACE}}/PROGRESS.md`; plan writes no progress entry.
+- Build's Phase 2 `[~]` path writes both artifacts too. Its two steps name
+  `{{WORKSPACE}}/IMPLEMENTATION_PLAN.md` and `{{WORKSPACE}}/PROGRESS.md`, because build takes that
+  path while it stands inside the nested repository that contradicted the item.
+
+Every other mention of the two files stays bare. Once the absolute path is stated where each file is
+read and at every point a phase writes it, repeating it elsewhere costs tokens on every iteration and
+buys nothing. The `specs/` bullet, the `AGENTS.md`/`CLAUDE.md` bullet, and the `Spec:` field's
+`specs/file.md` example are untouched, per the model above.
+
+`templates/IMPLEMENTATION_PLAN.md` and `templates/PROGRESS.md` are unchanged: they are the scaffolded
+files, not prompts, and no placeholder is expanded in them.
+
+### Documentation
+
+- **`README.md` Meta repositories** gains one bullet: the artifacts live at the workspace root, the
+  goal may name a specification anywhere beneath it — inside a service for a feature that belongs to
+  one service, in the workspace's own `specs/` for one that spans several — and the prompts carry the
+  root's absolute path.
+- **`README.md`** states the goal rules wherever it shows a loop invocation: `plan` and `auto`
+  require `-g`, and `build` and `review` refuse it. Every bare `ralph plan` example gains a goal.
+- **`README.md` Troubleshooting** gains *Plan converged after one pass and the plan is empty*: an
+  older prompt with no `{{WORKSPACE}}` anchor let the agent write the plan beside the specification;
+  update the bundled prompts and delete or refresh any project-local `PROMPT_*.md`, which override
+  them and go stale.
+- **`CLAUDE.md` and `AGENTS.md`**: the loop-flow step that substitutes `{{GOAL}}` also names
+  `{{WORKSPACE}}`, and records that `{{GOAL}}` now reaches `plan` alone. The command table's `plan`
+  row states that the goal is required.
+
+### Testing
+
+`test/dry_run.bats` carries the expansion cases, beside its existing goal-substitution case:
+`resolve_prompt` returns a path and substitutes nothing, so `test/resolve_prompt.bats` keeps path
+resolution only. `test/validation.bats` carries the goal refusals and `test/auto.bats` the
+forwarding, each with the existing mock idiom:
+
+- A bundled prompt containing `{{WORKSPACE}}` under a mock `RALPH_CONFIG_DIR`, run with `--dry-run`,
+  prints the absolute workspace path in place of the placeholder and prints no literal
+  `{{WORKSPACE}}`.
+- A local `PROMPT_plan.md` with no placeholder is passed through unchanged.
+- A prompt that carries both placeholders expands both, and a goal that itself carries
+  `{{WORKSPACE}}` has it expanded too, because `{{GOAL}}` expands first.
+- A workspace path containing `&` reaches the prompt verbatim, and a goal containing `&` does too.
+- `ralph plan` with no `-g` exits 1 with `'plan' requires a goal`, with `--dry-run` and with `-n 1`,
+  and in a workspace whose artifacts are all present.
+- `ralph build -g x` and `ralph review -g x` each exit 1 and name `IMPLEMENTATION_PLAN.md`.
+- `ralph auto` with no `-g` exits 1. `ralph auto --dry-run -g "the goal"` shows `-g` on the plan
+  phase's command line and on no other phase's, which replaces the current assertion in
+  `test/auto.bats`.
+- `prompts/build.md` and `prompts/review.md` contain no `{{GOAL}}`, asserted by `grep -c`.
+- Every existing `plan` invocation in the suite gains a goal, and `test/dry_run.bats`'s goal
+  substitution case moves from `build` to `plan`.
+- Every existing case in `test/pipeline.bats` and `test/resolve_prompt.bats` passes unchanged.
+
+The prompt edits carry a `grep -c '{{WORKSPACE}}'` criterion per file in their `Done when`, by the
+convention §9 states.
+
+### What this does not fix
+
+**Convergence rests on the plan alone in a meta repository.** `plan_state_hash` hashes the root
+`IMPLEMENTATION_PLAN.md` and the root `specs/`. The second half exists for the standalone shape,
+where the plan agent may author a new `specs/FILENAME.md` for work no spec covers, and that pass
+must not read as converged. In a meta repository half the input is out of reach. A cross-node
+specification sits in the root `specs/`, so it is hashed and it does count towards convergence. A
+specification inside a service sits wherever that service keeps it, and the goal names it. `specs/`
+is a naming convention there, not a location ralph can rely on, so ralph does not look for a nested
+`specs/` and hashes nothing outside the root. For that half, convergence is the plan file changing or
+not, which is the output the loop exists to settle. A pass that edits only the nested specification
+and leaves the plan alone reads as converged.
+
+**A pass that ignores the anchor still reads as converged.** With no runtime scan, an agent that
+writes the plan below the root despite the stated path produces the same silent `Plan converged`
+line as before. The prompt change is the whole fix; if it proves insufficient on some backend, the
+scan is the follow-up to specify.
+
+**Stale project-local prompts stay stale.** `ralph init --prompts` scaffolds a copy that overrides
+the bundled prompt for as long as it exists, and nothing warns when the bundled one moves on. The
+2026-09-11 workspace ran a `PROMPT_build.md` that still invoked the removed commit skill and carried
+none of §5. Warning about, or diffing, a scaffolded copy is worth its own item and is out of scope
+here; the troubleshooting entry names the symptom.
+
+### Out of scope
+
+- Any change to `prompts/plan.md` beyond the prompt edits above.
+- Anchoring `specs/`, `AGENTS.md` or `CLAUDE.md` to the root, for the reason the model states.
+- Any runtime scan for, or refusal of, an artifact written below the root.
+- Hashing a specification the goal names into `plan_state_hash`.
+- Detecting or refreshing a stale project-local `PROMPT_*.md`.
+- Any placeholder beyond `{{GOAL}}` and `{{WORKSPACE}}`.
