@@ -1187,7 +1187,11 @@ cmd_loop() {
 
         local prompt
         prompt=$(<"$prompt_file")
-        prompt="${prompt//\{\{GOAL\}\}/${goal:-No specific goal provided}}"
+        # The replacement is quoted. From bash 5.2 `patsub_replacement` is on
+        # by default, so an unquoted `&` in a replacement expands to the text
+        # the pattern matched: a goal of `save & load` would otherwise reach
+        # the agent as `save {{GOAL}} load`.
+        prompt="${prompt//\{\{GOAL\}\}/"${goal:-No specific goal provided}"}"
 
         if $dry_run; then
             if [[ "$BACKEND_STDIN_PROMPT" == "true" ]]; then
