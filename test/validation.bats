@@ -114,6 +114,35 @@ load test_helper
     [[ "$output" == *"Run 'ralph init'"* ]]
 }
 
+@test "plan fails without a goal" {
+    # plan derives its work from the goal, so an absent one is a hard stop,
+    # not a default: a bare 'ralph plan' plans against whatever specs/ it
+    # resolves, which in a meta repository is the wrong node's.
+    "$RALPH" init
+    run "$RALPH" plan
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"'plan' requires a goal"* ]]
+    [[ "$output" == *"-g <specification or directory>"* ]]
+}
+
+@test "plan --dry-run fails without a goal" {
+    # --dry-run prints the prompt it would send; with no goal there is no
+    # prompt worth printing, so the stop runs before the preview.
+    "$RALPH" init
+    run "$RALPH" plan --dry-run
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"'plan' requires a goal"* ]]
+}
+
+@test "plan -n 1 fails without a goal" {
+    # '-n' picks the iteration count, it does not grant permission to run
+    # against no goal.
+    "$RALPH" init
+    run "$RALPH" plan -n 1
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"'plan' requires a goal"* ]]
+}
+
 @test "build fails with no incomplete items" {
     echo "- [x] **Completed task**" > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
