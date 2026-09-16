@@ -28,14 +28,14 @@ load test_helper
 
 @test "plan --dry-run works" {
     "$RALPH" init
-    run "$RALPH" plan --dry-run -n 1
+    run "$RALPH" plan --dry-run -n 1 -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
 }
 
 @test "plan --dry-run never prints a push command" {
     "$RALPH" init
-    run "$RALPH" plan --dry-run -n 1
+    run "$RALPH" plan --dry-run -n 1 -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" != *"Would run: git push"* ]]
 }
@@ -50,10 +50,9 @@ load test_helper
     [[ "$count" -eq 3 ]]
 }
 
-@test "build --dry-run includes goal in prompt" {
+@test "plan --dry-run includes goal in prompt" {
     "$RALPH" init
-    seed_open_item
-    run "$RALPH" build --dry-run -n 1 -g "Add REST endpoint"
+    run "$RALPH" plan --dry-run -n 1 -g "Add REST endpoint"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Add REST endpoint"* ]]
 }

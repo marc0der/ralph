@@ -20,7 +20,7 @@ load test_helper
 }
 
 @test "plan rejects non-integer iterations" {
-    run "$RALPH" plan -n foo
+    run "$RALPH" plan -n foo -g "the goal"
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"iterations must be a positive integer"* ]]
 }
@@ -107,7 +107,7 @@ load test_helper
 }
 
 @test "plan fails without IMPLEMENTATION_PLAN.md" {
-    run "$RALPH" plan
+    run "$RALPH" plan -g "the goal"
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"missing workspace artifacts required for 'plan'"* ]]
     [[ "$output" == *"IMPLEMENTATION_PLAN.md"* ]]

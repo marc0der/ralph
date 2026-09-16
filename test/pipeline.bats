@@ -13,7 +13,7 @@ load test_helper
 
 @test "--verbose flag is accepted without error (plan, dry-run)" {
     "$RALPH" init
-    run "$RALPH" plan --dry-run -n 1 --verbose
+    run "$RALPH" plan --dry-run -n 1 --verbose -g "the goal"
     [[ "$status" -eq 0 ]]
 }
 
@@ -1167,7 +1167,7 @@ echo '{"type":"result","result":"planning"}'
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Plan converged — pass 1 changed nothing"* ]]
     [[ "$output" == *"Completed 1 iterations"* ]]
@@ -1191,7 +1191,7 @@ echo '{"type":"result","result":"planning"}'
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Plan converged — pass 3 changed nothing"* ]]
     [[ "$output" == *"Completed 3 iterations"* ]]
@@ -1217,7 +1217,7 @@ echo '{"type":"result","result":"planning"}'
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Plan converged — pass 2 changed nothing"* ]]
     [[ "$output" == *"Completed 2 iterations"* ]]
@@ -1244,7 +1244,7 @@ echo '{"type":"result","result":"planning"}'
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Plan converged — pass 2 changed nothing"* ]]
 }
@@ -1262,7 +1262,7 @@ echo '{"type":"result","result":"planning"}'
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push -g "the goal"
     chmod 644 specs/unreadable.md
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Plan converged"* ]]
@@ -1278,7 +1278,7 @@ echo '{"type":"result","result":"planning"}'
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan -n 12 --skip-push
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan -n 12 --skip-push -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Plan converged — pass 1 changed nothing"* ]]
     [[ "$output" == *"Completed 1 iterations"* ]]
@@ -1294,7 +1294,7 @@ MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
     # No 'origin' remote exists; if plan attempted a push it would fail.
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan -n 1
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan -n 1 -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" != *"Push failed"* ]]
     [[ "$output" == *"Completed 1 iteration"* ]]
