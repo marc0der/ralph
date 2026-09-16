@@ -1654,6 +1654,16 @@ cmd_auto() {
         echo "auto: running outside a container with --force." >&2
     fi
 
+    # Goal precondition (specs/meta-repo-hardening.md §12). auto's first loop
+    # phase is plan, which derives its work from the goal; with none, plan
+    # plans against whatever specs/ it happens to resolve. The check sits below
+    # the container guard and above every state-changing step, so --dry-run and
+    # --resume are refused too — a goal is the one input auto cannot supply.
+    if [[ -z $goal ]]; then
+        echo "Error: 'auto' requires a goal. Pass -g <specification or directory>." >&2
+        exit 1
+    fi
+
     # Report state (§6). One row state per phase, indexed 1-6. The report is the
     # product of the command, so auto_report prints it on every exit path:
     # success, abort, rejected precondition, and interrupt. States seed to
@@ -1726,9 +1736,10 @@ cmd_auto() {
 
     # Flags forwarded to the plan/build/review children. archive and init take
     # no such flags, so they are invoked bare. Every child gets -y: auto is the
-    # unattended runner and answers its own prompts (§7).
+    # unattended runner and answers its own prompts (§7). -g is not among them:
+    # build and review refuse it, so it joins the plan phase's own command line
+    # (specs/meta-repo-hardening.md §12).
     local child_flags=()
-    [[ -n $goal ]]    && child_flags+=(-g "$goal")
     [[ -n $model ]]   && child_flags+=(-m "$model")
     [[ -n $backend ]] && child_flags+=(-b "$backend")
     $skip_push        && child_flags+=(--skip-push)
@@ -1746,6 +1757,7 @@ cmd_auto() {
             dn=$((dn + 1))
             case $dphase in
                 archive|init) printf '  %d %-9s %s\n' "$dn" "$dphase" "$RALPH_SELF $dphase" >&2 ;;
+                plan)         printf '  %d %-9s %s\n' "$dn" "$dphase" "$RALPH_SELF $dphase -g $goal ${child_flags[*]} -y" >&2 ;;
                 *)            printf '  %d %-9s %s\n' "$dn" "$dphase" "$RALPH_SELF $dphase ${child_flags[*]} -y" >&2 ;;
             esac
         done
@@ -1787,6 +1799,7 @@ cmd_auto() {
         child_exit=0
         case $phase in
             archive|init) "$RALPH_SELF" "$phase" ;;
+            plan)         "$RALPH_SELF" "$phase" -g "$goal" "${child_flags[@]}" -y ;;
             *)            "$RALPH_SELF" "$phase" "${child_flags[@]}" -y ;;
         esac || child_exit=$?
         if [[ $child_exit -ne 0 ]]; then

@@ -12,7 +12,7 @@ load test_helper
 # A run always sees the mock backend on PATH and passes the in-container guard,
 # except where a test overrides DEVCONTAINER to exercise the guard itself.
 run_auto() {
-    PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto "$@"
+    PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto -g "the goal" "$@"
 }
 
 # Seed the tree so a --resume test enters at a chosen phase without first
@@ -29,27 +29,27 @@ seed_resume_state() {
 # --- CLI acceptance, help, guard, -n rejection ------------------------------
 
 @test "auto --help lists the mode and its options" {
-    run "$RALPH" auto --help
+    run "$RALPH" auto --help -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"auto"* ]]
 }
 
 @test "auto refuses to run outside a container and names --force" {
-    DEVCONTAINER=false run "$RALPH" auto
+    DEVCONTAINER=false run "$RALPH" auto -g "the goal"
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"--force"* ]]
 }
 
 @test "auto --force proceeds outside a container and prints one notice" {
     create_committing_backend
-    DEVCONTAINER=false PATH="$TEST_DIR/bin:$PATH" run "$RALPH" auto --force --dry-run
+    DEVCONTAINER=false PATH="$TEST_DIR/bin:$PATH" run "$RALPH" auto --force --dry-run -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"running outside a container with --force"* ]]
 }
 
 @test "auto --force prints its notice, not the backend banner" {
     create_committing_backend
-    DEVCONTAINER=false PATH="$TEST_DIR/bin:$PATH" run "$RALPH" auto --force --dry-run
+    DEVCONTAINER=false PATH="$TEST_DIR/bin:$PATH" run "$RALPH" auto --force --dry-run -g "the goal"
     [[ "$output" != *"Backend:"* ]]
 }
 
@@ -60,15 +60,23 @@ seed_resume_state() {
 }
 
 @test "auto rejects -n and the message names iterations" {
-    DEVCONTAINER=true run "$RALPH" auto -n 5
+    DEVCONTAINER=true run "$RALPH" auto -n 5 -g "the goal"
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"iteration"* ]]
 }
 
 @test "auto rejects --iterations too" {
-    DEVCONTAINER=true run "$RALPH" auto --iterations 5
+    DEVCONTAINER=true run "$RALPH" auto --iterations 5 -g "the goal"
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"iteration"* ]]
+}
+
+@test "auto with no -g exits 1 and names the goal" {
+    # The goal is the one input auto cannot derive: phase 3 is plan, which
+    # plans against whatever specs/ it resolves when the goal is empty.
+    DEVCONTAINER=true run "$RALPH" auto
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"'auto' requires a goal"* ]]
 }
 
 @test "auto accepts -y and changes nothing" {
@@ -91,7 +99,7 @@ seed_resume_state() {
 
 @test "a lifecycle whose review files nothing skips phase 6 and exits 0" {
     create_committing_backend
-    MOCK_REVIEW_NOOP=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics
+    MOCK_REVIEW_NOOP=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"5 review    ran"* ]]
     [[ "$output" == *"6 build     skipped"* ]]
@@ -151,7 +159,7 @@ seed_resume_state() {
 
 @test "a failing phase aborts and reports later phases as not reached" {
     create_committing_backend
-    MOCK_EXIT=3 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics
+    MOCK_EXIT=3 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics -g "the goal"
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"3 plan      failed — exit 3"* ]]
     [[ "$output" == *"4 build     not reached"* ]]
@@ -160,21 +168,21 @@ seed_resume_state() {
 
 @test "a failing phase exits 1 with the child's exit 3 in the report" {
     create_committing_backend
-    MOCK_EXIT=3 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics
+    MOCK_EXIT=3 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics -g "the goal"
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"exit 3"* ]]
 }
 
 @test "a failing phase exits 1 with the child's exit 5 in the report" {
     create_committing_backend
-    MOCK_EXIT=5 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics
+    MOCK_EXIT=5 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics -g "the goal"
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"exit 5"* ]]
 }
 
 @test "an abort prints the single re-run command" {
     create_committing_backend
-    MOCK_EXIT=3 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics
+    MOCK_EXIT=3 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics -g "the goal"
     [[ "$output" == *"auto --resume"* ]]
 }
 
@@ -193,7 +201,7 @@ seed_resume_state() {
 
 @test "a failing phase writes .ralph/auto-state with the 1-based phase and child exit" {
     create_committing_backend
-    MOCK_EXIT=3 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true "$RALPH" auto --skip-push --no-metrics || true
+    MOCK_EXIT=3 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true "$RALPH" auto --skip-push --no-metrics -g "the goal" || true
     [[ -f .ralph/auto-state ]]
     grep -q '^phase=3$' .ralph/auto-state
     grep -q '^child_exit=3$' .ralph/auto-state
@@ -208,7 +216,7 @@ seed_resume_state() {
 
 @test "a completed lifecycle that skipped phase 6 also removes .ralph/auto-state" {
     create_committing_backend
-    MOCK_REVIEW_NOOP=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics
+    MOCK_REVIEW_NOOP=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ ! -f .ralph/auto-state ]]
 }
@@ -216,14 +224,14 @@ seed_resume_state() {
 # --- Resume -----------------------------------------------------------------
 
 @test "--resume with no state file exits 1 saying nothing to resume" {
-    DEVCONTAINER=true run "$RALPH" auto --resume
+    DEVCONTAINER=true run "$RALPH" auto --resume -g "the goal"
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"resume"* ]]
 }
 
 @test "--resume with an out-of-range phase exits 1" {
     seed_resume_state 9
-    DEVCONTAINER=true run "$RALPH" auto --resume
+    DEVCONTAINER=true run "$RALPH" auto --resume -g "the goal"
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"phase"* ]]
 }
@@ -231,7 +239,7 @@ seed_resume_state() {
 @test "--resume with a missing artifact exits 1 and names it" {
     seed_resume_state 4
     rm -f PROGRESS.md
-    DEVCONTAINER=true run "$RALPH" auto --resume
+    DEVCONTAINER=true run "$RALPH" auto --resume -g "the goal"
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"PROGRESS.md"* ]]
 }
@@ -277,7 +285,7 @@ seed_resume_state() {
 # --- Dry run ----------------------------------------------------------------
 
 @test "--dry-run names all six phases and states guards run at run time" {
-    DEVCONTAINER=true run "$RALPH" auto --dry-run
+    DEVCONTAINER=true run "$RALPH" auto --dry-run -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"1 archive"* ]]
     [[ "$output" == *"6 build"* ]]
@@ -285,15 +293,23 @@ seed_resume_state() {
 }
 
 @test "--dry-run invokes nothing: no artifacts, no metrics, succeeds uninitialised" {
-    DEVCONTAINER=true run "$RALPH" auto --dry-run
+    DEVCONTAINER=true run "$RALPH" auto --dry-run -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ ! -f IMPLEMENTATION_PLAN.md ]]
     [[ ! -d .ralph/metrics ]]
 }
 
-@test "--dry-run forwards -g -m -b onto the loop-phase command lines" {
+@test "--dry-run shows -g on the plan row and on no other row" {
+    # plan is the only phase whose work comes from the goal, so -g leaves
+    # child_flags and joins the plan phase's own command line. -m and -b still
+    # reach every loop phase.
     DEVCONTAINER=true run "$RALPH" auto --dry-run -g "the goal" -m "the-model" -b claude
-    [[ "$output" == *"plan"*"-g the goal"*"-m the-model"*"-b claude"*"-y"* ]]
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"3 plan"*"-g the goal"*"-m the-model"*"-b claude"*"-y"* ]]
+    [[ "$(grep -c -- '-g the goal' <<< "$output" || true)" -eq 1 ]]
+    [[ "$(grep -E '^ +4 build' <<< "$output")" == *"-m the-model"* ]]
+    [[ "$(grep -E '^ +4 build' <<< "$output")" != *"-g"* ]]
+    [[ "$(grep -E '^ +5 review' <<< "$output")" != *"-g"* ]]
 }
 
 # --- Flag forwarding by behaviour (§11) -------------------------------------
