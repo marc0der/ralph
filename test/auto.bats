@@ -29,9 +29,16 @@ seed_resume_state() {
 # --- CLI acceptance, help, guard, -n rejection ------------------------------
 
 @test "auto --help lists the mode and its options" {
+    # --help is the only place an operator learns that auto exists, what the
+    # six phases are, and that -n belongs to no phase of it (specs/auto-lifecycle.md 9).
     run "$RALPH" auto --help -g "the goal"
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"auto"* ]]
+    [[ "$output" == *"ralph auto [options]"* ]]
+    [[ "$output" == *"archive, init, plan, build, review, build"* ]]
+    [[ "$output" == *"Auto options:"* ]]
+    [[ "$output" == *"--resume"* ]]
+    [[ "$output" == *"--force"* ]]
+    [[ "$output" == *"does not accept -n/--iterations"* ]]
 }
 
 @test "auto refuses to run outside a container and names --force" {
