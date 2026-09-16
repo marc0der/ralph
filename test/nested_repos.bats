@@ -350,7 +350,7 @@ on_iteration() {
     nested_repo "source/svc"
     create_nested_committing_backend
 
-    TARGET_REPO="source/svc" PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push
+    TARGET_REPO="source/svc" PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push -g "the goal"
     [ "$status" -eq 0 ]
     [[ "$output" == *"Plan converged — pass 1 changed nothing"* ]]
     [[ "$output" == *"Completed 1 iterations"* ]]

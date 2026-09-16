@@ -64,7 +64,7 @@ PY
 
 @test "plan accepts --yes" {
     "$RALPH" init
-    run "$RALPH" plan --dry-run -n 1 --yes
+    run "$RALPH" plan --dry-run -n 1 --yes -g "the goal"
     [[ "$status" -eq 0 ]]
 }
 

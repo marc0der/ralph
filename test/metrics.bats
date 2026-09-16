@@ -110,7 +110,7 @@ echo '{"type":"result","subtype":"success","duration_ms":500,"duration_api_ms":4
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" "$RALPH" plan -n 1 --skip-push -y
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" plan -n 1 --skip-push -y -g "the goal"
 
     local line
     line=$(tail -1 "$(latest_metrics_file)")
@@ -123,7 +123,7 @@ MOCK
     "$RALPH" init
     create_noop_backend
 
-    PATH="$TEST_DIR/bin:$PATH" "$RALPH" plan -n 1 --skip-push -y
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" plan -n 1 --skip-push -y -g "the goal"
 
     local line
     line=$(tail -1 "$(latest_metrics_file)")
@@ -176,7 +176,7 @@ MOCK
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
     create_noop_backend
 
-    PATH="$TEST_DIR/bin:$PATH" "$RALPH" plan -n 1 -y
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" plan -n 1 -y -g "the goal"
 
     local line
     line=$(tail -1 "$(latest_metrics_file)")
