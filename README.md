@@ -184,6 +184,7 @@ Each item uses six fields and nothing else:
 
 - **At most 150 words, 14 lines and 8 steps per item.** An item needing a ninth step is too large for one build iteration and gets split.
 - **Steps name greppable tokens** — symbols, option paths, literal values, files to copy an idiom from. Never line numbers, never pasted code, because an item runs many commits after it is written.
+- **The plan may end with a verification item.** Where `AGENTS.md`, `CLAUDE.md` or the goal names a full-verification command, the planning phase keeps one final open item that runs it over the accumulated work — it cites `AGENTS.md verification gate` instead of a spec, and it is the one item whose criterion is a whole-suite run. Where no such command is named, the plan carries no verification item.
 - **`Done when` must be checkable without a human.** A criterion needing a fresh login or a visual check belongs in the spec's acceptance criteria, not the plan — an item nobody can verify never completes, and the build loop selects it forever.
 - **Items are written in [Simplified Technical English](https://www.asd-ste100.org/)** — one instruction per sentence, 20 words maximum, active imperative present tense.
 
