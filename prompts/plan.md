@@ -8,6 +8,8 @@ The specifications state **what** to build. The implementation plan states **how
 
 {{GOAL}}
 
+The workspace root is `{{WORKSPACE}}`. `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` live at the root and nowhere else. Read and write no other copy. Every path written in `IMPLEMENTATION_PLAN.md` — `Spec:` and `Files` — is relative to the workspace root. The goal may name a specification or a directory anywhere beneath the root. When it does, also read the `AGENTS.md` or `CLAUDE.md` and the `specs/` of the repository that owns that path.
+
 ---
 
 ## Phase 1: Understand
@@ -16,8 +18,8 @@ Gather context by reading these sources. If your harness supports subagents, use
 
 - **Operational guardrails** — read `AGENTS.md` or `CLAUDE.md` (if present) for build commands, conventions, and project rules
 - **Specifications** — read everything in `specs/`
-- **Existing plan** — read `IMPLEMENTATION_PLAN.md` (if present) to understand progress so far
-- **Progress log** — read `PROGRESS.md` (if present) for outcomes, blockers, and the reasons items were marked `[~]`
+- **Existing plan** — read `{{WORKSPACE}}/IMPLEMENTATION_PLAN.md` (if present) to understand progress so far
+- **Progress log** — read `{{WORKSPACE}}/PROGRESS.md` (if present) for outcomes, blockers, and the reasons items were marked `[~]`
 - **Application source** — read build files and source code to understand structure, dependencies, and architecture
 - **Tests** — read test sources to understand existing coverage and test patterns
 
@@ -40,7 +42,7 @@ Your analysis is working material, not output. Only items reach `IMPLEMENTATION_
 
 ## Phase 3: Output
 
-Create or update `IMPLEMENTATION_PLAN.md`.
+Create or update `{{WORKSPACE}}/IMPLEMENTATION_PLAN.md`.
 
 ### File shape
 
