@@ -43,7 +43,7 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | Flag                 | Description                                              |
 |----------------------|----------------------------------------------------------|
 | `-n`, `--iterations` | Max iterations. In build mode this also disables the noop exit; in plan and review modes it caps the run but never disables the convergence exit |
-| `-g`, `--goal`       | Goal injected into the prompt template                   |
+| `-g`, `--goal`       | Goal injected into the prompt template (plan and auto only; required) |
 | `-m`, `--model`      | Model to use (default depends on backend)                |
 | `-b`, `--backend`    | Backend to use: `claude`, `codex`, `copilot`, `pi` (default: `claude`) |
 | `--skip-push`        | Don't push after each build iteration (plan and review never push) |
@@ -68,7 +68,7 @@ Live rendering needs a per-backend stream filter, which `claude` and `pi` ship. 
 ralph sandbox                                       # enter devcontainer
 ralph sandbox --rebuild                             # rebuild and enter
 ralph sandbox clean                                 # remove the container
-ralph plan                                          # analyse and plan
+ralph plan -g specs/checkout-flow.md                # plan from a spec file
 ralph plan -g "Migrate to hexagonal architecture"   # plan with a goal
 ralph build                                         # implement next item
 ralph build -n 10 -m sonnet                         # 10 iterations with sonnet
@@ -83,6 +83,8 @@ ralph archive                                       # archive before starting fr
 ralph init                                          # initialise workspace
 ralph init --prompts                                # also copy prompts for customisation
 ```
+
+`plan` and `auto` require `-g`: both derive their work from the goal, and each exits 1 without one. The goal is a sentence or a path to a specification anywhere beneath the workspace root. `build` and `review` refuse `-g` and exit 1 when given it — their input is `IMPLEMENTATION_PLAN.md`, so a goal cannot change what they do.
 
 ## Sandbox
 
@@ -195,13 +197,15 @@ The plan phase authors and refines items freely, inserting and reordering to kee
 This split assumes a capable model writes the plan and a cheaper one executes it. Use `-m` to match:
 
 ```bash
-ralph plan                       # default model authors the plan
-ralph build -n 10 -m sonnet      # a cheaper model follows the steps
+ralph plan -g specs/checkout-flow.md   # default model authors the plan
+ralph build -n 10 -m sonnet            # a cheaper model follows the steps
 ```
 
 ### Starting a new goal
 
 Run `ralph review` before `archive` or `clean` — both remove `IMPLEMENTATION_PLAN.md`, which is the only record of what the cycle shipped, so a closed-out cycle can no longer be audited.
+
+The new goal goes on the `plan` command line, because `plan` requires `-g`. The `build` and `review` runs that follow take no goal — they read the plan that pass wrote.
 
 When switching to a new goal, clear out stale artifacts first:
 
@@ -258,11 +262,11 @@ The default model depends on the selected backend:
 The `-m` flag overrides the default for whichever backend is active:
 
 ```bash
-ralph build -m sonnet          # faster and cheaper (claude backend)
-ralph plan -m opus             # better for complex reasoning (claude backend)
-ralph build -b codex           # uses gpt-5.2-codex by default
-ralph build -b codex -m o3     # override codex model
-ralph build -b copilot         # uses claude-sonnet-4.6 by default
+ralph build -m sonnet                         # faster and cheaper (claude backend)
+ralph plan -m opus -g specs/checkout-flow.md  # better for complex reasoning (claude backend)
+ralph build -b codex                          # uses gpt-5.2-codex by default
+ralph build -b codex -m o3                    # override codex model
+ralph build -b copilot                        # uses claude-sonnet-4.6 by default
 ```
 
 ## Development
