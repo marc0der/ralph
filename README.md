@@ -162,6 +162,7 @@ A meta repository is a workspace that holds a sync script and a manifest, clones
 - **Ralph watches every git repository beneath the workspace**, not only the workspace's own `HEAD`, and the scan follows symlinks — a `source -> /shared/checkouts` link is watched as if the clones sat under `source/`. So the noop exit reads an iteration that commits only inside `source/svc` as progress. The scan stops at depth 6.
 - **Ralph pushes the workspace only.** A meta repository often has no `origin`, so the push block prints `No 'origin' remote — skipping push.` and continues instead of failing the run; a workspace with no commit yet skips the same way. A push that git actually rejects is still a failure.
 - **The agent commits and pushes inside the repository that owns each file.** `prompts/build.md` resolves each changed path to its repository with `git -C <dir> rev-parse --show-toplevel`, then runs every git command there, the push included. Ralph itself pushes nothing nested.
+- **The artifacts live at the workspace root.** `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` sit in the directory ralph runs in and nowhere else. Ralph substitutes that absolute path into the prompts' `{{WORKSPACE}}` placeholder, so the agent never resolves the two files against whatever directory the goal happens to name. The goal may name a specification anywhere beneath the root: a feature that belongs to one service is specified inside that service's clone, and a feature that spans several nodes is specified in the workspace's own `specs/`. Only these two artifacts are anchored — `specs/`, `AGENTS.md` and `CLAUDE.md` stay relative, because the ones that matter are those of the repository that owns the path in hand.
 
 Write the workspace's `CLAUDE.md` (or `AGENTS.md`) for that split: name each service's own conventions file, so the agent reads it before it commits there. Where the sync script pins shas and leaves each clone on a detached `HEAD`, name the branch the agent is to commit on.
 
@@ -312,6 +313,9 @@ Check that `--skip-push` was not passed out of habit: ralph skips the push by it
 
 **Build never exits early**
 A test suite that creates git repositories under the project tree reads as progress on every iteration, because a `.git` that appears or vanishes between two snapshots is a change. The noop exit then never fires and the run reaches its iteration cap. Write such fixtures under `$TMPDIR` instead of under the workspace.
+
+**Plan converged after one pass and the plan is empty**
+The agent wrote the plan somewhere else. A prompt with no `{{WORKSPACE}}` anchor names `IMPLEMENTATION_PLAN.md` by a bare relative path, so a goal such as `-g source/svc/specs/FT-008.md` resolves it against that service's directory and a complete plan lands there. The run then reports convergence, because `plan_state_hash` fingerprints the root `IMPLEMENTATION_PLAN.md` and the root `specs/` and the pass changed neither. Update the bundled prompts by re-running `install.sh`, then delete or refresh any project-local `PROMPT_*.md` — a local copy overrides the bundled one and goes stale without saying so.
 
 **Sandbox container is stale or broken**
 Remove it and start fresh:
