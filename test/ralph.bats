@@ -63,3 +63,15 @@ load test_helper
     # review, as it is for plan. Naming only plan implies review might push.
     [[ "$output" == *"--skip-push"*"plan and review"*"never push"* ]]
 }
+
+@test "ralph --help marks the goal as plan-and-auto only and required" {
+    run "$RALPH" --help
+    [[ "$status" -eq 0 ]]
+    # Spec (meta-repo-hardening.md section 12, "The goal is required"): plan
+    # derives its work from the goal and refuses a run without one, and auto
+    # forwards the goal to its plan phase. build and review reject -g because
+    # their input is IMPLEMENTATION_PLAN.md. A bare "Goal to inject into the
+    # prompt template" reads as optional everywhere and invites a bare
+    # 'ralph plan', which is the run that wrote a plan in the wrong directory.
+    [[ "$output" == *"--goal TEXT"*"plan and auto only; required"* ]]
+}
