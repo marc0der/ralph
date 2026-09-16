@@ -88,6 +88,17 @@ An item nobody can verify never completes. The build loop then selects it foreve
 
 **Never make a whole-suite run the entire criterion.** `bats test/ passes` is true or false for every item at the same time, so it proves nothing about this item. Add a suite run only as a second conjunct beside an item-local check. A criterion that an unrelated commit can satisfy is not a criterion, and review cannot audit the shipped item against it.
 
+### Terminal verification item
+
+A project that names a full-verification command gets one **verification item** at the end of the plan. It runs that verification once, over the accumulated work, whatever items shipped before it.
+
+- Take the command from the goal when the goal names one. Otherwise read `AGENTS.md` or `CLAUDE.md` for the command that runs format, static analysis and the whole test suite. A project with a helper names one command, for example `./go.sh verify`.
+- Write each verification command in `Steps`, one per step. Write no verification item when neither source names one, and never infer one from the build files.
+- Cite `AGENTS.md verification gate` in `Spec`, or `CLAUDE.md verification gate` when the project has that file. This item cites no `specs/` file.
+- Set `Done when` to a criterion the agent checks non-interactively, for example the command exits zero or prints `PASS`. This item is the one exception to the whole-suite rule above, because the whole suite is the work.
+- Keep exactly one open verification item, and keep it last. Move it back to the bottom of `## Items` on any pass that leaves it above another item.
+- Never tick it and never move a ticked one. The build agent runs it and ticks it in the last iteration. Add a new one at the bottom when a later pass opens more work.
+
 ### Editing rules
 
 - Refine any open item freely. Keep every revision inside the limits above.
