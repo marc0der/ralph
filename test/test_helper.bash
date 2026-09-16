@@ -106,7 +106,7 @@ seed_shipped_item() {
 # review.md above) — and acts by mode:
 #   plan   append one item on the first pass only, so the second pass converges
 #   build  tick one open item and commit, moving HEAD
-#   review append a finding unless MOCK_REVIEW_NOOP is set, else do nothing
+#   review append one finding on the first pass only, unless MOCK_REVIEW_NOOP
 # Knobs (read at run time):
 #   MOCK_EXIT         exit code (default 0) — forces a phase to fail
 #   MOCK_REVIEW_NOOP  when set, review files nothing (phase 6 then skips)
@@ -129,7 +129,8 @@ elif echo "$prompt" | grep -qi 'build prompt'; then
     git commit -q -m "mock build commit" >/dev/null 2>&1
 elif echo "$prompt" | grep -qi 'review prompt'; then
     if [[ -z "${MOCK_REVIEW_NOOP:-}" ]]; then
-        echo '- [ ] **mock-review-finding**' >> "$plan"
+        grep -q 'mock-review-finding' "$plan" 2>/dev/null || \
+            echo '- [ ] **mock-review-finding**' >> "$plan"
     fi
 fi
 echo '{"type":"assistant","message":{"content":[{"type":"text","text":"done here"}]}}'
