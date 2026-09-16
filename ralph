@@ -950,7 +950,17 @@ cmd_loop() {
     while true; do
         case "$1" in
             -n|--iterations) max_iterations="$2"; shift 2 ;;
-            -g|--goal)       goal="$2";           shift 2 ;;
+            -g|--goal)
+                # specs/meta-repo-hardening.md §12. build and review derive
+                # their work from IMPLEMENTATION_PLAN.md, so a goal cannot
+                # change what they do. The refusal names the reason; dropping
+                # 'g:' from the getopt spec per mode would yield a bare
+                # `invalid option -- 'g'` and state none.
+                if [[ "$mode" == "build" || "$mode" == "review" ]]; then
+                    echo "Error: '$mode' does not accept -g/--goal; the work comes from IMPLEMENTATION_PLAN.md." >&2
+                    exit 1
+                fi
+                goal="$2";           shift 2 ;;
             -m|--model)      model="$2";          shift 2 ;;
             -b|--backend)    backend="$2";        shift 2 ;;
             --skip-push)     skip_push=true;      shift ;;
@@ -1202,7 +1212,7 @@ cmd_loop() {
         # reach the agent as `save {{GOAL}} load`.
         #
         # `{{GOAL}}` expands first so a goal may itself carry `{{WORKSPACE}}`.
-        prompt="${prompt//\{\{GOAL\}\}/"${goal:-No specific goal provided}"}"
+        prompt="${prompt//\{\{GOAL\}\}/"$goal"}"
         prompt="${prompt//\{\{WORKSPACE\}\}/"$PWD"}"
 
         if $dry_run; then

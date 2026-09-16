@@ -143,6 +143,33 @@ load test_helper
     [[ "$output" == *"'plan' requires a goal"* ]]
 }
 
+@test "build rejects a goal" {
+    # build reads its work from IMPLEMENTATION_PLAN.md, so a goal cannot
+    # change what it does. Accepting one silently would let the operator
+    # believe the run was steered by it.
+    "$RALPH" init
+    run "$RALPH" build -g "the goal"
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"'build' does not accept -g/--goal"* ]]
+    [[ "$output" == *"IMPLEMENTATION_PLAN.md"* ]]
+}
+
+@test "review rejects a goal" {
+    "$RALPH" init
+    run "$RALPH" review -g "the goal"
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"'review' does not accept -g/--goal"* ]]
+    [[ "$output" == *"IMPLEMENTATION_PLAN.md"* ]]
+}
+
+@test "build rejects --goal before any other precondition" {
+    # The refusal sits in the option loop, so it fires on an uninitialised
+    # workspace too: the flag is wrong whatever the workspace holds.
+    run "$RALPH" build --goal "the goal"
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"'build' does not accept -g/--goal"* ]]
+}
+
 @test "build fails with no incomplete items" {
     echo "- [x] **Completed task**" > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
