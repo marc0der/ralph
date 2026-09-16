@@ -8,6 +8,9 @@ export RALPH="$BATS_TEST_DIRNAME/../ralph"
 unset DEVCONTAINER
 
 setup() {
+    # bats leaves stdin attached: ralph's `[[ -t 0 ]]` guard would prompt and block.
+    exec </dev/null
+
     TEST_DIR="$(mktemp -d)"
     cd "$TEST_DIR" || return 1
     git init --quiet
