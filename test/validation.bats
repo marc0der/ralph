@@ -80,7 +80,7 @@ load test_helper
 
 @test "build fails outside a git repo" {
     command -v claude >/dev/null 2>&1 || skip "claude CLI not installed"
-    cd "$(mktemp -d)" || return 1
+    cd "$BATS_TEST_TMPDIR" || return 1
     echo "- [ ] **Task one**" > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
     run "$RALPH" build

@@ -41,7 +41,7 @@ path_without() {
 
 @test "sandbox fails outside a git repo" {
     command -v devcontainer >/dev/null 2>&1 || skip "devcontainer CLI not installed"
-    cd "$(mktemp -d)" || return 1
+    cd "$BATS_TEST_TMPDIR" || return 1
     run "$RALPH" sandbox
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"not inside a git repository"* ]]

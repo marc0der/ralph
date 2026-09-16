@@ -282,7 +282,9 @@ on_iteration() {
 @test "a commit in a repository reached through a symlink prevents the exit" {
     "$RALPH" init
     seed_items 3
-    LINK_TARGET="$(mktemp -d)"
+    # Outside the workspace: `source` symlinks to it and .gitignore hides it.
+    LINK_TARGET="$BATS_TEST_TMPDIR/link"
+    mkdir -p "$LINK_TARGET"
     init_repo "$LINK_TARGET/svc"
     ln -s "$LINK_TARGET" source
     echo "source/" >> .gitignore
