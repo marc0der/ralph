@@ -97,6 +97,8 @@ seed_open_item() {
 # lifecycle test that wants phase 5/6 to run must seed a shipped item.
 seed_shipped_item() {
     echo "- [x] **Shipped task**" >> IMPLEMENTATION_PLAN.md
+    # Review also gates on a cited spec: the anchor set comes from 'Spec:' fields.
+    echo "  Spec: specs/mock.md item 1" >> IMPLEMENTATION_PLAN.md
 }
 
 # Helper: phase-aware, committing mock backend. Unlike create_streaming_backend
@@ -118,7 +120,7 @@ prompt=$(cat)
 plan=IMPLEMENTATION_PLAN.md
 if echo "$prompt" | grep -qi 'plan prompt'; then
     grep -q 'mock-planned-item' "$plan" 2>/dev/null || \
-        echo '- [ ] **mock-planned-item**' >> "$plan"
+        printf -- '- [ ] **mock-planned-item**\n  Spec: specs/mock.md item 1\n' >> "$plan"
 elif echo "$prompt" | grep -qi 'build prompt'; then
     # Tick the first open item, then commit so HEAD moves.
     if grep -q '^- \[ \]' "$plan" 2>/dev/null; then

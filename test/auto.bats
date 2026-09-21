@@ -126,7 +126,7 @@ seed_resume_state() {
 @test "phase 5 is skipped when open items remain, naming the count" {
     create_committing_backend
     seed_resume_state 5
-    echo "- [x] **shipped**" >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **shipped**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     echo "- [ ] **open**" >> IMPLEMENTATION_PLAN.md
     git add -A -- .; git commit -q -m seed
     run_auto --resume --skip-push --no-metrics
@@ -146,7 +146,7 @@ seed_resume_state() {
 @test "phase 4 is skipped when the plan holds no open item" {
     create_committing_backend
     seed_resume_state 4
-    echo "- [x] **shipped**" >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **shipped**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     git add -A -- .; git commit -q -m seed
     run_auto --resume --skip-push --no-metrics
     [[ "$output" == *"4 build     skipped — no open items"* ]]
@@ -281,7 +281,7 @@ seed_resume_state() {
 @test "--resume prints the recorded phase, child exit and manual-repair notice" {
     create_committing_backend
     seed_resume_state 5
-    echo "- [x] **shipped**" >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **shipped**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     git add -A -- .; git commit -q -m seed
     run_auto --resume --skip-push --no-metrics
     [[ "$output" == *"Resumed from phase 5"* ]]

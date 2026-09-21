@@ -360,7 +360,7 @@ on_iteration() {
 
 @test "review converges while a nested repository moves" {
     "$RALPH" init
-    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     nested_repo "source/svc"
     create_nested_committing_backend
 
