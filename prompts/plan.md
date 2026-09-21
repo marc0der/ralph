@@ -16,7 +16,7 @@ The workspace root is `{{WORKSPACE}}`. `IMPLEMENTATION_PLAN.md` and `PROGRESS.md
 
 Gather context by reading these sources. If your harness supports subagents, use them to read and search in parallel. A subagent returns evidence, never a conclusion.
 
-- **Operational guardrails** — read `AGENTS.md` or `CLAUDE.md` (if present) for build commands, conventions, and project rules
+- **Operational guardrails** — read `AGENTS.md` or `CLAUDE.md` (if present) for build commands, conventions, and project rules. Follow its pointer to the project's rules directory and read every rule there
 - **Specifications** — read everything in `specs/`
 - **Existing plan** — read `{{WORKSPACE}}/IMPLEMENTATION_PLAN.md` (if present) to understand progress so far
 - **Progress log** — read `{{WORKSPACE}}/PROGRESS.md` (if present) for outcomes, blockers, and the reasons items were marked `[~]`
