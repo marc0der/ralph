@@ -143,6 +143,19 @@ seed_resume_state() {
     [[ "$output" == *"5 review    skipped — no shipped items"* ]]
 }
 
+@test "phase 5 is skipped without a cited spec" {
+    # The child's fourth precondition refuses an uncited plan. Without the
+    # matching guard auto would report a failed lifecycle for a condition it
+    # exists to absorb.
+    create_committing_backend
+    seed_resume_state 5
+    echo "- [x] **shipped**" >> IMPLEMENTATION_PLAN.md
+    git add -A -- .; git commit -q -m seed
+    run_auto --resume --skip-push --no-metrics
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"5 review    skipped — no cited specs"* ]]
+}
+
 @test "phase 4 is skipped when the plan holds no open item" {
     create_committing_backend
     seed_resume_state 4
