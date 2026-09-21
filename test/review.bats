@@ -93,6 +93,25 @@ latest_metrics_file() {
     [[ "$status" -eq 0 ]]
 }
 
+@test "review fails when no item cites a specs/ path" {
+    # The cited specs are review's anchor set. Without one it has no standard
+    # to measure the tree against, and falls back to auditing the plan.
+    printf -- '- [x] **Shipped task**\n' > IMPLEMENTATION_PLAN.md
+    touch PROGRESS.md
+    run "$RALPH" review
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"cites a specs/ path"* ]]
+    [[ "$output" == *"Run 'ralph plan'"* ]]
+}
+
+@test "review runs when a shipped item cites a specs/ path" {
+    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' > IMPLEMENTATION_PLAN.md
+    touch PROGRESS.md
+    run "$RALPH" review --dry-run -n 1
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
+}
+
 @test "review gates still fail with no shipped items when -n is passed" {
     # The gates run beside require_init_artifacts, not inside the iteration
     # resolution, so '-n' must not buy a run of empty audit iterations.
