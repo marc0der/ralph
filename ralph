@@ -719,11 +719,11 @@ mode_converges_on_plan() {
 # Review also reports the size of the anchor set it swept: a clean review
 # changes no file and records a metrics line of zeros, which is otherwise
 # indistinguishable from a backend that read the prompt and did nothing. Ralph
-# counts the shipped items itself rather than trusting the agent's own claim.
+# counts the cited specs itself rather than trusting the agent's own claim.
 convergence_message() {
     local mode="$1" iteration="$2"
     if [[ "$mode" == "review" ]]; then
-        echo "Review converged — pass $iteration found nothing new. Audited $(count_plan_items '^- \[x\]') shipped items."
+        echo "Review converged — pass $iteration found nothing new. Audited $(cited_specs | grep -c '^' || true) specs."
     else
         echo "Plan converged — pass $iteration changed nothing. Exiting early."
     fi
