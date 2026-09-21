@@ -636,6 +636,16 @@ count_plan_items() {
     plan_items_body | grep -c "$1" || true
 }
 
+# Review's anchor set: the distinct 'specs/' paths the plan's items cite, one
+# per line. A path is a whole non-space, non-backtick token, so a nested repo's
+# 'source/svc/specs/x.md' stays distinct from the root's 'specs/x.md'.
+cited_specs() {
+    plan_items_body | awk '$1 == "Spec:" {
+        n = split($0, token, /[ \t`]+/)
+        for (i = 1; i <= n; i++) if (token[i] ~ /specs\//) print token[i]
+    }' | LC_ALL=C sort -u
+}
+
 # Predicates shared by require_open_items, require_review_preconditions and
 # auto's guards, so every caller asks "can this mode run?" the same way.
 have_open_items() {
@@ -644,6 +654,10 @@ have_open_items() {
 
 have_shipped_items() {
     [[ "$(count_plan_items '^- \[x\]')" -gt 0 ]]
+}
+
+have_cited_specs() {
+    [[ -n "$(cited_specs)" ]]
 }
 
 # Refuse to start a build against a plan with nothing left to do.
@@ -671,6 +685,14 @@ require_review_preconditions() {
     if have_open_items; then
         echo "Error: IMPLEMENTATION_PLAN.md still holds incomplete items." >&2
         echo "Run 'ralph build' to finish them before running 'ralph review'." >&2
+        exit 1
+    fi
+
+    # Review measures the tree against the specs the cycle worked from, so an
+    # uncited plan leaves it no standard to audit against.
+    if ! have_cited_specs; then
+        echo "Error: no Spec: field cites a specs/ path in IMPLEMENTATION_PLAN.md." >&2
+        echo "Review audits the cycle's specs. Run 'ralph plan' to anchor the items on them." >&2
         exit 1
     fi
 }
