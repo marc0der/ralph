@@ -112,6 +112,66 @@ latest_metrics_file() {
     [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
 }
 
+@test "review fails when only a Files field names a specs/ path" {
+    # The anchor set comes from 'Spec:' alone. A 'Files:' path names something
+    # the item writes, which is the opposite of a standard to audit against.
+    # shellcheck disable=SC2016  # the backticks quote a plan citation, not a command substitution
+    printf -- '- [x] **Shipped task**\n  Files: `specs/mock.md`\n' > IMPLEMENTATION_PLAN.md
+    touch PROGRESS.md
+    run "$RALPH" review
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"cites a specs/ path"* ]]
+}
+
+@test "review fails when the only citation is the verification gate" {
+    # The final verification item cites the guardrails file because it runs the
+    # whole suite. That names no spec, so it anchors no audit.
+    # shellcheck disable=SC2016  # the backticks quote a plan citation, not a command substitution
+    printf -- '- [x] **Run the gate**\n  Spec: `AGENTS.md verification gate`\n' > IMPLEMENTATION_PLAN.md
+    touch PROGRESS.md
+    run "$RALPH" review
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"cites a specs/ path"* ]]
+
+    # shellcheck disable=SC2016  # the backticks quote a plan citation, not a command substitution
+    printf -- '- [x] **Run the gate**\n  Spec: `CLAUDE.md verification gate`\n' > IMPLEMENTATION_PLAN.md
+    run "$RALPH" review
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"cites a specs/ path"* ]]
+}
+
+@test "review fails when the only citation is a rules file" {
+    # A Minor finding cites the rule it breaks, not a spec. A plan holding only
+    # those has no clause stating what the cycle was meant to build.
+    # shellcheck disable=SC2016  # the backticks quote a plan citation, not a command substitution
+    printf -- '- [x] **Shipped task**\n  Spec: `rules/naming.md` rule `naming`\n' > IMPLEMENTATION_PLAN.md
+    touch PROGRESS.md
+    run "$RALPH" review
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"cites a specs/ path"* ]]
+}
+
+@test "review fails on an init'd plan whose shipped item cites nothing" {
+    # The scaffolded '## Entry Format' exemplar cites 'specs/file.md'. It sits
+    # outside plan_items_body, so it must not satisfy the gate for a real item.
+    "$RALPH" init
+    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" review
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"cites a specs/ path"* ]]
+}
+
+@test "review derives a backtick citation in a plan with no Items heading" {
+    # plan_items_body reads the whole file without the heading, and the awk
+    # split treats a backtick as a delimiter, so the bare path survives both.
+    # shellcheck disable=SC2016  # the backticks quote a plan citation, not a command substitution
+    printf -- '# Implementation Plan\n\n- [x] **Shipped task**\n  Spec: `specs/mock.md` item 1\n' > IMPLEMENTATION_PLAN.md
+    touch PROGRESS.md
+    run "$RALPH" review --dry-run -n 1
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
+}
+
 @test "review gates still fail with no shipped items when -n is passed" {
     # The gates run beside require_init_artifacts, not inside the iteration
     # resolution, so '-n' must not buy a run of empty audit iterations.
@@ -129,6 +189,16 @@ latest_metrics_file() {
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"still holds incomplete items"* ]]
     [[ "$output" == *"Run 'ralph build'"* ]]
+}
+
+@test "review gates still fail without a cited spec when -n is passed" {
+    # The citation gate is a hard stop like the other three, so '-n' must not
+    # buy a run of audit iterations that have no anchor set to read.
+    printf -- '- [x] **Shipped task**\n' > IMPLEMENTATION_PLAN.md
+    touch PROGRESS.md
+    run "$RALPH" review -n 1
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"cites a specs/ path"* ]]
 }
 
 @test "review counts shipped items in a plan with no Items heading" {
