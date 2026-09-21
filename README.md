@@ -31,7 +31,7 @@ This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prom
 | `sandbox --rebuild` | Rebuild the container image from scratch                                   |
 | `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` (max 6 iterations; exits as soon as a pass changes nothing) |
 | `build`           | Pick the next item, implement, test, commit, push (default: 50 iterations)   |
-| `review`          | Audit shipped items against the plan, file findings as new plan items (max 6 iterations; exits as soon as a pass changes nothing) |
+| `review`          | Audit the cycle's specs against the code, file findings as new plan items (max 6 iterations; exits as soon as a pass changes nothing) |
 | `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`). Pass `--prompts` to also copy prompt templates for local customisation |
 | `archive`         | Move `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` to `.ralph/<timestamp>/`    |
 | `clean`           | Delete `IMPLEMENTATION_PLAN.md` and `PROGRESS.md`                           |
@@ -204,7 +204,7 @@ ralph build -n 10 -m sonnet            # a cheaper model follows the steps
 
 ### Starting a new goal
 
-Run `ralph review` before `archive` or `clean` — both remove `IMPLEMENTATION_PLAN.md`, which is the only record of what the cycle shipped, so a closed-out cycle can no longer be audited.
+Run `ralph review` before `archive` or `clean` — both remove `IMPLEMENTATION_PLAN.md`, which is the only record of which specs the cycle worked from, so a closed-out cycle can no longer be audited.
 
 The new goal goes on the `plan` command line, because `plan` requires `-g`. The `build` and `review` runs that follow take no goal — they read the plan that pass wrote.
 
