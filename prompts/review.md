@@ -26,7 +26,7 @@ Read no specification outside the anchor set. `specs/` is a chronological record
 
 Audit **every** spec in the anchor set, and audit each one whole. Coverage is never sampled and never deferred to a later pass.
 
-Coverage and the finding budget cap different things. You read every spec in the anchor set. You file at most 5. Never narrow the audit because the budget is small — you cannot rank findings you never looked for.
+Coverage and the finding budget cap different things. You read every spec in the anchor set. You file at most 10. Never narrow the audit because the budget is small — you cannot rank findings you never looked for.
 
 ### Audit in one context
 
@@ -81,12 +81,12 @@ Report an observation that fits none of the three checks in your final message i
 End every pass with this line in your final assistant message:
 
 ```
-Audited N of M shipped items.
+Audited N of M specs.
 ```
 
-`N` is the number of items you audited. `M` is the number of `- [x]` items in the plan. The two numbers must match. A backend without subagents runs the whole audit in one context, and this line is then the only signal that a sweep fell short, so state it on every pass and on every backend.
+`M` is the size of the anchor set. `N` is the number of its specs you read. The two numbers must match. A backend without subagents runs the whole audit in one context, and this line is then the only signal that a sweep fell short, so state it on every pass and on every backend.
 
-List every observation you could not attribute to a shipped item below that line.
+List every observation you could not attribute to a clause, an item or a rule below that line.
 
 ## Phase 3: Output
 
@@ -102,7 +102,7 @@ A finding is an ordinary plan item. Each one uses these six fields, in this orde
 
 ```
 - [ ] **Critical: short imperative title**
-  Spec: `IMPLEMENTATION_PLAN.md` item "title of the audited item"
+  Spec: `specs/file.md` section N
   Scope: What is included. What is excluded.
   Files: `path/to/file`, `path/to/other`
   Steps:
@@ -118,18 +118,19 @@ A finding is an ordinary plan item. Each one uses these six fields, in this orde
 - `Steps` carry the how. Name symbols, option paths, attribute names, literal values, and files to copy an idiom from.
 - **Never cite line numbers. Never paste code.** Every named token must be greppable, because the item runs many commits after you write it.
 - `Files` lists paths only.
-- `Spec` names the audited item: `IMPLEMENTATION_PLAN.md` item "<its title>". Quote the title, never a position. Items move, and a number goes stale the moment one is inserted above it.
+- `Spec` names what the finding measures against, and the level decides the form. A `Critical` names the spec: `specs/file.md` plus an item number or a section name. A `Major` names the item whose commits shipped the defect: `IMPLEMENTATION_PLAN.md` item "<its title>". A `Minor` names the rule file plus the rule. Quote an item title, never a position. Items move, and a number goes stale the moment one is inserted above it.
 
 State the fix, never the argument for it. The plan records work to do.
 
 ### Severity
 
-Every finding carries one of two levels. The level must be decidable from the item and the tree, so that two passes over the same state agree.
+Every finding carries one of three levels. The level must be decidable from the tree, the plan and the rules, so that two passes over the same state agree.
 
-| Level | Definition |
-|-------|------------|
-| **Critical** | `build` did not implement what the item names. A symbol, a file, a flag or a behaviour the item names is absent, or behaves against the item. |
-| **Major** | `build` implemented the item, but the code is defective. A bug, an unhandled error, or an unhandled edge case. |
+| Level | Definition | `Spec` cites | Code in range |
+|-------|------------|--------------|---------------|
+| **Critical** | The tree does not satisfy a clause of a spec in the anchor set. | `specs/file.md` plus an item number or a section name | the whole tree |
+| **Major** | The code this cycle committed is defective: a bug, an unhandled error, an unhandled edge case, or a quality problem. | `IMPLEMENTATION_PLAN.md` item "<its title>" | the cycle's commits |
+| **Minor** | The code this cycle committed violates a written rule. | the rule file plus the rule name | the cycle's commits |
 
 Write the level as the first word of the title, followed by a colon:
 
@@ -139,32 +140,39 @@ Write the level as the first word of the title, followed by a colon:
 
 Position alone cannot carry severity, because your findings sit in the same list as the planning agent's items with nothing else to distinguish them. A title keeps the level greppable across passes and needs no seventh field.
 
-Both levels need the same proof. Name a behaviour. Show the tree does not have it. `Major` is not a weaker standard of evidence. It names a different target: the code `build` wrote, not the item's own claim.
+Every level needs the same proof. Name a behaviour or a rule. Show the tree does not have it. A lower level is a different target, never a weaker standard of evidence.
 
-**When both levels fit, the finding is `Critical`.** Any part of what the item names being absent is check 1 failing, so a thing the item names that works on one path and not another is `Critical`, never `Major`. Two passes over the same state must agree on the level. A pass that relabels a finding changes the plan and stops the loop converging.
+**When two levels fit, the higher one wins.** A defect in code this cycle committed that also leaves a cited clause unmet is `Critical`, never `Major`. Two passes over the same state must agree on the level. A pass that relabels a finding changes the plan and stops the loop converging.
 
-There is no third level. A convention violation is not a review finding. `CLAUDE.md` and `AGENTS.md` record conventions, not work.
+A `Major` has no clause behind it. A null dereference breaches no specification, so it cites the item whose commits shipped it.
 
-**A test the item called for is in range.** File `Critical` when the `Steps` or the `Done when` name a test and no test asserts the behaviour the item names. The item asked for proof of a named behaviour, and no such proof exists, so this is check 1 failing. A test that does assert that behaviour closes the item. Wanting it stronger is not a finding.
-
-**A document the item named is in range.** File `Critical` when the `Steps` or the `Files` name a document and `build` did not write what the item told it to write. The deliverable was text, and the item states which text, so this is check 1 like any other. Wording no item asked about is never a finding.
+A `Minor` has no clause behind it either, and it needs a written rule. A project that names no rules directory produces no `Minor` finding at all.
 
 **Never file any of these, at any level:**
 
-- An item you would have planned differently.
-- A test the item never called for, or an assertion you want to be stronger. General test debt belongs to the planning phase.
-- Stale or incomplete wording in a document no shipped item named.
-- A naming preference, a style preference, or a convention preference.
+- An item you would have planned differently, a `Scope` you would have drawn wider, or an order you would have chosen.
+- A clause the specification itself marks out of scope.
+- Wording in a document no cited clause prescribes.
+- A naming preference, a style preference, or a convention preference with no written rule behind it.
+- A defect in code no commit of this cycle touched.
 
-Rank every `Critical:` finding above every `Major:` finding.
+Rank every `Critical:` finding above every `Major:` finding, and every `Major:` finding above every `Minor:` finding.
+
+### Your authority is additive
+
+You append items. You never re-decompose, re-scope or re-order an item `plan` wrote, and you never alter a `- [x]` marker. "I would have planned this differently" is not a finding at any level.
+
+A review run starts with no open items, because a plan that holds one never reaches you. Every open item you meet on pass 2 or later is therefore your own finding from an earlier pass, and the editing rules below act on your own output alone.
 
 ### Finding budget
 
-`IMPLEMENTATION_PLAN.md` holds at most **5 open findings** at one time.
+`IMPLEMENTATION_PLAN.md` holds at most **10** open findings at one time.
 
-Count the `- [ ]` items in the plan before you write anything. If the file holds 5, file nothing and change nothing. If it holds fewer, file at most the difference.
+Count the `- [ ]` items in the plan before you write anything. If the file holds 10, file nothing and change nothing. If it holds fewer, file at most the difference.
 
-Rank every finding you made against every other finding before you choose. File the worst. Drop the rest. Name a dropped finding in your final message if you want, but never write it to the plan. A later run finds it again after `build` clears the queue.
+Rank every finding you made against every other finding before you choose. `Critical` outranks `Major`, and `Major` outranks `Minor`. File the worst. Drop the rest. Name a dropped finding in your final message if you want, but never write it to the plan. A later run finds it again after `build` clears the queue.
+
+Strict ranking files a `Minor` only when fewer than ten `Critical` and `Major` findings exist. That is intended. A nit gets attention when nothing worse is outstanding, and never instead of something worse.
 
 The budget is the work of the pass. An audit that files everything it noticed made no judgement, and it buries the one defect that mattered under the twenty that did not.
 
@@ -194,7 +202,7 @@ An item nobody can verify never completes. The build loop then selects it foreve
 
 Review adds three rules of its own:
 
-- **Never alter a `- [x]` marker.** A shipped item that fails its claim produces a new `Critical:` item naming the defect. Un-ticking is forbidden. The `[x]` records that the work was committed, and erasing it hides that a defect escaped. It would also let an item oscillate between `[ ]` and `[x]` across review and build runs, which never converges.
+- **Never alter a `- [x]` marker.** A shipped item whose code fails a cited clause produces a new `Critical:` item naming the gap. Un-ticking is forbidden. The `[x]` records that the work was committed, and erasing it hides that a defect escaped. It would also let an item oscillate between `[ ]` and `[x]` across review and build runs, which never converges.
 - **Record every supersession.** When you mark an item `[~]`, append a `{{WORKSPACE}}/PROGRESS.md` entry stating why. Follow the template defined in its header. The next `plan` run resolves a `[~]` item by reading that entry. A supersession with no entry leaves that run nothing to read, and it resurrects the item as open.
 - **Resolve a blocked finding instead of re-filing it.** When `build` cannot implement a finding it marks the item `[~]` and records the contradiction in `PROGRESS.md`. Read that entry and append a *different* replacement item that routes around the blocker. Never re-file the original verbatim. Never stay silent because a `[~]` item for the same defect already exists.
 
@@ -216,7 +224,7 @@ Write every item in Simplified Technical English (ASD-STE100):
 Too long — 44 words, two parentheticals, one sentence, and it argues the case instead of stating the work:
 
 ```
-Scope: The shipped item claimed ralph passes --skip-permissions to the backend (it does
+Scope: The spec requires ralph to pass --skip-permissions to the backend (it does
 not, as backend.bats proves) so add the flag to build_backend_cmd in the claude backend
 (leaving codex alone, which has no equivalent).
 ```
@@ -225,7 +233,7 @@ Correct — the same work as one complete finding, short sentences, one instruct
 
 ```
 - [ ] **Critical: pass the permission flag to the claude backend**
-  Spec: `IMPLEMENTATION_PLAN.md` item "add the claude backend"
+  Spec: `specs/multi-backend.md` section Claude
   Scope: Add the flag to the claude backend. Do not change the codex backend.
   Files: `ralph`, `test/backend.bats`
   Steps:
@@ -256,11 +264,11 @@ Do not add sections. Do not restate what you audited in the plan. Do not re-file
 
 - **Review only. Do NOT implement anything. Do NOT commit and do NOT push.**
 - Write `IMPLEMENTATION_PLAN.md`, and `PROGRESS.md` only to record a supersession. Write no other file
-- **Never read, create or edit anything under `specs/`**
+- **Never create or edit anything under `specs/`**
 - **Never alter a `- [x]` marker**
 - Never assume functionality is missing — confirm with a code search first
-- Every finding traces to one shipped item and proves `build` fell short of it
-- Never judge the plan, and never file an item you would have planned differently
-- Never file a test the item never called for, stale document wording, or a style preference, at any level
-- File at most 5 open findings, and audit the whole plan in one context
+- A `Critical` names a clause of a spec in the anchor set. A `Major` and a `Minor` name code this cycle committed
+- Never judge the plan's decomposition, and never file an item you would have planned differently
+- Never file wording no cited clause prescribes, or a preference with no written rule behind it, at any level
+- File at most 10 open findings, and audit the whole anchor set in one context
 - Report coverage, unattributable observations, and unresolved questions in your final message, never in a file
