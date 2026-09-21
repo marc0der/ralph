@@ -21,7 +21,7 @@ latest_metrics_file() {
 
 @test "review runs against a plan of shipped items" {
     "$RALPH" init
-    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     run "$RALPH" review --dry-run -n 1
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
@@ -39,7 +39,7 @@ latest_metrics_file() {
 @test "review fails when only IMPLEMENTATION_PLAN.md is present" {
     # Review reads PROGRESS.md as a claim to verify and writes supersession
     # entries back to it, so the second artifact is a real requirement.
-    echo "- [x] **Shipped task**" > IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' > IMPLEMENTATION_PLAN.md
     run "$RALPH" review
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"missing workspace artifacts required for 'review'"* ]]
@@ -77,7 +77,7 @@ latest_metrics_file() {
     # Review audits finished work. Starting with open items would let it rank
     # its own findings against planning work it never derived.
     "$RALPH" init
-    printf -- '- [x] **Shipped task**\n- [ ] **Open task**\n' >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n- [ ] **Open task**\n' >> IMPLEMENTATION_PLAN.md
     run "$RALPH" review
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"still holds incomplete items"* ]]
@@ -88,7 +88,7 @@ latest_metrics_file() {
     # '- [~]' marks work that was superseded or blocked. It is neither shipped
     # nor open, so it must not gate a review run either way.
     "$RALPH" init
-    printf -- '- [x] **Shipped task**\n- [~] **Superseded task**\n' >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n- [~] **Superseded task**\n' >> IMPLEMENTATION_PLAN.md
     run "$RALPH" review --dry-run -n 1
     [[ "$status" -eq 0 ]]
 }
@@ -105,7 +105,7 @@ latest_metrics_file() {
 
 @test "review gates still fail with an open item when -n is passed" {
     "$RALPH" init
-    printf -- '- [x] **Shipped task**\n- [ ] **Open task**\n' >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n- [ ] **Open task**\n' >> IMPLEMENTATION_PLAN.md
     run "$RALPH" review -n 1
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"still holds incomplete items"* ]]
@@ -115,7 +115,7 @@ latest_metrics_file() {
 @test "review counts shipped items in a plan with no Items heading" {
     # plan_items_body reads the whole file when '## Items' is absent, so plans
     # predating the heading must still satisfy the shipped-items precondition.
-    printf -- '# Implementation Plan\n\n- [x] **Shipped task**\n' > IMPLEMENTATION_PLAN.md
+    printf -- '# Implementation Plan\n\n- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
     run "$RALPH" review --dry-run -n 1
     [[ "$status" -eq 0 ]]
@@ -126,7 +126,7 @@ latest_metrics_file() {
     # Review converges like plan, so it takes the same flat cap instead of
     # sizing itself from the plan the way build does.
     "$RALPH" init
-    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     run "$RALPH" review --dry-run
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Max:     6 iterations"* ]]
@@ -134,7 +134,7 @@ latest_metrics_file() {
 
 @test "review -n overrides the default cap" {
     "$RALPH" init
-    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     run "$RALPH" review --dry-run -n 2
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Max:     2 iterations"* ]]
@@ -142,7 +142,7 @@ latest_metrics_file() {
 
 @test "review exits on the first pass that changes nothing" {
     "$RALPH" init
-    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     mkdir -p "$TEST_DIR/bin"
     # Review iterations never commit, so convergence is measured against the
     # plan artifacts, not HEAD — exactly as in plan mode.
@@ -161,7 +161,7 @@ MOCK
 
 @test "review convergence exit still applies when -n is passed" {
     "$RALPH" init
-    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     mkdir -p "$TEST_DIR/bin"
     # -n caps a review run but must not disable convergence, unlike build mode.
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
@@ -178,7 +178,7 @@ MOCK
 
 @test "review continues while passes keep filing findings" {
     "$RALPH" init
-    printf -- '- [x] **Shipped one**\n- [x] **Shipped two**\n' >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **Shipped one**\n  Spec: specs/mock.md item 1\n- [x] **Shipped two**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     mkdir -p "$TEST_DIR/bin"
     # Files a finding on passes 1 and 2, then goes quiet on pass 3. The audited
     # count is ralph's own tally of '- [x]' items, so the findings the pass adds
@@ -209,7 +209,7 @@ MOCK
     # pass produces nothing to push and HEAD cannot move. Only build reaches
     # the push block.
     "$RALPH" init
-    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
@@ -229,7 +229,7 @@ MOCK
     # so --skip-push must be accepted rather than rejected, and must not
     # change a review run that never pushes in the first place.
     "$RALPH" init
-    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
@@ -248,7 +248,7 @@ MOCK
     # and plan_items_completed is always 0, because review never ticks a
     # checkbox — it only appends findings as new open items.
     "$RALPH" init
-    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     create_review_noop_backend
 
     PATH="$TEST_DIR/bin:$PATH" "$RALPH" review -n 1 -y
@@ -264,7 +264,7 @@ MOCK
     # Review commits nothing, so HEAD-based noop detection would call every
     # pass a noop. The flag comes from the plan-state fingerprint instead.
     "$RALPH" init
-    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     create_review_noop_backend
 
     PATH="$TEST_DIR/bin:$PATH" "$RALPH" review -n 1 --skip-push -y
@@ -280,7 +280,7 @@ MOCK
     # escaped and lets the item oscillate between '[ ]' and '[x]' across review
     # and build runs, so the loop stops instead of auditing a corrupted plan.
     "$RALPH" init
-    printf -- '- [x] **Shipped one**\n- [x] **Shipped two**\n' >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **Shipped one**\n  Spec: specs/mock.md item 1\n- [x] **Shipped two**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
