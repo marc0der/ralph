@@ -244,7 +244,7 @@ MOCK
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Review converged — pass 1 found nothing new"* ]]
-    [[ "$output" == *"Audited 1 shipped items"* ]]
+    [[ "$output" == *"Audited 1 specs"* ]]
     [[ "$output" == *"Completed 1 iterations"* ]]
 }
 
@@ -270,8 +270,8 @@ MOCK
     printf -- '- [x] **Shipped one**\n  Spec: specs/mock.md item 1\n- [x] **Shipped two**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     mkdir -p "$TEST_DIR/bin"
     # Files a finding on passes 1 and 2, then goes quiet on pass 3. The audited
-    # count is ralph's own tally of '- [x]' items, so the findings the pass adds
-    # must not inflate it.
+    # count is ralph's own tally of the distinct specs the items cite, so two
+    # shipped items citing one spec count once and the findings do not inflate it.
     cat > "$TEST_DIR/bin/claude" <<MOCK
 #!/usr/bin/env bash
 CALL_LOG="$TEST_DIR/call_count"
@@ -289,8 +289,26 @@ MOCK
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Review converged — pass 3 found nothing new"* ]]
-    [[ "$output" == *"Audited 2 shipped items"* ]]
+    [[ "$output" == *"Audited 1 specs"* ]]
     [[ "$output" == *"Completed 3 iterations"* ]]
+}
+
+@test "review counts distinct specs, not shipped items" {
+    # The anchor set is the set of cited specs. Three shipped items citing two
+    # paths audit two specs, and a nested repo's path stays distinct from the
+    # root's even when both file names match.
+    "$RALPH" init
+    printf -- '- [x] **One**\n  Spec: specs/mock.md item 1\n- [x] **Two**\n  Spec: source/svc/specs/mock.md item 2\n- [x] **Three**\n  Spec: specs/mock.md item 3\n' >> IMPLEMENTATION_PLAN.md
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"result","result":"reviewing"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Audited 2 specs"* ]]
 }
 
 @test "review never pushes even without --skip-push (no remote configured)" {
