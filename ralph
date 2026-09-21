@@ -1828,8 +1828,11 @@ cmd_auto() {
 
         # Guards read the plan as it stands on disk right now, never a decision
         # made earlier in the run. build (4, 6) needs both artifacts and an
-        # open item; review (5) needs both artifacts, a shipped item, and no
-        # open item. A guarded-out phase is skipped, not an abort.
+        # open item; review (5) needs both artifacts, a shipped item, no open
+        # item, and one cited spec. The guards mirror the hard stops in
+        # require_open_items and require_review_preconditions, so auto never
+        # starts a child that exits 1 on a gate. A guarded-out phase is
+        # skipped, not an abort.
         case $phase_num in
             4|6)
                 if [[ ! -f IMPLEMENTATION_PLAN.md || ! -f PROGRESS.md ]]; then
@@ -1844,6 +1847,8 @@ cmd_auto() {
                     phase_state[phase_num]="skipped — no shipped items"; continue
                 elif have_open_items; then
                     phase_state[phase_num]="skipped — $(count_plan_items '^- \[ \]') open items remain"; continue
+                elif ! have_cited_specs; then
+                    phase_state[phase_num]="skipped — no cited specs"; continue
                 fi ;;
         esac
 
