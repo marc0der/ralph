@@ -271,7 +271,9 @@ do today. Four changes:
 - **`cited_specs`** — a new helper beside `count_plan_items`. It reads `plan_items_body`, keeps
   lines whose first field is `Spec:`, extracts every `specs/…` path, and prints the distinct paths
   sorted with `LC_ALL=C`. Reading `plan_items_body` rather than the whole file means the exemplar
-  under `## Entry Format` is excluded exactly as it is for marker counts.
+  under `## Entry Format` is excluded exactly as it is for marker counts. A path is the whole
+  non-space, non-backtick token that contains `specs/`, so a nested repository's
+  `source/svc/specs/x.md` stays distinct from the root's `specs/x.md`.
 - **`have_cited_specs`** — a predicate beside `have_open_items` and `have_shipped_items`, true when
   `cited_specs` prints at least one line.
 - **`require_review_preconditions`** — a fourth check calling `have_cited_specs`, with a message
@@ -289,6 +291,13 @@ block, the metrics schema, or the goal handling. Review continues to refuse `-g`
 The existing guard that fails a review pass which reduces the shipped-item count stays. Review has
 even less reason to touch a `- [x]` marker now, and the guard costs nothing.
 
+One change outside `cmd_loop` follows from `specs/auto-lifecycle.md` §2, which forbids `auto`'s guards
+drifting from the hard stops: the phase 5 guard in `cmd_auto` also calls `have_cited_specs`, and skips
+review with the reason `no cited specs` when it is false. Without it `auto` starts a review its guard
+believed legal, the child exits 1 on the fourth gate, and the lifecycle is reported as failed for a
+condition `auto` exists to absorb. The mock planner in the tests cites a spec on the item it appends,
+so a lifecycle test still reaches phase 5.
+
 ## 10. Prompt changes
 
 - **`prompts/review.md`** — rewritten to sections 2 to 8. The ban "Never read, create or edit
@@ -298,6 +307,9 @@ even less reason to touch a `- [x]` marker now, and the guard costs nothing.
   guardrails" bullet in Phase 1 gains a clause telling the agent to follow the pointer in `AGENTS.md`
   or `CLAUDE.md` to the project's rules directory and read it. The pointer is already in front of all
   three; none of them follows it today.
+- **`prompts/build.md`** — the sentence "A review finding points at the plan item it audits instead,
+  so it has no spec clause to contradict" is false under section 4: a Critical cites a spec clause.
+  It is revised so the `[~]` route for a contradicted item applies to a Critical as to any item.
 - **`prompts/plan.md`** — the `Spec` field description gains the three review forms from section 4.
   The existing sentence covering the single review form is replaced.
 - **`templates/IMPLEMENTATION_PLAN.md`** — the `Spec` rule line gains the same three forms.
