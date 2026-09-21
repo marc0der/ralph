@@ -40,10 +40,10 @@ load test_helper
 @test "ralph --help lists review in the Modes block" {
     run "$RALPH" --help
     [[ "$status" -eq 0 ]]
-    # Spec (review-phase.md section 8) fixes this wording: review audits work
-    # already shipped and files what it finds as new plan items, which is what
-    # distinguishes it from plan (writes the plan) and build (executes it).
-    [[ "$output" == *"review"*"Audit shipped items against the plan, file findings as new plan items"* ]]
+    # Spec (spec-anchored-review.md section 9) fixes this wording: review audits
+    # the specs the cycle worked from against the code it shipped, and files what
+    # it finds as new plan items — not the plan items themselves.
+    [[ "$output" == *"review"*"Audit the cycle's specs against the code, file findings as new plan items"* ]]
 }
 
 @test "ralph --help states review's iteration default and convergence behaviour" {
