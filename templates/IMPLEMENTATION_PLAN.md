@@ -20,9 +20,10 @@ Rules:
 - Order is priority. The build agent picks the top incomplete item.
 - The spec states what to build. The item states how to build it.
 - Cite a spec file plus an item number or a section name in `Spec`. A review finding picks its form
-  from its level: a `Critical` cites `specs/file.md` plus an item number or a section name, a
-  `Major` cites `IMPLEMENTATION_PLAN.md` item "<its title>", and a `Minor` cites the rule file
-  plus the rule name.
+  from the standard it breaks: a spec clause cites `specs/file.md` plus an item number or a
+  section name, a rule cites the rule file plus the rule name, a catalogue kind cites
+  `review catalogue` plus the kind name, such as `review catalogue, Weak test`, and a red suite
+  cites `AGENTS.md verification gate` or `CLAUDE.md verification gate`.
 - Write at most 150 words and 14 lines per item. Write at most 10 words per title.
 - Write at most 2 sentences for `Scope`. Write at most 2 sentences for `Done when`.
 - Name a symbol, file, flag, output, or error path of the item in `Done when`. Never make a whole-suite run the entire criterion.

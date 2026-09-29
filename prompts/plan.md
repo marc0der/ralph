@@ -70,7 +70,7 @@ Each item uses these six fields, in this order, and no others:
 - `Steps` carry the how. Name symbols, option paths, attribute names, literal values, and files to copy an idiom from.
 - **Never cite line numbers. Never paste code.** Every named token must be greppable, because the item runs many commits after you write it.
 - `Files` lists paths only.
-- `Spec` cites a spec file plus an item number or a section name. A review finding picks its form from its level, and you leave all three alone: a `Critical` cites `specs/file.md` plus an item number or a section name, a `Major` cites `IMPLEMENTATION_PLAN.md` item "<its title>", and a `Minor` cites the rule file plus the rule name.
+- `Spec` cites a spec file plus an item number or a section name. A review finding picks its form from the standard it breaks, and you leave every finding alone: a spec clause cites `specs/file.md` plus an item number or a section name, a rule cites the rule file plus the rule name, a catalogue kind cites `review catalogue` plus the kind name, such as `review catalogue, Weak test`, and a red suite cites `AGENTS.md verification gate` or `CLAUDE.md verification gate`.
 
 ### Markers
 
