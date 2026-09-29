@@ -192,8 +192,8 @@ The main context verifies each proof, merges duplicates across lenses, groups by
 writes. Never run build or test commands in more than one subagent at a time.
 
 `spec-anchored-review.md` forbade splitting the judgement because the cap forced relative ranking.
-Without a cap, and with severity defined by consequence, a lens can judge its own candidates. The
-merge stays in one context, because only it sees duplicates across lenses.
+Without a cap, and with severity defined by consequence, the lenses need not rank against each
+other. The merge stays in one context, because only it sees duplicates across lenses.
 
 ## 11. Preconditions
 
@@ -269,8 +269,8 @@ The guard that stops a pass which reduces the shipped-item count stays.
 A reviewer that knows a rule and a builder that does not replenish violations as fast as review
 drains them, so the two prompts carry the catalogue word for word.
 
-- **`prompts/plan.md`** — unchanged, except that it recognises `review catalogue` as a `Spec` form
-  that names no specification.
+- **`prompts/plan.md`** — unchanged, except that its review-finding `Spec` sentence names the four
+  forms of section 8.
 - **`templates/IMPLEMENTATION_PLAN.md`** — the `Spec` guidance names the four forms of section 8.
 
 ## 15. Documentation
@@ -278,10 +278,12 @@ drains them, so the two prompts carry the catalogue word for word.
 - **`CLAUDE.md`** — the review paragraphs under "The implementation plan contract" and "Core loop
   flow" are rewritten for this model. The command table's review row drops "max 6 iterations, exits
   on convergence".
+- **`AGENTS.md`** — the same edits as `CLAUDE.md`.
 - **`README.md`** — the review row, the "at most ten open at a time" sentence, the convergence
   sentence for review, and the "At most 6 passes" cell.
 - **`docs/plan-format.md`** — the three level definitions and the precondition sentence.
-- **`CONTEXT.md`** — already carries the terms.
+- **`CONTEXT.md`** — a lens is one group of standards, and a cycle ends when its artifacts are
+  archived or cleaned.
 
 ## 16. Testing
 
