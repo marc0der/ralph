@@ -4,361 +4,216 @@
 
 # ralph
 
-Autonomous AI coding agent loop runner. Runs plan and build phases in a loop, feeding structured prompts to an AI coding agent in headless mode. Supports multiple backends — currently [Claude Code](https://claude.ai/code), [OpenAI Codex](https://openai.com/index/codex/), [GitHub Copilot CLI](https://github.com/features/copilot), and [pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent).
+**Hand your AI coding agent a spec, walk away, come back to finished, reviewed commits.**
 
-## Background
-
-Ralph implements the [Ralph Wiggum pattern](https://github.com/ghuntley/how-to-ralph-wiggum) — a technique for running AI coding agents in autonomous loops where each iteration picks up where the last left off. The name comes from Ralph Wiggum's famous line *"I'm helping!"*, which captures the spirit of an agent that cheerfully works through a task list one item at a time, without needing hand-holding between steps.
-
-The pattern works in two phases: **plan** (analyse the codebase against specifications and produce a prioritised implementation plan) and **build** (pick the next item, implement it, run tests, commit, repeat). A shared `IMPLEMENTATION_PLAN.md` acts as the handoff between iterations, giving each fresh Claude session the context it needs to continue. An append-only `PROGRESS.md` log captures what each iteration did, what it learned, and what broke — providing a breadcrumb trail for both the human and future iterations.
-
-## Install
+Ralph runs [Claude Code](https://claude.ai/code), [Codex](https://openai.com/index/codex/), [Copilot CLI](https://github.com/features/copilot) or [pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) in a loop, inside a sandbox. Each pass does one small job and leaves notes for the next. A plan becomes commits, and the commits get checked against the spec.
 
 ```bash
-git clone git@github.com:marc0der/ralph.git
-cd ralph
-./install.sh
+ralph plan -g specs/checkout-flow.md   # turn a spec into a task list
+ralph build                            # work through it, one commit at a time
+ralph review                           # check the result against the spec
 ```
 
-This places `ralph` in `~/.local/bin/`, default prompts in `~/.config/ralph/prompts/`, workspace templates in `~/.config/ralph/templates/`, and the devcontainer config in `~/.config/ralph/container/`.
-
-## Commands
-
-| Command           | Description                                                                  |
-|-------------------|------------------------------------------------------------------------------|
-| `sandbox`         | Enter a devcontainer shell for the current project                           |
-| `sandbox clean`   | Remove the devcontainer for the current project                              |
-| `sandbox --rebuild` | Rebuild the container image from scratch                                   |
-| `plan`            | Analyse specs and source, create/update `IMPLEMENTATION_PLAN.md` (max 6 iterations; exits as soon as a pass changes nothing) |
-| `build`           | Pick the next item, implement, test, commit, push (default: 50 iterations)   |
-| `review`          | Audit the cycle's specs against the code, file findings as new plan items (max 6 iterations; exits as soon as a pass changes nothing) |
-| `init`            | Initialise workspace (`PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, `specs/`). Pass `--prompts` to also copy prompt templates for local customisation |
-| `archive`         | Move `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` to `.ralph/<timestamp>/`    |
-| `clean`           | Delete `IMPLEMENTATION_PLAN.md` and `PROGRESS.md`                           |
-| `metrics`         | Summarise a run's loop metrics: per-iteration table plus totals (latest run, or pass a `metrics.jsonl` path) |
-| `version`         | Print version                                                                |
-
-### Options (plan, build and review)
-
-| Flag                 | Description                                              |
-|----------------------|----------------------------------------------------------|
-| `-n`, `--iterations` | Max iterations. In build mode this also disables the noop exit; in plan and review modes it caps the run but never disables the convergence exit |
-| `-g`, `--goal`       | Goal injected into the prompt template (plan and auto only; required) |
-| `-m`, `--model`      | Model to use (default depends on backend)                |
-| `-b`, `--backend`    | Backend to use: `claude`, `codex`, `copilot`, `pi` (default: `claude`) |
-| `--skip-push`        | Don't push after each build iteration (plan and review never push) |
-| `--dry-run`          | Print what would be executed without running              |
-| `--no-metrics`       | Don't record per-iteration metrics under `.ralph/metrics/` |
-| `-v`, `--verbose`    | Stream backend activity live, and show commands, exit codes and the raw stream path |
-| `-h`, `--help`       | Show help                                                |
-
-### Loop metrics
-
-Every real (non-dry-run) `plan`, `build` or `review` run records one JSON line per iteration to `.ralph/metrics/<branch>-<timestamp>-<pid>/metrics.jsonl`, alongside the raw backend event stream (`iter-NNN.stream.jsonl`) for deeper analysis. Captured per iteration: wall-clock and API duration, turn count, cost (USD), token usage (input, output, cache read/write), git activity (commits, files changed, insertions/deletions), `IMPLEMENTATION_PLAN.md` items completed, a tool-call histogram, and a noop flag. The noop flag covers every nested repository beneath the workspace, while the git counts stay workspace-only, so an iteration that commits only in a nested repository records `noop: false` with 0 commits. The loop prints a one-line summary after each iteration, and `ralph metrics` prints the per-iteration table and run totals. Result-event fields are populated for the `claude` backend; other backends record timing and git activity with the rest as nulls. `.ralph/` is gitignored by `ralph init`, so metrics never touch the working tree the loop commits from.
-
-### Live backend output
-
-A normal run stays quiet while the backend works and prints one summary line per iteration, once the backend has exited. `--verbose` renders the backend's event stream as it arrives instead: one short line per tool call (`→ Bash ls -la`) and per assistant message, so a long iteration shows what it is doing while it does it. It also prints the backend command and the per-iteration exit codes, and points at the retained `iter-NNN.stream.jsonl` the live lines were rendered from instead of re-printing it.
-
-Live rendering needs a per-backend stream filter, which `claude` and `pi` ship. Backends without one (`codex`, `copilot`) keep the older form: `--verbose` dumps the raw stream after the iteration. `--no-metrics` does not disable live rendering; it only removes the retained path, so the iteration reports `Raw stream not retained` in place of a file to inspect. Rendered lines and diagnostics go to stderr, so the iteration summaries on stdout stay pipeable.
-
-### Examples
+## Quick start
 
 ```bash
-ralph sandbox                                       # enter devcontainer
-ralph sandbox --rebuild                             # rebuild and enter
-ralph sandbox clean                                 # remove the container
-ralph plan -g specs/checkout-flow.md                # plan from a spec file
-ralph plan -g "Migrate to hexagonal architecture"   # plan with a goal
-ralph build                                         # implement next item
-ralph build -n 10 -m sonnet                         # 10 iterations with sonnet
-ralph build -b codex                                # build using codex backend
-ralph plan -b codex -g "design the auth module"     # plan with codex
-ralph build --dry-run -b codex                      # dry-run with codex
-ralph build -b copilot -n 10                        # 10 iterations with copilot
-ralph build -b pi -n 10                             # 10 iterations with pi
-ralph build && ralph review && ralph build          # ship, audit, fix the findings
-ralph review -b codex                               # audit using codex backend
-ralph archive                                       # archive before starting fresh
-ralph init                                          # initialise workspace
-ralph init --prompts                                # also copy prompts for customisation
-```
+git clone git@github.com:marc0der/ralph.git && cd ralph && ./install.sh
 
-`plan` and `auto` require `-g`: both derive their work from the goal, and each exits 1 without one. The goal is a sentence or a path to a specification anywhere beneath the workspace root. `build` and `review` refuse `-g` and exit 1 when given it — their input is `IMPLEMENTATION_PLAN.md`, so a goal cannot change what they do.
-
-## Sandbox
-
-The sandbox runs your project inside a devcontainer — an isolated environment with Claude Code, Codex CLI, GitHub Copilot CLI, Node.js 20, Bun, uv, SDKMAN, Docker CLI, and development tools pre-installed. The active backend runs as a non-root user with its backend-specific permission-bypass flag enabled.
-
-### Prerequisites
-
-- **Docker** (rootful) — rootless Docker is not supported
-- **devcontainer CLI** — install with `npm install -g @devcontainers/cli`
-
-### Usage
-
-```bash
 cd your-project
-ralph sandbox              # start or reuse container, drop into zsh
-ralph sandbox --rebuild    # rebuild image from scratch (after ralph updates)
-ralph sandbox clean        # remove the container for this project
+ralph sandbox                          # step into an isolated container
+ralph init                             # create the plan and progress files
+ralph plan -g specs/my-feature.md
+ralph build
 ```
 
-Each project gets its own container, automatically reused between sessions. Shell history persists across container recreations via a Docker volume.
+Or let it run the whole thing for you: `ralph auto -g specs/my-feature.md`.
 
-### What gets mounted
+You'll need Docker (rootful) and the devcontainer CLI (`npm install -g @devcontainers/cli`) for the sandbox, plus the CLI of whichever agent you use.
 
-| Source                    | Target                          | Mode      |
-|---------------------------|---------------------------------|-----------|
-| `~/.claude`               | `/home/node/.claude`            | read/write |
-| `~/.codex`                | `/home/node/.codex`             | read/write |
-| `~/.copilot`              | `/home/node/.copilot`           | read/write |
-| `~/.pi`                   | `/home/node/.pi`                | read/write |
-| `~/.gitconfig`            | `/home/node/.gitconfig`         | readonly  |
-| `~/.ssh`                  | `/home/node/.ssh`               | readonly  |
-| `~/.config/gh`            | `/home/node/.config/gh`         | readonly  |
-| Docker socket             | `/var/run/docker.sock`          | read/write |
-| SSH agent socket           | `/tmp/ssh-agent.sock`           | read/write |
-| `ralph` binary            | `/usr/local/bin/ralph`          | readonly  |
-| ralph config dir           | `/home/node/.config/ralph`      | readonly  |
+## How it works
 
-Optional mounts (`~/.ssh`, `~/.config/gh`, `~/.codex`, `~/.copilot`, `~/.pi`, SSH agent) are skipped if the source doesn't exist on the host. `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GH_TOKEN`, and `GITHUB_TOKEN` are forwarded into the container when set on the host. When neither `GH_TOKEN` nor `GITHUB_TOKEN` is set, ralph derives the token from `gh auth token` so keyring-stored `gh auth login` sessions propagate into the container (modern `gh` keeps the token in the OS keyring, which the `~/.config/gh` mount alone cannot carry). If `gh` is installed but logged out, ralph prints a warning and starts the sandbox without GitHub CLI authentication.
+```
+  spec ──▶  plan  ──▶  build  ──▶  review  ──▶  build
+             │           │           │            │
+          writes     ticks off      adds        fixes
+             │           │        findings        │
+             ▼           ▼           ▼            ▼
+      ═════════════ IMPLEMENTATION_PLAN.md ═════════════
+```
 
-### SDKMAN
+An agent forgets everything between sessions, so ralph keeps its memory in two files:
 
-SDKMAN is installed but no JDK is pre-installed. If your project uses a `.sdkmanrc`, install the declared JDK inside the sandbox:
+- **`IMPLEMENTATION_PLAN.md`** is the to-do list. `plan` writes it, `build` ticks items off, and `review` adds whatever it finds.
+- **`PROGRESS.md`** is the diary. Every pass writes down what it did, what it learned and what broke.
+
+Each command stops by itself when there's nothing left to do. `build` stops when two passes in a row commit nothing, and `plan` and `review` stop when a pass leaves the plan unchanged.
+
+The three phases have different jobs:
+
+- **`plan`** reads your spec and the code, and writes small, self-contained tasks. It needs a goal: a spec file, a directory, or a sentence.
+- **`build`** picks the next open task, implements it, runs the tests, commits and pushes. It sizes itself to the plan: one pass per open task, plus 20% headroom.
+- **`review`** audits the finished work against the specs the plan cited, and adds what it finds as new tasks, at most ten open at a time. It only runs once every task has shipped.
+
+A capable model writing the plan and a cheaper one following it works well:
 
 ```bash
-sdk env install
+ralph plan -g specs/checkout-flow.md   # default model writes the plan
+ralph build -m sonnet                  # a cheaper model follows the steps
 ```
 
-## Prompt resolution
+*The name comes from the [Ralph Wiggum pattern](https://github.com/ghuntley/how-to-ralph-wiggum) and Ralph's cheerful "I'm helping!", which is an agent working through a list without needing its hand held.*
 
-Ralph looks for prompts in this order:
+## Running unattended
 
-1. **Project-local** — `PROMPT_plan.md` / `PROMPT_build.md` / `PROMPT_review.md` in the working directory
-2. **Installed defaults** — `~/.config/ralph/prompts/plan.md` / `build.md` / `review.md`
-
-The default prompts reference Anthropic model names (Sonnet, Opus) for subagent selection. If you're using a non-Claude backend, run `ralph init --prompts` to copy the defaults into your project and edit them to suit your backend.
-
-## Project artifacts
-
-Ralph iterations create and maintain these files in your project:
-
-| File                     | Purpose                                                       |
-|--------------------------|---------------------------------------------------------------|
-| `CLAUDE.md`              | Operational guardrails for the Claude backend — build commands, conventions, project rules. Read by every iteration to orient the agent. You maintain this file; ralph does not create or modify it |
-| `AGENTS.md`              | Operational guardrails for the Codex backend — equivalent of `CLAUDE.md` for codex projects |
-| `IMPLEMENTATION_PLAN.md` | Prioritised task list — shared state between iterations       |
-| `PROGRESS.md`            | Append-only log of what each iteration did, learned, and broke|
-| `specs/`                 | Feature specifications driving the work                       |
-
-**Note:** `CLAUDE.md` and `AGENTS.md` are your project's own configuration files for Claude Code and Codex respectively — ralph reads them but never creates or modifies them. The prompt templates reference both files so each backend gets relevant project-specific guidance.
-
-`PROMPT_plan.md`, `PROMPT_build.md` and `PROMPT_review.md` are optional project-local prompt overrides (see [Prompt resolution](#prompt-resolution)).
-
-### Meta repositories
-
-A meta repository is a workspace that holds a sync script and a manifest, clones each service into a gitignored directory such as `source/`, and carries no service code of its own. Ralph supports that shape alongside the single-service repository:
-
-- **Ralph watches every git repository beneath the workspace**, not only the workspace's own `HEAD`, and the scan follows symlinks — a `source -> /shared/checkouts` link is watched as if the clones sat under `source/`. So the noop exit reads an iteration that commits only inside `source/svc` as progress. The scan stops at depth 6.
-- **Ralph pushes the workspace only.** A meta repository often has no `origin`, so the push block prints `No 'origin' remote — skipping push.` and continues instead of failing the run; a workspace with no commit yet skips the same way. A push that git actually rejects is still a failure.
-- **The agent commits and pushes inside the repository that owns each file.** `prompts/build.md` resolves each changed path to its repository with `git -C <dir> rev-parse --show-toplevel`, then runs every git command there, the push included. Ralph itself pushes nothing nested.
-- **The artifacts live at the workspace root.** `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` sit in the directory ralph runs in and nowhere else. Ralph substitutes that absolute path into the prompts' `{{WORKSPACE}}` placeholder, so the agent never resolves the two files against whatever directory the goal happens to name. The goal may name a specification anywhere beneath the root: a feature that belongs to one service is specified inside that service's clone, and a feature that spans several nodes is specified in the workspace's own `specs/`. Only these two artifacts are anchored — `specs/`, `AGENTS.md` and `CLAUDE.md` stay relative, because the ones that matter are those of the repository that owns the path in hand.
-
-Write the workspace's `CLAUDE.md` (or `AGENTS.md`) for that split: name each service's own conventions file, so the agent reads it before it commits there. Where the sync script pins shas and leaves each clone on a detached `HEAD`, name the branch the agent is to commit on.
-
-### The implementation plan contract
-
-`specs/` states **what** to build. `IMPLEMENTATION_PLAN.md` states **how** to build it. The plan is a work queue, not a scratchpad — every line in it is an instruction or a pass/fail criterion. Outcomes, evidence and learnings go to `PROGRESS.md`; decisions and their reasoning go to `specs/`.
-
-Each item uses six fields and nothing else:
-
-```markdown
-- [ ] **Retarget the polkit agent to the Sway session**
-  Spec: `specs/plasma-sway-remnants.md` item 3
-  Scope: Add a session-target option. Do not change the Plasma agent.
-  Files: `modules/home/keyring-services.nix`, `hosts/neomorph/home.nix`
-  Steps:
-  1. Add `polkitSessionTarget` to `keyring-services.nix`. Default it to `graphical-session.target`.
-  2. Set `polkitSessionTarget` to `sway-session.target` in `hosts/neomorph/home.nix`.
-  Done when: Two `NRestarts` reads 30 seconds apart return the same number.
-```
-
-- **At most 150 words, 14 lines and 8 steps per item.** An item needing a ninth step is too large for one build iteration and gets split.
-- **Steps name greppable tokens** — symbols, option paths, literal values, files to copy an idiom from. Never line numbers, never pasted code, because an item runs many commits after it is written.
-- **The plan may end with a verification item.** Where `AGENTS.md`, `CLAUDE.md` or the goal names a full-verification command, the planning phase keeps one final open item that runs it over the accumulated work — it cites `AGENTS.md verification gate` instead of a spec, and it is the one item whose criterion is a whole-suite run. Where no such command is named, the plan carries no verification item.
-- **`Done when` must be checkable without a human.** A criterion needing a fresh login or a visual check belongs in the spec's acceptance criteria, not the plan — an item nobody can verify never completes, and the build loop selects it forever.
-- **Items are written in [Simplified Technical English](https://www.asd-ste100.org/)** — one instruction per sentence, 20 words maximum, active imperative present tense.
-
-Markers are `- [ ]` open, `- [x]` shipped, and `- [~]` superseded or blocked. Only `- [ ]` sizes the build loop, so a superseded item neither inflates the iteration count nor counts as shipped work.
-
-The plan phase authors and refines items freely, inserting and reordering to keep position meaningful. **Once the build phase starts, items are immutable** — a build iteration may only tick a checkbox or append a new item at the end. When an item turns out to be wrong or its spec contradicts it, the build agent marks it `- [~]`, records why in `PROGRESS.md`, and moves on; the next planning run writes the replacement.
-
-This split assumes a capable model writes the plan and a cheaper one executes it. Use `-m` to match:
+`ralph auto` runs the whole cycle in one go: `archive`, `init`, `plan`, `build`, `review`, and a final `build` to fix what review found.
 
 ```bash
-ralph plan -g specs/checkout-flow.md   # default model authors the plan
-ralph build -n 10 -m sonnet            # a cheaper model follows the steps
+ralph auto -g specs/checkout-flow.md
 ```
+
+- **It skips what has nothing to do.** A build with no open tasks, or a review with unfinished work, is skipped rather than failed.
+- **It only runs in a container.** Outside one it refuses to start. Pass `--force` if your runner is already isolated.
+- **It tells you what happened.** At the end you get a `Lifecycle summary`, one row per phase: ran, skipped and why, failed, or not reached.
+- **It can pick up where it stopped.** After a failure or `Ctrl-C`, fix the problem and run `ralph auto --resume -g specs/checkout-flow.md`. It never re-runs `archive` or `init`.
+
+`--dry-run` shows the six commands it would run, without running any. Every phase gets your `-m`, `-b`, `--skip-push`, `--no-metrics` and `-v` flags. Only `-n` is refused, because each phase sizes itself.
+
+## Day to day
 
 ### Starting a new goal
 
-Run `ralph review` before `archive` or `clean` — both remove `IMPLEMENTATION_PLAN.md`, which is the only record of which specs the cycle worked from, so a closed-out cycle can no longer be audited.
-
-The new goal goes on the `plan` command line, because `plan` requires `-g`. The `build` and `review` runs that follow take no goal — they read the plan that pass wrote.
-
-When switching to a new goal, clear out stale artifacts first:
+Finish the old cycle with `ralph review` first, because the plan is the only record of which specs it covered. Then clear the way:
 
 ```bash
-ralph archive                                    # move to .ralph/<timestamp>/
+ralph archive                  # keep the old plan and progress under .ralph/
 ralph plan -g "New goal"
 ```
 
-Or if you don't need the history:
+Use `ralph clean` instead of `archive` if you don't need the history.
+
+### Choosing an agent and model
 
 ```bash
-ralph clean                                      # delete artifacts
-ralph plan -g "New goal"
+ralph build -b codex           # use Codex
+ralph build -b copilot -n 10   # use Copilot, at most 10 passes
+ralph build -m sonnet          # use a different model
 ```
 
-Archived artifacts are stored under `.ralph/` in your project directory, organised by timestamp.
+| Backend   | Default model               |
+|-----------|-----------------------------|
+| `claude`  | `opus`                      |
+| `codex`   | `gpt-5.2-codex`             |
+| `copilot` | `claude-sonnet-4.6`         |
+| `pi`      | `anthropic/claude-opus-4-8` |
 
-## Commit conventions
+### Watching a run
 
-`prompts/build.md` states the commit procedure itself, so every backend follows the same rules with no harness-specific mechanism:
+A normal run prints one line per pass. Add `-v` to watch the agent work as it happens: one line per tool call and per message. (For Codex and Copilot, `-v` prints the raw output after each pass.)
 
-- **[Conventional Commits](https://www.conventionalcommits.org/)** — `<type>(<scope>): <short imperative subject>`
-- **Atomic** — separable concerns become separate commits, even within a single build iteration
-- **Selective staging** — only the paths belonging to the current commit are staged; never `git add -A`
-- **Optional short body** — up to 3 bulleted lines summarising what was implemented, only when the subject isn't self-explanatory
-- Loop-local artifacts (`IMPLEMENTATION_PLAN.md`, `PROGRESS.md`, `PROMPT_*.md`, `.ralph/`) are never staged
+Every run also keeps a record under `.ralph/metrics/`: how long each pass took, what it cost, and what it committed. Run `ralph metrics` to see the latest run as a table. Cost and token counts are recorded for the `claude` backend only.
 
-To use different conventions, copy the prompt into your project with `ralph init --prompts` and edit `PROMPT_build.md`.
+### When something goes wrong
 
-## Permissions and safety
+Just run the command again. All a pass needs is the plan and the progress log, so the next `build` carries on from wherever the last one stopped. If a push is rejected, pull and resolve the conflict yourself, then re-run.
 
-Ralph runs backends in non-interactive pipe mode, which cannot prompt for tool approval. Each backend has its own permission-bypass flag (`--dangerously-skip-permissions` for Claude, `--dangerously-bypass-approvals-and-sandbox` for Codex, `--yolo` for Copilot), and ralph applies the appropriate one automatically.
+## Sandbox and safety
 
-**Inside the sandbox** (`$DEVCONTAINER=true`), this is the intended setup — the container's isolation provides a safety boundary, so unrestricted tool access is acceptable.
-
-**Outside a container**, ralph will print a prominent warning on each run. Use `ralph sandbox` to run inside a devcontainer for safer execution.
-
-## Configuration
-
-| Variable           | Default              | Description                     |
-|--------------------|----------------------|---------------------------------|
-| `RALPH_BIN_DIR`    | `~/.local/bin`       | Where to install the CLI        |
-| `RALPH_CONFIG_DIR` | `~/.config/ralph`    | Where to store prompts and container config |
-
-### Model selection
-
-The default model depends on the selected backend:
-
-- `claude` backend: `opus`
-- `codex` backend: `gpt-5.2-codex`
-- `copilot` backend: `claude-sonnet-4.6`
-- `pi` backend: `anthropic/claude-opus-4-8`
-
-The `-m` flag overrides the default for whichever backend is active:
+Agents run headless, so they can't stop and ask before running a command. Ralph turns on each agent's "don't ask" mode (`--dangerously-skip-permissions`, `--yolo` and friends; pi needs none). That's only safe somewhere the agent can't do damage, which is what the sandbox is for.
 
 ```bash
-ralph build -m sonnet                         # faster and cheaper (claude backend)
-ralph plan -m opus -g specs/checkout-flow.md  # better for complex reasoning (claude backend)
-ralph build -b codex                          # uses gpt-5.2-codex by default
-ralph build -b codex -m o3                    # override codex model
-ralph build -b copilot                        # uses claude-sonnet-4.6 by default
+ralph sandbox              # start or reuse this project's container
+ralph sandbox --rebuild    # rebuild the image, e.g. after updating ralph
+ralph sandbox clean        # remove the container
 ```
 
-## Development
+Each project gets its own container, with every supported agent, Node.js, Bun, uv, SDKMAN and the Docker CLI pre-installed. Your agent logins, git and GitHub config, SSH agent and API keys come with you. [docs/sandbox.md](docs/sandbox.md) lists exactly what is mounted and forwarded.
 
-Enter the Nix shell to get development dependencies (bats, shellcheck):
+Outside a container, ralph warns you and asks `Continue anyway? [y/N]` before it starts. Pass `-y` to skip the question. Scripts and CI, which have no terminal, go ahead without it.
 
-```bash
-nix-shell
-```
+## Customising
 
-Run tests and lint:
+**Your project's rules.** Ralph reads your `CLAUDE.md` or `AGENTS.md` on every pass, but never writes to it. Put your build and test commands, conventions and gotchas there. If it points to a directory of written rules, every phase follows those rules and review reports code that breaks them.
 
-```bash
-bats test/
-shellcheck ralph install.sh
-shellcheck test/*.bats test/test_helper.bash
-```
+**The prompts.** `ralph init --prompts` copies the prompts into your project as `PROMPT_plan.md`, `PROMPT_build.md` and `PROMPT_review.md`, where they override the installed ones. The defaults mention Claude model names, so edit them if you use another agent. A local copy doesn't update when ralph does, so refresh it after an upgrade.
+
+**Commit style.** The build prompt asks for small [Conventional Commits](https://www.conventionalcommits.org/), with only the relevant files staged. The plan, progress log and `.ralph/` are never committed. Edit `PROMPT_build.md` to change this.
+
+**Further reading:**
+- [docs/plan-format.md](docs/plan-format.md): what a plan item looks like and the rules it follows
+- [docs/meta-repositories.md](docs/meta-repositories.md): using ralph in a workspace that clones several services
+
+## Reference
+
+### Commands
+
+| Command             | What it does |
+|---------------------|--------------|
+| `plan`              | Turn a goal into `IMPLEMENTATION_PLAN.md`. Requires `-g`. At most 6 passes |
+| `build`             | Implement, test, commit and push the next open item (default: open items plus 20% headroom) |
+| `review`            | Audit the cycle's specs against the code and add findings as new items. At most 6 passes |
+| `auto`              | Run the whole lifecycle unattended: archive, init, plan, build, review, build. Requires `-g`; refuses to run outside a container |
+| `sandbox`           | Enter this project's devcontainer. `--rebuild` rebuilds the image |
+| `sandbox clean`     | Remove this project's devcontainer |
+| `init`              | Create `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and `specs/`. `--prompts` also copies the prompts |
+| `archive`           | Move the plan and progress log to `.ralph/<timestamp>/` |
+| `clean`             | Delete the plan and progress log |
+| `metrics`           | Summarise the latest run's metrics, or a given `metrics.jsonl` |
+| `version`           | Print the version |
+
+### Options (plan, build, review and auto)
+
+| Flag                 | Description |
+|----------------------|-------------|
+| `-g`, `--goal`       | The spec, directory or sentence to plan from. `plan` and `auto` only, and required there |
+| `-n`, `--iterations` | Maximum passes. In `build` it also stops the early exit. `auto` refuses it |
+| `-m`, `--model`      | Model to use (default depends on the backend) |
+| `-b`, `--backend`    | `claude`, `codex`, `copilot` or `pi` (default: `claude`) |
+| `--skip-push`        | Don't push after each build pass |
+| `--dry-run`          | Show what would run, without running it |
+| `--no-metrics`       | Don't record metrics under `.ralph/metrics/` |
+| `-v`, `--verbose`    | Stream the agent's activity live |
+| `-y`, `--yes`        | Skip the `Continue anyway? [y/N]` prompt outside a sandbox |
+| `--resume`           | `auto` only: continue from the phase that failed |
+| `--force`            | `auto` only: run outside a container |
+| `-h`, `--help`       | Show help |
+
+### Files
+
+| File                     | Purpose |
+|--------------------------|---------|
+| `IMPLEMENTATION_PLAN.md` | The task list shared between passes |
+| `PROGRESS.md`            | Append-only log of what each pass did, learned and broke |
+| `specs/`                 | Your specifications: what to build |
+| `CLAUDE.md`, `AGENTS.md` | Your project's rules for the agent. You own these |
+| `PROMPT_*.md`            | Optional project-local prompts |
+| `.ralph/`                | Archives, metrics and `auto` state. Gitignored by `ralph init` |
+
+### Environment
+
+| Variable           | Default           | Description |
+|--------------------|-------------------|-------------|
+| `RALPH_BIN_DIR`    | `~/.local/bin`    | Where `install.sh` puts the CLI |
+| `RALPH_CONFIG_DIR` | `~/.config/ralph` | Where prompts, templates and container config live |
 
 ## Troubleshooting
 
-**`claude` CLI not installed**
-Ralph requires the Claude Code CLI for the `claude` backend. Install it from https://docs.anthropic.com/en/docs/claude-code — ralph will exit with a clear error if it can't find `claude` in your PATH.
+**`ralph: command not found` after installing.** Add `~/.local/bin` to your `PATH`.
 
-**`codex` CLI not installed**
-Ralph requires the Codex CLI for the `codex` backend. Install it with `npm install -g @openai/codex` — ralph will exit with a clear error if it can't find `codex` in your PATH.
+**Ralph can't find the agent's CLI.** Install the one you're using: [Claude Code](https://docs.anthropic.com/en/docs/claude-code), `npm install -g @openai/codex`, `npm install -g @github/copilot` or `npm install -g @earendil-works/pi-coding-agent`.
 
-**`copilot` CLI not installed**
-Ralph requires the GitHub Copilot CLI for the `copilot` backend. Install it with `npm install -g @github/copilot` — ralph will exit with a clear error if it can't find `copilot` in your PATH.
+**The sandbox is broken or out of date.** Run `ralph sandbox clean`, then `ralph sandbox`. After updating ralph, use `ralph sandbox --rebuild`.
 
-**`pi` CLI not installed**
-Ralph requires the pi CLI for the `pi` backend. Install it with `npm install -g @earendil-works/pi-coding-agent` — ralph will exit with a clear error if it can't find `pi` in your PATH.
+**`sandbox` fails with `invalid mount config ... operation not supported`.** Your SSH agent socket can't be shared with Docker, which is common with Colima on macOS. Run `SSH_AUTH_SOCK="" ralph sandbox`. [docs/sandbox.md](docs/sandbox.md#ssh-agent-socket-cannot-be-mounted) explains why.
 
-**`ralph` not in PATH after install**
-The installer places `ralph` in `~/.local/bin` by default. Ensure this directory is in your PATH:
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
+**`build` never stops early.** Your tests probably create git repositories inside the project, which looks like progress on every pass. Create them under `$TMPDIR` instead.
 
-**Push rejected / diverged branch**
-If `git push` fails due to diverged history, pull and resolve conflicts manually, then re-run `ralph build` to continue.
+**Problems in a meta repository.** See [docs/meta-repositories.md](docs/meta-repositories.md#troubleshooting).
 
-**Resuming after a failed iteration**
-Just re-run `ralph build`. It picks up from the current state of `IMPLEMENTATION_PLAN.md` — no special recovery step is needed.
-
-**Build stops early in a meta repository**
-Check that `--skip-push` was not passed out of habit: ralph skips the push by itself when the workspace has no `origin`, and the flag also leaves real workspace commits unpushed. If the run still exits after two iterations while the agent is committing, check that no clone sits deeper than depth 6 below the workspace — the repository scan stops there, so a clone below it is invisible and its commits read as a noop.
-
-**Build never exits early**
-A test suite that creates git repositories under the project tree reads as progress on every iteration, because a `.git` that appears or vanishes between two snapshots is a change. The noop exit then never fires and the run reaches its iteration cap. Write such fixtures under `$TMPDIR` instead of under the workspace.
-
-**Plan converged after one pass and the plan is empty**
-The agent wrote the plan somewhere else. A prompt with no `{{WORKSPACE}}` anchor names `IMPLEMENTATION_PLAN.md` by a bare relative path, so a goal such as `-g source/svc/specs/FT-008.md` resolves it against that service's directory and a complete plan lands there. The run then reports convergence, because `plan_state_hash` fingerprints the root `IMPLEMENTATION_PLAN.md` and the root `specs/` and the pass changed neither. Update the bundled prompts by re-running `install.sh`, then delete or refresh any project-local `PROMPT_*.md` — a local copy overrides the bundled one and goes stale without saying so.
-
-**Sandbox container is stale or broken**
-Remove it and start fresh:
-```bash
-ralph sandbox clean
-ralph sandbox
-```
-
-**Sandbox image needs updating**
-After updating ralph, rebuild the container image:
-```bash
-ralph sandbox --rebuild
-```
-
-**`devcontainer` CLI not installed**
-Install it with npm:
-```bash
-npm install -g @devcontainers/cli
-```
-
-**`sandbox` fails with `invalid mount config for type "bind": ... operation not supported`**
-
-Ralph bind-mounts `$SSH_AUTH_SOCK` into the container so git operations can reuse your host's ssh-agent. This fails when the socket lives at a path the Docker runtime's VM cannot bind-mount — either because the path is outside the VM's shared filesystem, or because the socket is a kernel-managed endpoint (e.g. a launchd-created socket on macOS) that doesn't survive the virtfs passthrough.
-
-The symptom is a `docker run` error naming the SSH agent path, for example:
-
-```
-invalid mount config for type "bind": stat /private/tmp/com.apple.launchd.XXXXXX/Listeners: operation not supported
-```
-
-When this happens, depends on your setup:
-
-- **macOS + Colima** — affected. Colima runs Docker inside a Lima VM that only mounts `$HOME` by default, and macOS's default `$SSH_AUTH_SOCK` points at a launchd socket under `/private/tmp/com.apple.launchd.*` which is neither mounted nor bind-mountable.
-- **macOS + Docker Desktop** — not typically affected. Docker Desktop intercepts `$SSH_AUTH_SOCK` and provides a magic `/run/host-services/ssh-auth.sock` passthrough.
-- **macOS + Rancher Desktop / OrbStack / other Lima-based runtimes** — likely affected for the same reason as Colima.
-- **Linux** — not affected. Docker runs natively on the host filesystem.
-
-Workaround: run ralph with an empty `SSH_AUTH_SOCK` so the mount is skipped. Git inside the container will fall back to the read-only `~/.ssh` bind mount (fine for key-based auth without a passphrase):
+## Development
 
 ```bash
-SSH_AUTH_SOCK="" ralph sandbox
+nix-shell                      # provides bats and shellcheck
+bats test/
+shellcheck ralph install.sh
+shellcheck test/*.bats test/test_helper.bash
 ```
