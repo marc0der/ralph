@@ -32,12 +32,15 @@ Ralph is a single Bash script (`ralph`) with these commands:
 | Command | Purpose |
 |---------|---------|
 | `plan` | Run planning loop (max 6 iterations, exits on convergence) — requires a goal (`-g`), reads specs/source, produces `IMPLEMENTATION_PLAN.md` |
-| `build` | Run build loop (default: 50 iterations) — picks next task, implements, tests, commits, pushes |
-| `review` | Run review loop (max 6 iterations, exits on convergence) — audits `- [x]` items against the plan items that produced them, files findings as new `- [ ]` items |
+| `build` | Run build loop (default: open items plus 20% headroom) — picks next task, implements, tests, commits, pushes |
+| `review` | Run review loop (max 6 iterations, exits on convergence) — audits the cycle's cited specs against the tree and the cycle's commits, files findings as new `- [ ]` items |
 | `sandbox` | Enter/manage devcontainer (`sandbox`, `sandbox clean`, `sandbox --rebuild`) |
 | `init` | Initialize workspace artifacts and directories |
 | `archive` | Move artifacts to `.ralph/<timestamp>/` |
 | `clean` | Delete artifacts |
+| `auto` | Run `archive`, `init`, `plan`, `build`, `review`, `build` as child processes — requires `-g`, rejects `-n`, skips a phase whose guard fails, refuses to run outside a container without `--force`, records a failure or interrupt in `.ralph/auto-state` for `--resume` |
+| `metrics` | Summarise a run's `metrics.jsonl`, the latest run by default |
+| `version` | Print the version |
 
 ### Core loop flow (`cmd_loop`)
 
@@ -50,6 +53,8 @@ Ralph is a single Bash script (`ralph`) with these commands:
 7. Detect an early exit. Build mode watches every git repository beneath the workspace, not just the workspace's own `HEAD`, and stops after 2 consecutive iterations in which none of them moved, unless `-n` was passed. `repo_state` builds that listing before and after each pass. Plan and review mode never commit, so `mode_converges_on_plan` routes both through the same check: they fingerprint `IMPLEMENTATION_PLAN.md` plus `specs/` via `plan_state_hash` and stop on the first pass that changes neither; `-n` caps such a run but never disables the check. `convergence_message` derives the exit line from the mode, so a converged review also reports how many specs it audited
 
 Build and review each carry a hard precondition that runs unconditionally beside `require_init_artifacts`, before `hard_override` decides the iteration count. `require_open_items` stops a build whose plan holds no `- [ ]` item. `require_review_preconditions` stops a review unless both artifacts exist, at least one item is `- [x]`, no item is `- [ ]`, and at least one `Spec:` field cites a `specs/` path — review audits a fully shipped plan, so pending work goes through `build` first, and it audits the specs that plan cited, so a plan citing none leaves it nothing to read.
+
+`auto`'s phase guards call `have_open_items`, `have_shipped_items` and `have_cited_specs`, the same predicates `require_open_items` and `require_review_preconditions` use, so `auto` never starts a child that exits 1 on a gate, and a change to either hard stop changes its guard with it. The artifact-presence check is the exception: `cmd_auto` duplicates it inline, so keep it in step with `require_init_artifacts` by hand.
 
 ### The implementation plan contract
 
@@ -68,8 +73,9 @@ Review's authority over the plan is additive. It appends items, and it never re-
 ### Sandbox
 
 Uses the `devcontainer` CLI to manage container lifecycle. Key details:
-- Base image: Node.js 20 with Claude Code, gh, git, zsh, jq, ripgrep, Bun, uv, SDKMAN
-- Mounts: workspace, `~/.claude`, `~/.gitconfig`, `~/.ssh`, Docker socket, SSH agent, ralph binary
+- Base image: Node.js 20 with Claude Code, Codex CLI, Copilot CLI, pi, Docker CLI, gh, git, zsh, jq, ripgrep, Bun, uv, SDKMAN
+- Mounts: workspace, `~/.claude` (with `settings.json` read-only), `~/.codex`, `~/.copilot`, `~/.pi`, `~/.gitconfig`, `~/.ssh`, `~/.config/gh`, Docker socket, SSH agent, optional GPG agent socket with `pubring.kbx`, ralph binary, ralph config dir
+- Forwards API keys and a GitHub token, deriving `GH_TOKEN` from `gh auth token` when neither token is set
 - Shell history persists via Docker volumes keyed by a hash of the workspace path
 - Runs as `node` user with passwordless sudo
 
