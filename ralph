@@ -769,6 +769,31 @@ write_cycle_base() {
     repo_state > "$CYCLE_BASE_FILE"
 }
 
+# List the paths the cycle changed, relative to the workspace root, one per line.
+# A repository commitless at the base or created after it counts all its tracked files.
+cycle_changed_files() {
+    local repo sha path
+    {
+        while read -r repo sha; do
+            if [[ "$sha" == "-" ]]; then
+                git -C "$repo" ls-files 2>/dev/null
+            else
+                git -C "$repo" diff --name-only "$sha" HEAD 2>/dev/null
+            fi | while IFS= read -r path; do
+                path="$repo/$path"
+                echo "${path#./}"
+            done
+        done < "$CYCLE_BASE_FILE"
+        while read -r repo sha; do
+            cut -d' ' -f1 "$CYCLE_BASE_FILE" | grep -qxF -- "$repo" && continue
+            git -C "$repo" ls-files 2>/dev/null | while IFS= read -r path; do
+                path="$repo/$path"
+                echo "${path#./}"
+            done
+        done < <(repo_state)
+    } | LC_ALL=C sort -u
+}
+
 truncate_line() {
     local text="$1" max="$2"
     if [[ ${#text} -gt $max ]]; then
