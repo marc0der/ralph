@@ -358,7 +358,7 @@ on_iteration() {
     [[ "$output" == *"Completed 1 iterations"* ]]
 }
 
-@test "review converges while a nested repository moves" {
+@test "review runs one pass while a nested repository moves" {
     "$RALPH" init
     printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     nested_repo "source/svc"
@@ -367,6 +367,6 @@ on_iteration() {
     seed_cycle_base
     TARGET_REPO="source/svc" PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Review converged — pass 1 found nothing new"* ]]
+    [[ "$output" == *"Review filed 0 findings. Reviewed 1 specs and 0 changed files."* ]]
     [[ "$output" == *"Completed 1 iterations"* ]]
 }

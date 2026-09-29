@@ -177,7 +177,7 @@ MOCK
     [[ "$output" == *"Completed 1 iteration"* ]]
 }
 
-@test "review exits on the first pass that changes nothing" {
+@test "review prints the exit line after a pass that changes nothing" {
     "$RALPH" init
     printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     mkdir -p "$TEST_DIR/bin"
@@ -192,8 +192,7 @@ MOCK
     seed_cycle_base
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Review converged — pass 1 found nothing new"* ]]
-    [[ "$output" == *"Audited 1 specs"* ]]
+    [[ "$output" == *"Review filed 0 findings. Reviewed 1 specs and 0 changed files."* ]]
     [[ "$output" == *"Completed 1 iterations"* ]]
 }
 
@@ -213,7 +212,36 @@ MOCK
     seed_cycle_base
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Audited 2 specs"* ]]
+    [[ "$output" == *"Reviewed 2 specs"* ]]
+}
+
+@test "review exit line counts filed findings and the cycle's changed files" {
+    # Ralph counts the open items after the pass and every path changed since
+    # the base, including all tracked files of a repository created after it.
+    "$RALPH" init
+    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
+    seed_cycle_base
+    echo a > a.txt
+    git add a.txt
+    git commit -m "cycle work" --quiet
+    mkdir -p source/svc
+    git -C source/svc init --quiet
+    echo b > source/svc/b.txt
+    echo c > source/svc/c.txt
+    git -C source/svc add b.txt c.txt
+    git -C source/svc -c user.email=n@test.com -c user.name=N commit -m "nested" --quiet
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+printf -- '- [ ] **Critical: one**\n- [ ] **Major: two**\n' >> IMPLEMENTATION_PLAN.md
+echo '{"type":"result","result":"reviewing"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Review filed 2 findings. Reviewed 1 specs and 3 changed files."* ]]
 }
 
 @test "review never pushes even without --skip-push (no remote configured)" {

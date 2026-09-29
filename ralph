@@ -710,17 +710,9 @@ mode_converges_on_plan() {
     esac
 }
 
-# Review also reports the size of the anchor set it swept: a clean review
-# changes no file and records a metrics line of zeros, which is otherwise
-# indistinguishable from a backend that read the prompt and did nothing. Ralph
-# counts the cited specs itself rather than trusting the agent's own claim.
 convergence_message() {
-    local mode="$1" iteration="$2"
-    if [[ "$mode" == "review" ]]; then
-        echo "Review converged — pass $iteration found nothing new. Audited $(cited_specs | grep -c '^' || true) specs."
-    else
-        echo "Plan converged — pass $iteration changed nothing. Exiting early."
-    fi
+    local iteration="$1"
+    echo "Plan converged — pass $iteration changed nothing. Exiting early."
 }
 
 # Fingerprint the artifacts a plan iteration is allowed to change.
@@ -1662,14 +1654,15 @@ cmd_loop() {
 
         # Early exit. Build mode watches every git repository beneath the
         # workspace and tolerates one noop; -n overrides it.
-        # Plan and review never commit (IMPLEMENTATION_PLAN.md is gitignored), so
-        # they watch the plan artifacts instead. A pass that changes nothing has
+        # Plan never commits (IMPLEMENTATION_PLAN.md is gitignored), so it
+        # watches the plan artifacts instead. A pass that changes nothing has
         # converged, and there is no second-chance iteration to wait for: -n caps
-        # such a run but never disables the check.
-        if ! $dry_run; then
+        # such a run but never disables the check. Review runs one pass, so it
+        # has no early exit.
+        if ! $dry_run && [[ "$mode" != "review" ]]; then
             if mode_converges_on_plan "$mode"; then
                 if [[ "$plan_state_before" == "$plan_state_after" ]]; then
-                    echo -e "\n$(convergence_message "$mode" "$iteration")"
+                    echo -e "\n$(convergence_message "$iteration")"
                     break
                 fi
             elif ! $hard_override; then
@@ -1685,6 +1678,16 @@ cmd_loop() {
             fi
         fi
     done
+
+    # Ralph counts these itself, so a clean review stays distinguishable from a
+    # backend that did nothing.
+    if [[ "$mode" == "review" ]] && ! $dry_run; then
+        local findings specs changed
+        findings=$(count_plan_items '^- \[ \]')
+        specs=$(cited_specs | grep -c '^' || true)
+        changed=$(cycle_changed_files | grep -c '^' || true)
+        echo -e "\nReview filed $findings findings. Reviewed $specs specs and $changed changed files."
+    fi
 
     echo -e "\nCompleted $iteration iterations."
     if $metrics_enabled && [[ -s "$metrics_file" ]]; then
