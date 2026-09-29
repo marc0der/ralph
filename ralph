@@ -24,11 +24,8 @@ done
 RALPH_SELF="$(cd -P "$(dirname "$RALPH_SELF")" && pwd)/$(basename "$RALPH_SELF")"
 
 # `auto` lifecycle state (specs/auto-lifecycle.md §5, §2).
-# shellcheck disable=SC2034  # Consumed by cmd_auto in a later change.
 AUTO_STATE_FILE="$ARCHIVE_DIR/auto-state"
-# shellcheck disable=SC2034  # Consumed by cmd_auto in a later change.
 RALPH_PHASES=(archive init plan build review build)
-# shellcheck disable=SC2034  # Consumed by cmd_auto in a later change.
 RESUME_FLOOR=3
 
 # Path of the per-run raw stream temp file, or empty when there is none.
