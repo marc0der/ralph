@@ -13,7 +13,7 @@ A falsifiable claim that the tree fails a named standard, filed as a plan item f
 _Avoid_: Issue, observation, nit
 
 **Cycle**:
-One pass of work from plan through the last build, ending when the artifacts are archived.
+One pass of work from plan through the last build, ending when the artifacts are archived or cleaned.
 _Avoid_: Run, iteration
 
 **Cycle base**:
@@ -29,7 +29,7 @@ A finding's rank by consequence, whatever its standard. Critical: wrong behaviou
 _Avoid_: Priority, level
 
 **Lens**:
-One standard's view of the cycle's work, examined separately and merged with the others before anything is filed.
+One group of standards' view of the cycle's work, examined separately and merged with the others before anything is filed.
 _Avoid_: Slice, subagent, check
 
 **Finding kind**:
