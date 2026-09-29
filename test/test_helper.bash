@@ -97,8 +97,14 @@ seed_open_item() {
 # lifecycle test that wants phase 5/6 to run must seed a shipped item.
 seed_shipped_item() {
     echo "- [x] **Shipped task**" >> IMPLEMENTATION_PLAN.md
-    # Review also gates on a cited spec: the anchor set comes from 'Spec:' fields.
     echo "  Spec: specs/mock.md item 1" >> IMPLEMENTATION_PLAN.md
+}
+
+# Helper: write a cycle base in repo_state format. Review hard-stops without
+# .ralph/cycle-base, which build writes, so a review test that skips build seeds it.
+seed_cycle_base() {
+    mkdir -p .ralph
+    printf '. %s\n' "$(git rev-parse -q --verify HEAD || echo -)" > .ralph/cycle-base
 }
 
 # Helper: phase-aware, committing mock backend. Unlike create_streaming_backend

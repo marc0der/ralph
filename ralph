@@ -591,7 +591,7 @@ resolve_prompt() {
     fi
 }
 
-# Review needs PROGRESS.md as well as the plan: it writes supersession entries
+# Review needs PROGRESS.md as well as the plan: it writes its review entry
 # there, so the second requirement is real and not symmetry.
 require_init_artifacts() {
     local mode="$1"
@@ -645,18 +645,14 @@ cited_specs() {
     }' | LC_ALL=C sort -u
 }
 
-# Predicates shared by require_open_items, require_review_preconditions and
-# auto's guards, so every caller asks "can this mode run?" the same way.
+# Plan predicates shared by require_open_items, require_review_preconditions
+# and auto's guards, so every caller asks "can this mode run?" the same way.
 have_open_items() {
     [[ "$(count_plan_items '^- \[ \]')" -gt 0 ]]
 }
 
 have_shipped_items() {
     [[ "$(count_plan_items '^- \[x\]')" -gt 0 ]]
-}
-
-have_cited_specs() {
-    [[ -n "$(cited_specs)" ]]
 }
 
 # Refuse to start a build against a plan with nothing left to do.
@@ -687,11 +683,10 @@ require_review_preconditions() {
         exit 1
     fi
 
-    # Review measures the tree against the specs the cycle worked from, so an
-    # uncited plan leaves it no standard to audit against.
-    if ! have_cited_specs; then
-        echo "Error: no Spec: field cites a specs/ path in IMPLEMENTATION_PLAN.md." >&2
-        echo "Review audits the cycle's specs. Run 'ralph plan' to anchor the items on them." >&2
+    # The cycle base bounds the cycle's work; without it review has no range.
+    if [[ ! -f "$CYCLE_BASE_FILE" ]]; then
+        echo "Error: .ralph/cycle-base is missing; review cannot bound the cycle's work." >&2
+        echo "Run 'ralph build' first; build writes .ralph/cycle-base." >&2
         exit 1
     fi
 }
@@ -1857,7 +1852,7 @@ cmd_auto() {
                     phase_state[phase_num]="skipped — no shipped items"; continue
                 elif have_open_items; then
                     phase_state[phase_num]="skipped — $(count_plan_items '^- \[ \]') open items remain"; continue
-                elif ! have_cited_specs; then
+                elif [[ -z "$(cited_specs)" ]]; then
                     phase_state[phase_num]="skipped — no cited specs"; continue
                 fi ;;
         esac

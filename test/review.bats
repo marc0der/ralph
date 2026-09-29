@@ -22,6 +22,7 @@ latest_metrics_file() {
 @test "review runs against a plan of shipped items" {
     "$RALPH" init
     printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
+    seed_cycle_base
     run "$RALPH" review --dry-run -n 1
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
@@ -89,76 +90,31 @@ latest_metrics_file() {
     # nor open, so it must not gate a review run either way.
     "$RALPH" init
     printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n- [~] **Superseded task**\n' >> IMPLEMENTATION_PLAN.md
+    seed_cycle_base
     run "$RALPH" review --dry-run -n 1
     [[ "$status" -eq 0 ]]
 }
 
-@test "review fails when no item cites a specs/ path" {
-    # The cited specs are review's anchor set. Without one it has no standard
-    # to measure the tree against, and falls back to auditing the plan.
-    printf -- '- [x] **Shipped task**\n' > IMPLEMENTATION_PLAN.md
-    touch PROGRESS.md
+@test "review fails without .ralph/cycle-base" {
+    # The cycle base bounds the cycle's work. Without it review cannot tell
+    # this cycle's changes from the rest of the tree.
+    "$RALPH" init
+    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     run "$RALPH" review
     [[ "$status" -ne 0 ]]
-    [[ "$output" == *"cites a specs/ path"* ]]
-    [[ "$output" == *"Run 'ralph plan'"* ]]
+    [[ "$output" == *".ralph/cycle-base is missing"* ]]
+    [[ "$output" == *"Run 'ralph build' first"* ]]
 }
 
-@test "review runs when a shipped item cites a specs/ path" {
-    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' > IMPLEMENTATION_PLAN.md
-    touch PROGRESS.md
-    run "$RALPH" review --dry-run -n 1
-    [[ "$status" -eq 0 ]]
-    [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
-}
-
-@test "review fails when only a Files field names a specs/ path" {
-    # The anchor set comes from 'Spec:' alone. A 'Files:' path names something
-    # the item writes, which is the opposite of a standard to audit against.
-    # shellcheck disable=SC2016  # the backticks quote a plan citation, not a command substitution
-    printf -- '- [x] **Shipped task**\n  Files: `specs/mock.md`\n' > IMPLEMENTATION_PLAN.md
-    touch PROGRESS.md
-    run "$RALPH" review
-    [[ "$status" -ne 0 ]]
-    [[ "$output" == *"cites a specs/ path"* ]]
-}
-
-@test "review fails when the only citation is the verification gate" {
-    # The final verification item cites the guardrails file because it runs the
-    # whole suite. That names no spec, so it anchors no audit.
+@test "review runs when the only citation is the verification gate" {
+    # A plan citing no spec still ships code, and that code gets reviewed.
     # shellcheck disable=SC2016  # the backticks quote a plan citation, not a command substitution
     printf -- '- [x] **Run the gate**\n  Spec: `AGENTS.md verification gate`\n' > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
-    run "$RALPH" review
-    [[ "$status" -ne 0 ]]
-    [[ "$output" == *"cites a specs/ path"* ]]
-
-    # shellcheck disable=SC2016  # the backticks quote a plan citation, not a command substitution
-    printf -- '- [x] **Run the gate**\n  Spec: `CLAUDE.md verification gate`\n' > IMPLEMENTATION_PLAN.md
-    run "$RALPH" review
-    [[ "$status" -ne 0 ]]
-    [[ "$output" == *"cites a specs/ path"* ]]
-}
-
-@test "review fails when the only citation is a rules file" {
-    # A Minor finding cites the rule it breaks, not a spec. A plan holding only
-    # those has no clause stating what the cycle was meant to build.
-    # shellcheck disable=SC2016  # the backticks quote a plan citation, not a command substitution
-    printf -- '- [x] **Shipped task**\n  Spec: `rules/naming.md` rule `naming`\n' > IMPLEMENTATION_PLAN.md
-    touch PROGRESS.md
-    run "$RALPH" review
-    [[ "$status" -ne 0 ]]
-    [[ "$output" == *"cites a specs/ path"* ]]
-}
-
-@test "review fails on an init'd plan whose shipped item cites nothing" {
-    # The scaffolded '## Entry Format' exemplar cites 'specs/file.md'. It sits
-    # outside plan_items_body, so it must not satisfy the gate for a real item.
-    "$RALPH" init
-    printf -- '- [x] **Shipped task**\n' >> IMPLEMENTATION_PLAN.md
-    run "$RALPH" review
-    [[ "$status" -ne 0 ]]
-    [[ "$output" == *"cites a specs/ path"* ]]
+    seed_cycle_base
+    run "$RALPH" review --dry-run -n 1
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
 }
 
 @test "review derives a backtick citation in a plan with no Items heading" {
@@ -167,6 +123,7 @@ latest_metrics_file() {
     # shellcheck disable=SC2016  # the backticks quote a plan citation, not a command substitution
     printf -- '# Implementation Plan\n\n- [x] **Shipped task**\n  Spec: `specs/mock.md` item 1\n' > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
+    seed_cycle_base
     run "$RALPH" review --dry-run -n 1
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
@@ -191,21 +148,12 @@ latest_metrics_file() {
     [[ "$output" == *"Run 'ralph build'"* ]]
 }
 
-@test "review gates still fail without a cited spec when -n is passed" {
-    # The citation gate is a hard stop like the other three, so '-n' must not
-    # buy a run of audit iterations that have no anchor set to read.
-    printf -- '- [x] **Shipped task**\n' > IMPLEMENTATION_PLAN.md
-    touch PROGRESS.md
-    run "$RALPH" review -n 1
-    [[ "$status" -ne 0 ]]
-    [[ "$output" == *"cites a specs/ path"* ]]
-}
-
 @test "review counts shipped items in a plan with no Items heading" {
     # plan_items_body reads the whole file when '## Items' is absent, so plans
     # predating the heading must still satisfy the shipped-items precondition.
     printf -- '# Implementation Plan\n\n- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
+    seed_cycle_base
     run "$RALPH" review --dry-run -n 1
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
@@ -216,6 +164,7 @@ latest_metrics_file() {
     # sizing itself from the plan the way build does.
     "$RALPH" init
     printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
+    seed_cycle_base
     run "$RALPH" review --dry-run
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Max:     6 iterations"* ]]
@@ -224,6 +173,7 @@ latest_metrics_file() {
 @test "review -n overrides the default cap" {
     "$RALPH" init
     printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
+    seed_cycle_base
     run "$RALPH" review --dry-run -n 2
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Max:     2 iterations"* ]]
@@ -241,6 +191,7 @@ echo '{"type":"result","result":"reviewing"}'
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
+    seed_cycle_base
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Review converged — pass 1 found nothing new"* ]]
@@ -259,6 +210,7 @@ echo '{"type":"result","result":"reviewing"}'
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
+    seed_cycle_base
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review -n 12 --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Review converged — pass 1 found nothing new"* ]]
@@ -286,6 +238,7 @@ echo '{"type":"result","result":"reviewing"}'
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
+    seed_cycle_base
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Review converged — pass 3 found nothing new"* ]]
@@ -306,6 +259,7 @@ echo '{"type":"result","result":"reviewing"}'
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
+    seed_cycle_base
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Audited 2 specs"* ]]
@@ -325,6 +279,7 @@ MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
     # No 'origin' remote exists; if review attempted a push it would fail.
+    seed_cycle_base
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review -n 1
     [[ "$status" -eq 0 ]]
     [[ "$output" != *"Push failed"* ]]
@@ -344,6 +299,7 @@ echo '{"type":"result","result":"reviewing"}'
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
+    seed_cycle_base
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review -n 1 --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$output" != *"unknown option"* ]]
@@ -358,6 +314,7 @@ MOCK
     printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     create_review_noop_backend
 
+    seed_cycle_base
     PATH="$TEST_DIR/bin:$PATH" "$RALPH" review -n 1 -y
 
     local line
@@ -374,6 +331,7 @@ MOCK
     printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     create_review_noop_backend
 
+    seed_cycle_base
     PATH="$TEST_DIR/bin:$PATH" "$RALPH" review -n 1 --skip-push -y
 
     local line
@@ -397,6 +355,7 @@ echo '{"type":"result","result":"reviewing"}'
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
+    seed_cycle_base
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"review reduced the shipped item count from 2 to 1"* ]]

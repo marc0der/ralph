@@ -364,6 +364,7 @@ on_iteration() {
     nested_repo "source/svc"
     create_nested_committing_backend
 
+    seed_cycle_base
     TARGET_REPO="source/svc" PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push
     [ "$status" -eq 0 ]
     [[ "$output" == *"Review converged — pass 1 found nothing new"* ]]
