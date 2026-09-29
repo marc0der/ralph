@@ -438,3 +438,26 @@ MOCK
     [[ "$status" -eq 0 ]]
     [[ ! -e .ralph/cycle-base ]]
 }
+
+@test "archive moves .ralph/cycle-base into the timestamped directory" {
+    # The base belongs to the cycle whose plan is archived with it (specs/one-shot-review.md §3).
+    "$RALPH" init
+    mkdir -p .ralph
+    echo ". abc123" > .ralph/cycle-base
+    run "$RALPH" archive
+    [[ "$status" -eq 0 ]]
+    [[ ! -e .ralph/cycle-base ]]
+    local archive_dir
+    archive_dir=$(find .ralph -mindepth 1 -maxdepth 1 -type d | head -1)
+    [[ "$(cat "$archive_dir/cycle-base")" == ". abc123" ]]
+    [[ "$output" == *"Archived: .ralph/cycle-base -> $archive_dir/cycle-base"* ]]
+}
+
+@test "clean deletes .ralph/cycle-base" {
+    mkdir -p .ralph
+    echo ". abc123" > .ralph/cycle-base
+    run "$RALPH" clean
+    [[ "$status" -eq 0 ]]
+    [[ ! -e .ralph/cycle-base ]]
+    [[ "$output" == *"Deleted: .ralph/cycle-base"* ]]
+}

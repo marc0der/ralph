@@ -8,7 +8,7 @@ CONFIG_DIR="${RALPH_CONFIG_DIR:-$HOME/.config/ralph}"
 # well before this (build mode calculates its own count from the plan)
 PLAN_DEFAULT_CAP=6
 
-ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md PROMPT_plan.md PROMPT_build.md PROMPT_review.md)
+ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md PROMPT_plan.md PROMPT_build.md PROMPT_review.md .ralph/cycle-base)
 ARCHIVE_DIR=".ralph"
 
 # Absolute path of the running script, resolved once before any command can
@@ -320,7 +320,7 @@ cmd_archive() {
         [[ "$file" == PROMPT_*.md ]] && continue
         if [[ -f "$file" ]]; then
             mv "$file" "$dest/"
-            echo "Archived: $file -> $dest/$file"
+            echo "Archived: $file -> $dest/${file##*/}"
         fi
     done
 }
