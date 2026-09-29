@@ -40,20 +40,21 @@ load test_helper
 @test "ralph --help lists review in the Modes block" {
     run "$RALPH" --help
     [[ "$status" -eq 0 ]]
-    # Spec (spec-anchored-review.md section 9) fixes this wording: review audits
-    # the specs the cycle worked from against the code it shipped, and files what
-    # it finds as new plan items — not the plan items themselves.
-    [[ "$output" == *"review"*"Audit the cycle's specs against the code, file findings as new plan items"* ]]
+    # Spec (one-shot-review.md section 13) fixes this wording: review makes one
+    # pass over the cycle's work and files what it finds as new plan items.
+    [[ "$output" == *"review"*"Review the cycle's work in one pass and file findings as new plan items"* ]]
 }
 
-@test "ralph --help states review's iteration default and convergence behaviour" {
+@test "ralph --help states plan's iteration default and that review rejects -n" {
     run "$RALPH" --help
     [[ "$status" -eq 0 ]]
-    # Spec (review-phase.md section 8): review caps at PLAN_DEFAULT_CAP like
-    # plan, and -n never disables its convergence exit. Users who read only the
-    # build half of this description would expect -n to turn the exit off.
-    [[ "$output" == *"--iterations N"*"plan and review default: 6"* ]]
-    [[ "$output" == *"in plan and review modes it caps"*"never disables"*"convergence exit"* ]]
+    # Spec (one-shot-review.md section 13): review runs exactly one pass and
+    # rejects -n, so the -n help names plan's default alone and never implies
+    # review converges over several passes.
+    [[ "$output" == *"--iterations N"*"plan default: 6"* ]]
+    [[ "$output" == *"in plan mode it caps"*"never disables"*"convergence exit"* ]]
+    [[ "$output" == *"review rejects -n"* ]]
+    [[ "$output" != *"plan and review default"* ]]
 }
 
 @test "ralph --help states that review never pushes" {

@@ -224,7 +224,7 @@ Modes:
   sandbox clean  Remove the devcontainer for the current project
   plan           Analyse specs and source, create/update IMPLEMENTATION_PLAN.md
   build          Pick the next item, implement, test, commit, push
-  review         Audit the cycle's specs against the code, file findings as new plan items
+  review         Review the cycle's work in one pass and file findings as new plan items
   auto           Run the whole lifecycle: archive, init, plan, build, review, build
   init           Initialise workspace (PROGRESS.md, IMPLEMENTATION_PLAN.md, specs/)
   clean          Delete IMPLEMENTATION_PLAN.md and PROGRESS.md
@@ -245,10 +245,10 @@ Auto options:
   auto does not accept -n/--iterations; each phase resolves its own count
 
 Options:
-  -n, --iterations N   Max iterations (plan and review default: 6, build:
-                       calculated from the plan). In build mode this also
-                       disables the noop exit; in plan and review modes it caps
-                       the run but never disables the convergence exit
+  -n, --iterations N   Max iterations (plan default: 6, build: calculated
+                       from the plan). In build mode this also disables the
+                       noop exit; in plan mode it caps the run but
+                       never disables the convergence exit. review rejects -n
   -g, --goal TEXT      Goal to inject into the prompt template (plan and auto only; required)
   -m, --model MODEL    Model to use (default depends on backend)
   -b, --backend NAME   Backend to use: claude, codex, copilot, pi (default: claude)
