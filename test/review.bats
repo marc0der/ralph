@@ -403,3 +403,38 @@ MOCK
     [[ "$output" == *"Restore IMPLEMENTATION_PLAN.md"* ]]
     [[ "$output" != *"Completed"* ]]
 }
+
+@test "build writes .ralph/cycle-base as the repo_state listing" {
+    # Review bounds the cycle's work by this base, so it must be the HEAD of
+    # every repository before build's first commit (specs/one-shot-review.md §3).
+    "$RALPH" init
+    printf -- '- [ ] **Open task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
+    git init --quiet nested
+    local head
+    head=$(git rev-parse HEAD)
+    create_review_noop_backend
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
+    [[ "$status" -eq 0 ]]
+    [[ "$(cat .ralph/cycle-base)" == ". $head"$'\n'"./nested -" ]]
+}
+
+@test "build keeps an existing .ralph/cycle-base" {
+    # A second build in the same cycle must not move the base past the first
+    # build's commits, or review would miss them.
+    "$RALPH" init
+    printf -- '- [ ] **Open task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
+    mkdir -p .ralph
+    echo ". earlier" > .ralph/cycle-base
+    create_review_noop_backend
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
+    [[ "$status" -eq 0 ]]
+    [[ "$(cat .ralph/cycle-base)" == ". earlier" ]]
+}
+
+@test "build --dry-run leaves .ralph/cycle-base absent" {
+    "$RALPH" init
+    printf -- '- [ ] **Open task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
+    run "$RALPH" build --dry-run -n 1
+    [[ "$status" -eq 0 ]]
+    [[ ! -e .ralph/cycle-base ]]
+}

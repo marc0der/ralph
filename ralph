@@ -25,6 +25,8 @@ RALPH_SELF="$(cd -P "$(dirname "$RALPH_SELF")" && pwd)/$(basename "$RALPH_SELF")
 
 # `auto` lifecycle state (specs/auto-lifecycle.md §5, §2).
 AUTO_STATE_FILE="$ARCHIVE_DIR/auto-state"
+# HEAD of every repository before the cycle's first build (specs/one-shot-review.md §3).
+CYCLE_BASE_FILE="$ARCHIVE_DIR/cycle-base"
 RALPH_PHASES=(archive init plan build review build)
 RESUME_FLOOR=3
 
@@ -765,6 +767,13 @@ repo_state() {
     done < <(find -L . -maxdepth 6 -name .git -prune -print 2>/dev/null) | LC_ALL=C sort
 }
 
+# Record the cycle base once; a later build in the same cycle keeps the first base.
+write_cycle_base() {
+    [[ -f "$CYCLE_BASE_FILE" ]] && return 0
+    mkdir -p "$ARCHIVE_DIR"
+    repo_state > "$CYCLE_BASE_FILE"
+}
+
 truncate_line() {
     local text="$1" max="$2"
     if [[ ${#text} -gt $max ]]; then
@@ -1197,6 +1206,10 @@ cmd_loop() {
     fi
 
     trap 'echo -e "\nInterrupted at iteration $iteration / $max_iterations" >&2; exit 130' SIGINT SIGTERM
+
+    if [[ "$mode" == "build" ]] && ! $dry_run; then
+        write_cycle_base
+    fi
 
     while [[ $iteration -lt $max_iterations ]]; do
         iteration=$((iteration + 1))
