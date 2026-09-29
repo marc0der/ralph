@@ -34,6 +34,22 @@ If no `- [ ]` item exists, change nothing, commit nothing, and report `no open i
 - Search the codebase before writing new code; the functionality may already exist
 - You may add logging to debug issues
 
+### Review catalogue
+
+Review audits the cycle's work against these nine kinds of defect. Meet every kind before you commit.
+
+| Kind | Test of proof |
+|------|---------------|
+| **Bug** | A reachable condition — inputs, state, an interleaving, a platform — and the wrong result the code produces under it. A failure path the code ignores counts. So does breakage in code the cycle did not touch, caused by code it did. |
+| **Unverified assumption** | The code depends on an external behaviour — a tool, an API, a platform — that no test and no source in the workspace confirms, and it breaks if that behaviour is false. |
+| **Weak test** | A test whose name claims a behaviour its assertions do not check, so it stays green when that behaviour is removed. |
+| **Untested behaviour** | A behaviour the cycle added or changed that no test fails on when it is altered. The finding names the behaviour and the test file it belongs in. |
+| **Vacuous assertion** | An assertion that cannot fail: a value compared to itself, a match that always succeeds, an exit code the harness forces. |
+| **Cross-item duplication** | Two locations that solve the same problem, at least one written by the cycle. The finding names both and the place the shared version belongs. |
+| **Misleading text** | A name, message or doc line that contradicts what the code does. The finding quotes both. |
+| **Stale docs** | A document that still states behaviour the cycle changed. The finding quotes the stale line and states the new behaviour. |
+| **Needless comment** | A comment the cycle added that restates the code, narrates history, or stands in for a better name, so deleting it or renaming loses nothing a reader needs. A one-line *why* the code cannot express is exempt. |
+
 **Never edit a file in `specs/`.** The specs are the decision record and the plan items point at them. A review finding may cite a spec clause itself: a Critical does. The route below applies to such an item exactly as it does to any other. If the spec contradicts the item, or the item cannot be implemented as written:
 
 1. Mark the item `- [~]` in `{{WORKSPACE}}/IMPLEMENTATION_PLAN.md`. Change nothing else about it.
@@ -91,5 +107,6 @@ Once tests pass:
 - **Implement completely.** Placeholders and stubs waste effort redoing the same work.
 - **`PROGRESS.md` owns the record.** Every outcome, measurement, verification result, learning and gotcha goes there. None of it ever goes in `IMPLEMENTATION_PLAN.md`.
 - **Single sources of truth.** Don't duplicate information across files.
-- **Document the why** — in tests, commits, and documentation, capture importance and reasoning.
+- **Self-documenting code** — name things so the code needs no comment. Add a comment only for a
+  why the code cannot carry, in one line. Put the reasoning in the commit message.
 - For bugs you notice outside the current item, append them as new items in `IMPLEMENTATION_PLAN.md` instead of fixing them inline — a future iteration will pick them up. A test failing right now is the exception: Phase 3 says fix it in this increment.
