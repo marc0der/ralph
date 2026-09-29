@@ -43,8 +43,8 @@ Only open items count towards the number of build passes.
 
 `review` only adds items. It never re-opens a shipped one: if shipped code falls short of its spec, that becomes a new item. Each finding starts with its severity:
 
-- **Critical:** the code doesn't do what a cited spec says.
-- **Major:** code from this cycle has a bug, an unhandled error or a quality problem.
-- **Minor:** code from this cycle breaks one of your project's written rules.
+- **Critical:** under a reachable condition, however rare, the code behaves wrongly or fails a cited spec clause.
+- **Major:** nothing is wrong yet, but a safety net is missing, so the next change is likely to break something unnoticed.
+- **Minor:** the code misleads or burdens its reader.
 
-Review needs a plan where every item has shipped and at least one item cites a file under `specs/`. Otherwise it stops with an error.
+Review needs a plan where every item has shipped, and a `.ralph/cycle-base` file, which the first `build` of the cycle writes. Otherwise it stops with an error.

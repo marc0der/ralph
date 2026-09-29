@@ -46,13 +46,13 @@ An agent forgets everything between sessions, so ralph keeps its memory in two f
 - **`IMPLEMENTATION_PLAN.md`** is the to-do list. `plan` writes it, `build` ticks items off, and `review` adds whatever it finds.
 - **`PROGRESS.md`** is the diary. Every pass writes down what it did, what it learned and what broke.
 
-Each command stops by itself when there's nothing left to do. `build` stops when two passes in a row commit nothing, and `plan` and `review` stop when a pass leaves the plan unchanged.
+Each command stops by itself when there's nothing left to do. `build` stops when two passes in a row commit nothing, `plan` stops when a pass leaves the plan unchanged, and `review` runs exactly one pass.
 
 The three phases have different jobs:
 
 - **`plan`** reads your spec and the code, and writes small, self-contained tasks. It needs a goal: a spec file, a directory, or a sentence.
 - **`build`** picks the next open task, implements it, runs the tests, commits and pushes. It sizes itself to the plan: one pass per open task, plus 20% headroom.
-- **`review`** audits the finished work against the specs the plan cited, and adds what it finds as new tasks, at most ten open at a time. It only runs once every task has shipped.
+- **`review`** checks the cycle's work in one pass against the specs the plan cited, your project's written rules and a fixed catalogue of code-quality defects. It adds every finding as a new task, and only runs once every task has shipped.
 
 A capable model writing the plan and a cheaper one following it works well:
 
@@ -150,7 +150,7 @@ Outside a container, ralph warns you and asks `Continue anyway? [y/N]` before it
 |---------------------|--------------|
 | `plan`              | Turn a goal into `IMPLEMENTATION_PLAN.md`. Requires `-g`. At most 6 passes |
 | `build`             | Implement, test, commit and push the next open item (default: open items plus 20% headroom) |
-| `review`            | Audit the cycle's specs against the code and add findings as new items. At most 6 passes |
+| `review`            | Review the cycle's work against its specs, rules and catalogue, and add findings as new items. One pass |
 | `auto`              | Run the whole lifecycle unattended: archive, init, plan, build, review, build. Requires `-g`; refuses to run outside a container |
 | `sandbox`           | Enter this project's devcontainer. `--rebuild` rebuilds the image |
 | `sandbox clean`     | Remove this project's devcontainer |
@@ -165,7 +165,7 @@ Outside a container, ralph warns you and asks `Continue anyway? [y/N]` before it
 | Flag                 | Description |
 |----------------------|-------------|
 | `-g`, `--goal`       | The spec, directory or sentence to plan from. `plan` and `auto` only, and required there |
-| `-n`, `--iterations` | Maximum passes. In `build` it also stops the early exit. `auto` refuses it |
+| `-n`, `--iterations` | Maximum passes. In `build` it also stops the early exit. `review` and `auto` refuse it |
 | `-m`, `--model`      | Model to use (default depends on the backend) |
 | `-b`, `--backend`    | `claude`, `codex`, `copilot` or `pi` (default: `claude`) |
 | `--skip-push`        | Don't push after each build pass |
