@@ -1017,6 +1017,12 @@ cmd_loop() {
         hard_override=true
     fi
 
+    # specs/one-shot-review.md §12. Review audits the cycle in a single pass.
+    if $hard_override && [[ "$mode" == "review" ]]; then
+        echo "Error: review runs one pass; -n does not apply." >&2
+        exit 1
+    fi
+
     # Fail fast if 'ralph init' hasn't been run — checked before any backend
     # resolution, CLI lookup, or git work so the user gets immediate feedback.
     require_init_artifacts "$mode"
@@ -1050,7 +1056,7 @@ cmd_loop() {
         case "$mode" in
             plan)   max_iterations=$PLAN_DEFAULT_CAP ;;
             build)  max_iterations=$(calculate_build_iterations) ;;
-            review) max_iterations=$PLAN_DEFAULT_CAP ;;
+            review) max_iterations=1 ;;
         esac
     fi
 

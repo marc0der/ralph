@@ -23,7 +23,7 @@ latest_metrics_file() {
     "$RALPH" init
     printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     seed_cycle_base
-    run "$RALPH" review --dry-run -n 1
+    run "$RALPH" review --dry-run
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
 }
@@ -91,7 +91,7 @@ latest_metrics_file() {
     "$RALPH" init
     printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n- [~] **Superseded task**\n' >> IMPLEMENTATION_PLAN.md
     seed_cycle_base
-    run "$RALPH" review --dry-run -n 1
+    run "$RALPH" review --dry-run
     [[ "$status" -eq 0 ]]
 }
 
@@ -112,7 +112,7 @@ latest_metrics_file() {
     printf -- '- [x] **Run the gate**\n  Spec: `AGENTS.md verification gate`\n' > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
     seed_cycle_base
-    run "$RALPH" review --dry-run -n 1
+    run "$RALPH" review --dry-run
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
 }
@@ -124,28 +124,9 @@ latest_metrics_file() {
     printf -- '# Implementation Plan\n\n- [x] **Shipped task**\n  Spec: `specs/mock.md` item 1\n' > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
     seed_cycle_base
-    run "$RALPH" review --dry-run -n 1
+    run "$RALPH" review --dry-run
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
-}
-
-@test "review gates still fail with no shipped items when -n is passed" {
-    # The gates run beside require_init_artifacts, not inside the iteration
-    # resolution, so '-n' must not buy a run of empty audit iterations.
-    echo "- [ ] **Open task**" > IMPLEMENTATION_PLAN.md
-    touch PROGRESS.md
-    run "$RALPH" review -n 1
-    [[ "$status" -ne 0 ]]
-    [[ "$output" == *"no shipped items"* ]]
-}
-
-@test "review gates still fail with an open item when -n is passed" {
-    "$RALPH" init
-    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n- [ ] **Open task**\n' >> IMPLEMENTATION_PLAN.md
-    run "$RALPH" review -n 1
-    [[ "$status" -ne 0 ]]
-    [[ "$output" == *"still holds incomplete items"* ]]
-    [[ "$output" == *"Run 'ralph build'"* ]]
 }
 
 @test "review counts shipped items in a plan with no Items heading" {
@@ -154,29 +135,46 @@ latest_metrics_file() {
     printf -- '# Implementation Plan\n\n- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' > IMPLEMENTATION_PLAN.md
     touch PROGRESS.md
     seed_cycle_base
-    run "$RALPH" review --dry-run -n 1
+    run "$RALPH" review --dry-run
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
 }
 
-@test "review defaults to 6 iterations" {
-    # Review converges like plan, so it takes the same flat cap instead of
-    # sizing itself from the plan the way build does.
+@test "review rejects -n" {
+    # Review audits the cycle in one pass, so an iteration count has no meaning.
     "$RALPH" init
     printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     seed_cycle_base
-    run "$RALPH" review --dry-run
-    [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Max:     6 iterations"* ]]
+    run "$RALPH" review -n 3
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: review runs one pass; -n does not apply."* ]]
 }
 
-@test "review -n overrides the default cap" {
+@test "review invokes the backend once whether or not the plan changes" {
+    # A pass that files findings changes the plan, yet review must not run a
+    # second pass to wait for convergence.
     "$RALPH" init
     printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+cat > /dev/null
+echo x >> "$TEST_DIR/calls"
+[[ -n "\$FILE_FINDING" ]] && echo "- [ ] **Critical: finding**" >> IMPLEMENTATION_PLAN.md
+echo '{"type":"result","result":"reviewing"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
     seed_cycle_base
-    run "$RALPH" review --dry-run -n 2
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push -y
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Max:     2 iterations"* ]]
+    [[ $(wc -l < "$TEST_DIR/calls") -eq 1 ]]
+
+    rm "$TEST_DIR/calls"
+    FILE_FINDING=1 PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push -y
+    [[ "$status" -eq 0 ]]
+    [[ $(wc -l < "$TEST_DIR/calls") -eq 1 ]]
+    [[ "$output" == *"Completed 1 iteration"* ]]
 }
 
 @test "review exits on the first pass that changes nothing" {
@@ -197,53 +195,6 @@ MOCK
     [[ "$output" == *"Review converged — pass 1 found nothing new"* ]]
     [[ "$output" == *"Audited 1 specs"* ]]
     [[ "$output" == *"Completed 1 iterations"* ]]
-}
-
-@test "review convergence exit still applies when -n is passed" {
-    "$RALPH" init
-    printf -- '- [x] **Shipped task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
-    mkdir -p "$TEST_DIR/bin"
-    # -n caps a review run but must not disable convergence, unlike build mode.
-    cat > "$TEST_DIR/bin/claude" <<'MOCK'
-#!/usr/bin/env bash
-echo '{"type":"result","result":"reviewing"}'
-MOCK
-    chmod +x "$TEST_DIR/bin/claude"
-
-    seed_cycle_base
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review -n 12 --skip-push
-    [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Review converged — pass 1 found nothing new"* ]]
-    [[ "$output" == *"Completed 1 iterations"* ]]
-}
-
-@test "review continues while passes keep filing findings" {
-    "$RALPH" init
-    printf -- '- [x] **Shipped one**\n  Spec: specs/mock.md item 1\n- [x] **Shipped two**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
-    mkdir -p "$TEST_DIR/bin"
-    # Files a finding on passes 1 and 2, then goes quiet on pass 3. The audited
-    # count is ralph's own tally of the distinct specs the items cite, so two
-    # shipped items citing one spec count once and the findings do not inflate it.
-    cat > "$TEST_DIR/bin/claude" <<MOCK
-#!/usr/bin/env bash
-CALL_LOG="$TEST_DIR/call_count"
-count=0
-[[ -f "\$CALL_LOG" ]] && count=\$(cat "\$CALL_LOG")
-count=\$((count + 1))
-echo "\$count" > "\$CALL_LOG"
-if [[ "\$count" -le 2 ]]; then
-    echo "- [ ] **Critical: finding \$count**" >> IMPLEMENTATION_PLAN.md
-fi
-echo '{"type":"result","result":"reviewing"}'
-MOCK
-    chmod +x "$TEST_DIR/bin/claude"
-
-    seed_cycle_base
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push
-    [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Review converged — pass 3 found nothing new"* ]]
-    [[ "$output" == *"Audited 1 specs"* ]]
-    [[ "$output" == *"Completed 3 iterations"* ]]
 }
 
 @test "review counts distinct specs, not shipped items" {
@@ -280,7 +231,7 @@ MOCK
 
     # No 'origin' remote exists; if review attempted a push it would fail.
     seed_cycle_base
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review -n 1
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review
     [[ "$status" -eq 0 ]]
     [[ "$output" != *"Push failed"* ]]
     [[ "$output" == *"Completed 1 iteration"* ]]
@@ -300,7 +251,7 @@ MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
     seed_cycle_base
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review -n 1 --skip-push
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" review --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$output" != *"unknown option"* ]]
     [[ "$output" == *"Completed 1 iteration"* ]]
@@ -315,7 +266,7 @@ MOCK
     create_review_noop_backend
 
     seed_cycle_base
-    PATH="$TEST_DIR/bin:$PATH" "$RALPH" review -n 1 -y
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" review -y
 
     local line
     line=$(tail -1 "$(latest_metrics_file)")
@@ -332,7 +283,7 @@ MOCK
     create_review_noop_backend
 
     seed_cycle_base
-    PATH="$TEST_DIR/bin:$PATH" "$RALPH" review -n 1 --skip-push -y
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" review --skip-push -y
 
     local line
     line=$(tail -1 "$(latest_metrics_file)")
