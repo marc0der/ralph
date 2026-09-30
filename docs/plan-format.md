@@ -47,4 +47,4 @@ Only open items count towards the number of build passes.
 - **Major:** nothing is wrong yet, but a safety net is missing, so the next change is likely to break something unnoticed.
 - **Minor:** the code misleads or burdens its reader.
 
-Review needs a plan where every item has shipped, and a `.ralph/cycle-base` file, which the first `build` of the cycle writes. Otherwise it stops with an error. `plan` stops with an error when that file exists and the plan holds no `- [ ]` and no `- [~]` item, because that cycle was built and never archived.
+Review needs a plan where every item has shipped, and a `.ralph/cycle-base` file, which the first `build` of the cycle writes. Otherwise it stops with an error. `plan` stops with an error when that file exists and the plan holds no `- [ ]` and no `- [~]` item, because that cycle was built and never archived. It also stops when any repository's `specs/` has an uncommitted change, staged, unstaged or untracked, because plan commits its own spec changes and must not commit yours.

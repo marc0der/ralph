@@ -22,6 +22,7 @@ git clone git@github.com:marc0der/ralph.git && cd ralph && ./install.sh
 cd your-project
 ralph sandbox                          # step into an isolated container
 ralph init                             # create the plan and progress files
+git add specs/my-feature.md && git commit -m 'docs(specs): add my feature'
 ralph plan -g specs/my-feature.md
 ralph build
 ```
@@ -68,6 +69,7 @@ ralph build -m sonnet                  # a cheaper model follows the steps
 `ralph auto` runs the whole cycle in one go: `archive`, `init`, `plan`, `build`, `review`, and a final `build` to fix what review found.
 
 ```bash
+git add specs/checkout-flow.md && git commit -m 'docs(specs): add checkout flow'
 ralph auto -g specs/checkout-flow.md
 ```
 
@@ -137,7 +139,7 @@ Outside a container, ralph warns you and asks `Continue anyway? [y/N]` before it
 
 **The prompts.** `ralph init --prompts` copies the prompts into your project as `PROMPT_plan.md`, `PROMPT_build.md` and `PROMPT_review.md`, where they override the installed ones. The defaults mention Claude model names, so edit them if you use another agent. A local copy doesn't update when ralph does, so refresh it after an upgrade.
 
-**Commit style.** The build prompt asks for small [Conventional Commits](https://www.conventionalcommits.org/), with only the relevant files staged. The plan, progress log and `.ralph/` are never committed. Edit `PROMPT_build.md` to change this.
+**Commit style.** The build prompt asks for small [Conventional Commits](https://www.conventionalcommits.org/), with only the relevant files staged. The plan prompt commits its spec changes as `docs(specs)` commits, and nothing else. The plan file, progress log and `.ralph/` are never committed. Edit `PROMPT_build.md` to change this.
 
 **Further reading:**
 - [docs/plan-format.md](docs/plan-format.md): what a plan item looks like and the rules it follows
@@ -169,7 +171,7 @@ Outside a container, ralph warns you and asks `Continue anyway? [y/N]` before it
 | `-n`, `--iterations` | Maximum passes. In `build` it also stops the early exit. `review` and `auto` refuse it |
 | `-m`, `--model`      | Model to use (default depends on the backend) |
 | `-b`, `--backend`    | `claude`, `codex`, `copilot` or `pi` (default: `claude`) |
-| `--skip-push`        | Don't push after each build pass |
+| `--skip-push`        | Don't push after each plan or build pass |
 | `--dry-run`          | Show what would run, without running it |
 | `--no-metrics`       | Don't record metrics under `.ralph/metrics/` |
 | `-v`, `--verbose`    | Stream the agent's activity live |
