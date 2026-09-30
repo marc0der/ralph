@@ -1159,8 +1159,8 @@ MOCK
 @test "plan exits on the first pass that changes nothing" {
     "$RALPH" init
     mkdir -p "$TEST_DIR/bin"
-    # Plan iterations never commit (IMPLEMENTATION_PLAN.md is gitignored), so
-    # convergence is measured against the plan artifacts, not HEAD.
+    # Plan commits only specs (IMPLEMENTATION_PLAN.md is gitignored), so
+    # convergence is measured against the plan fingerprint, not HEAD.
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
 echo '{"type":"result","result":"planning"}'

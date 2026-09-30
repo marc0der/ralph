@@ -100,8 +100,8 @@ latest_metrics_file() {
 @test "plan iteration that edits the plan records noop=false" {
     "$RALPH" init
     mkdir -p "$TEST_DIR/bin"
-    # Plan mode never commits, so the noop flag must come from the plan
-    # artifacts rather than from HEAD.
+    # Plan mode commits only specs, so the noop flag must come from the plan
+    # fingerprint rather than from HEAD.
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
 cat > /dev/null
