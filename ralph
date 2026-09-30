@@ -1959,12 +1959,29 @@ cmd_auto() {
         # require_open_items and require_review_preconditions, so auto never
         # starts a child that exits 1 on a gate. A guarded-out phase is
         # skipped, not an abort. Plan (3) mirrors require_fresh_cycle as a
-        # refusal instead: only --resume can reach it over a stale base.
+        # refusal instead: only --resume can reach it over a stale base. It
+        # also mirrors require_clean_specs, and records the state file so
+        # --resume continues once the operator has committed specs/.
         case $phase_num in
             3)
                 if have_stale_cycle_base; then
                     echo "Error: .ralph/cycle-base is left from a cycle that was built but not archived." >&2
                     echo "Re-run 'ralph auto -g <goal>' without --resume; phase 1 archives the old cycle." >&2
+                    auto_report
+                    exit 1
+                fi
+                local dirty_repo
+                if dirty_repo=$(have_dirty_specs); then
+                    phase_state[phase_num]="refused — specs/ has uncommitted changes"
+                    mkdir -p "$ARCHIVE_DIR"
+                    {
+                        echo "phase=$phase_num"
+                        echo "phase_name=$phase"
+                        echo "child_exit=1"
+                        echo "failed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                    } > "$AUTO_STATE_FILE"
+                    echo "Error: specs/ has uncommitted changes in $dirty_repo." >&2
+                    echo "Commit or stash them, then run 'ralph auto --resume'." >&2
                     auto_report
                     exit 1
                 fi ;;
