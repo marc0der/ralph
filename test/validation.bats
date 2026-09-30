@@ -273,7 +273,6 @@ assert_plan_refuses_dirty_specs() {
     commit_spec
     echo "edit" >> specs/a.md
     assert_plan_refuses_dirty_specs .
-    [[ "$output" == *"specs/ has uncommitted changes"* ]]
 }
 
 @test "plan fails on a staged edit under specs/" {
@@ -282,7 +281,6 @@ assert_plan_refuses_dirty_specs() {
     echo "edit" >> specs/a.md
     git add -- specs/a.md
     assert_plan_refuses_dirty_specs .
-    [[ "$output" == *"specs/ has uncommitted changes"* ]]
 }
 
 @test "plan fails on an untracked spec" {
@@ -290,7 +288,6 @@ assert_plan_refuses_dirty_specs() {
     mkdir -p specs
     echo "# Draft" > specs/x.md
     assert_plan_refuses_dirty_specs .
-    [[ "$output" == *"specs/ has uncommitted changes"* ]]
 }
 
 @test "plan fails on an untracked spec in a nested specs/ directory" {
@@ -298,7 +295,6 @@ assert_plan_refuses_dirty_specs() {
     mkdir -p specs/features
     echo "# Draft" > specs/features/x.md
     assert_plan_refuses_dirty_specs .
-    [[ "$output" == *"specs/ has uncommitted changes"* ]]
 }
 
 @test "plan fails on an untracked spec in a nested repository" {
@@ -314,7 +310,6 @@ assert_plan_refuses_dirty_specs() {
     local nested_before
     nested_before=$(git -C source/svc status --porcelain --untracked-files=all)
     assert_plan_refuses_dirty_specs ./source/svc
-    [[ "$output" == *"specs/ has uncommitted changes in ./source/svc."* ]]
     [[ "$(git -C source/svc status --porcelain --untracked-files=all)" == "$nested_before" ]]
 }
 
@@ -323,7 +318,6 @@ assert_plan_refuses_dirty_specs() {
     mkdir -p specs
     echo "# Draft" > specs/x.md
     assert_plan_refuses_dirty_specs . --dry-run
-    [[ "$output" == *"specs/ has uncommitted changes"* ]]
     [[ "$output" != *"[dry-run]"* ]]
 }
 
@@ -332,7 +326,6 @@ assert_plan_refuses_dirty_specs() {
     mkdir -p specs
     echo "# Draft" > specs/x.md
     assert_plan_refuses_dirty_specs . -n 1
-    [[ "$output" == *"specs/ has uncommitted changes"* ]]
 }
 
 @test "plan runs over a dirty README.md when specs/ is clean" {
