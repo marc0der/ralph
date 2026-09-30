@@ -832,7 +832,7 @@ cycle_changed_files() {
 # Stop a plan pass whose new commits leave specs/ or delete a spec; see
 # specs/plan-commits-specs.md.
 check_plan_pass() {
-    local iteration="$1" state_before="$2" state_after="$3"
+    local iteration="$1" state_before="$2" state_after="$3" prompt_file="$4"
     local repo sha sha_before range path path_in_workspace repos_in_workspace
     repos_in_workspace=$(cut -d' ' -f1 <<< "$state_after" | sed 's|^\./||')
     while read -r repo sha; do
@@ -857,6 +857,13 @@ check_plan_pass() {
             exit 1
         fi
     done <<< "$state_after"
+    if repo=$(have_dirty_specs); then
+        echo "Error: plan pass $iteration left uncommitted changes under specs/ in $repo." >&2
+        if [[ "$prompt_file" == "PROMPT_plan.md" ]]; then
+            echo "This project has its own PROMPT_plan.md; add the commit step from the installed prompts/plan.md." >&2
+        fi
+        exit 1
+    fi
 }
 
 truncate_line() {
@@ -1699,7 +1706,7 @@ cmd_loop() {
             fi
 
             if [[ "$mode" == "plan" ]]; then
-                check_plan_pass "$iteration" "$state_before" "$state_after"
+                check_plan_pass "$iteration" "$state_before" "$state_after" "$prompt_file"
             fi
         fi
 
