@@ -1228,6 +1228,8 @@ MOCK
     mkdir -p "$TEST_DIR/bin" "$TEST_DIR/external"
     echo "# external spec" > "$TEST_DIR/external/linked.md"
     ln -s "$TEST_DIR/external/linked.md" specs/linked.md
+    git add -- specs/linked.md
+    git commit -q -m "add linked spec"
     # find without -L skips symlinks, which would make edits here invisible and
     # let the loop declare convergence while work is still landing.
     cat > "$TEST_DIR/bin/claude" <<MOCK
@@ -1254,7 +1256,13 @@ MOCK
     "$RALPH" init
     mkdir -p "$TEST_DIR/bin"
     # A spec the loop cannot read must not abort the run under set -e/pipefail.
+    # Git must not re-read the file after chmod, or it counts it as a dirty spec:
+    # trustctime false ignores the ctime bump, an old mtime keeps the entry non-racy.
+    git config core.trustctime false
     echo "# secret" > specs/unreadable.md
+    touch -t 202001010000 specs/unreadable.md
+    git add -- specs/unreadable.md
+    git commit -q -m "add unreadable spec"
     chmod 000 specs/unreadable.md
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
