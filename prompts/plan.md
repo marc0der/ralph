@@ -115,6 +115,25 @@ A project that names a full-verification command gets one **verification item** 
 
 Rationale, evidence, measurements, dated observations, build logs, status reports, questions for the user, or notes to yourself. `PROGRESS.md` records outcomes. `specs/` records decisions and their reasoning. The plan records only work to do.
 
+## Phase 4: Commit spec changes
+
+At the end of a pass that created or edited a file under `specs/`, commit those changes. `specs/` means that directory at any depth. Never delete, rename or move a spec. Ralph fails the pass when a commit touches any path outside `specs/`, deletes a spec, or leaves `specs/` uncommitted.
+
+**What to commit** — the staging and message rules:
+
+- Stage each changed spec by name with `git -C <toplevel> add -- <path>`. Stage nothing outside `specs/`. Never stage `IMPLEMENTATION_PLAN.md`, `PROGRESS.md`, a `PROMPT_*.md` file or `.ralph/`. **Never run `git add -A` or `git add .`.**
+- Before committing, run `git -C <toplevel> diff --cached --name-only`. Every line must start with `specs/`. Unstage any line that does not with `git -C <toplevel> restore --staged -- <path>`.
+- Commit each spec change with a [Conventional Commits](https://www.conventionalcommits.org/) message of type `docs` and scope `specs`, for example `docs(specs): default X to Y when Z`. Write one commit per decision recorded in an existing spec, and one commit per new spec. The subject is imperative, lowercase, at most 50 characters, with no trailing period.
+- Write the message through a heredoc so the subject, body and footer keep their newlines.
+
+**Where to commit** — the repository rules:
+
+- Every changed spec belongs to one repository: the one `git -C <dir> rev-parse --show-toplevel` prints for the spec's directory. Group the changed specs by that repository before running any other git command.
+- Run every git command for a group with `-C <toplevel>`. A bare `git add` of a path inside a nested repository **exits 0 and stages nothing** — with or without `-f`, ignored or not.
+- **Never commit on a detached `HEAD`.** Check `git -C <toplevel> symbolic-ref -q HEAD` first. When it fails, check out a branch before committing: the branch `AGENTS.md` or `CLAUDE.md` names for that repository when one is named, otherwise a new branch `ralph/<spec-name-in-kebab-case>` created at the current commit.
+- After committing in a nested repository, run `git status --short -- <path>` in the workspace. A ` M <path>` line means the repository is a submodule of the workspace. Stage that path and commit the pointer update in the workspace with the subject `chore: bump <path> to <short sha>`. This is the one workspace commit outside `specs/` that Ralph accepts.
+- Push every nested repository you committed in, from inside it: `git -C <toplevel> push`, with `-u origin <branch>` on a branch you created. Ralph pushes the workspace and only the workspace.
+
 ## Language
 
 Write every item in Simplified Technical English (ASD-STE100):
@@ -153,7 +172,7 @@ Correct — the same work as one complete item, short sentences, one instruction
 You have no human to ask. Resolve every open question yourself.
 
 - Investigate first. Most questions are answerable from the code.
-- If a question remains, choose the safer option and record the decision in the relevant spec. State the assumption you made.
+- If a question remains, choose the safer option and record the decision in the relevant spec, then commit it. State the assumption you made.
 - Never write a question into `IMPLEMENTATION_PLAN.md`.
 
 ## Convergence
@@ -166,7 +185,7 @@ Do not add sections. Do not restate current state. Do not re-verify items you al
 
 ## Constraints
 
-- **Plan only. Do NOT implement anything.**
+- **Plan only. Commit spec changes and nothing else.**
 - Never assume functionality is missing — confirm with code search first
 - Author a spec at `specs/FILENAME.md` only for work no existing spec covers, then write items to implement it
 - The plan is a work queue. Every line in it is an instruction or a pass/fail criterion
