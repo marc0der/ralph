@@ -291,6 +291,30 @@ seed_resume_state() {
     [[ "$output" == *"3 plan      ran"* ]]
 }
 
+@test "--resume over a stale cycle base refuses before the plan child" {
+    create_committing_backend
+    seed_resume_state 1
+    seed_shipped_item
+    git add -A -- .; git commit -q -m seed
+    seed_cycle_base
+    run_auto --resume --skip-push --no-metrics
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"built but not archived"* ]]
+    [[ "$output" == *"without --resume"* ]]
+    [[ "$output" != *"3 plan      ran"* ]]
+    grep -q '^phase=1$' .ralph/auto-state
+}
+
+@test "a plain run over a stale cycle base archives it and plans" {
+    create_committing_backend
+    "$RALPH" init
+    seed_shipped_item
+    git add -A -- .; git commit -q -m seed
+    seed_cycle_base
+    run_auto --skip-push --no-metrics
+    [[ "$output" == *"3 plan      ran"* ]]
+}
+
 @test "--resume prints the recorded phase, child exit and manual-repair notice" {
     create_committing_backend
     seed_resume_state 5
