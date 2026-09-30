@@ -2,6 +2,26 @@
 
 load test_helper
 
+commit_spec() {
+    mkdir -p specs
+    echo "# Spec" > specs/a.md
+    git add -- specs/a.md
+    git commit --quiet -m "docs(specs): add a"
+}
+
+# Run plan and assert it fails on the dirty specs/ of $1 without touching the tree.
+assert_plan_refuses_dirty_specs() {
+    local repo=$1
+    shift
+    local before
+    before=$(git status --porcelain --untracked-files=all)
+    run "$RALPH" plan "$@" -g "the goal"
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: specs/ has uncommitted changes in $repo."* ]]
+    [[ "$output" == *"Commit or stash them before running 'ralph plan'; plan commits its own spec changes."* ]]
+    [[ "$(git status --porcelain --untracked-files=all)" == "$before" ]]
+}
+
 @test "build rejects non-integer iterations" {
     run "$RALPH" build -n abc
     [[ "$status" -ne 0 ]]
@@ -245,6 +265,83 @@ load test_helper
     "$RALPH" init
     run "$RALPH" plan --dry-run -g "the goal"
     [[ "$status" -eq 0 ]]
+    [[ "$output" == *"[dry-run] Would run"* ]]
+}
+
+@test "plan fails on an unstaged edit under specs/" {
+    "$RALPH" init
+    commit_spec
+    echo "edit" >> specs/a.md
+    assert_plan_refuses_dirty_specs .
+    [[ "$output" == *"specs/ has uncommitted changes"* ]]
+}
+
+@test "plan fails on a staged edit under specs/" {
+    "$RALPH" init
+    commit_spec
+    echo "edit" >> specs/a.md
+    git add -- specs/a.md
+    assert_plan_refuses_dirty_specs .
+    [[ "$output" == *"specs/ has uncommitted changes"* ]]
+}
+
+@test "plan fails on an untracked spec" {
+    "$RALPH" init
+    mkdir -p specs
+    echo "# Draft" > specs/x.md
+    assert_plan_refuses_dirty_specs .
+    [[ "$output" == *"specs/ has uncommitted changes"* ]]
+}
+
+@test "plan fails on an untracked spec in a nested specs/ directory" {
+    "$RALPH" init
+    mkdir -p specs/features
+    echo "# Draft" > specs/features/x.md
+    assert_plan_refuses_dirty_specs .
+    [[ "$output" == *"specs/ has uncommitted changes"* ]]
+}
+
+@test "plan fails on an untracked spec in a nested repository" {
+    "$RALPH" init
+    echo "source/" > .gitignore
+    git add -- .gitignore
+    git commit --quiet -m "chore: ignore source"
+    mkdir -p source/svc
+    git -C source/svc init --quiet
+    git -C source/svc -c user.email=t@t -c user.name=T commit --allow-empty --quiet -m "initial"
+    mkdir -p source/svc/specs
+    echo "# Draft" > source/svc/specs/x.md
+    local nested_before
+    nested_before=$(git -C source/svc status --porcelain --untracked-files=all)
+    assert_plan_refuses_dirty_specs ./source/svc
+    [[ "$output" == *"specs/ has uncommitted changes in ./source/svc."* ]]
+    [[ "$(git -C source/svc status --porcelain --untracked-files=all)" == "$nested_before" ]]
+}
+
+@test "plan --dry-run fails on an untracked spec" {
+    "$RALPH" init
+    mkdir -p specs
+    echo "# Draft" > specs/x.md
+    assert_plan_refuses_dirty_specs . --dry-run
+    [[ "$output" == *"specs/ has uncommitted changes"* ]]
+    [[ "$output" != *"[dry-run]"* ]]
+}
+
+@test "plan -n 1 fails on an untracked spec" {
+    "$RALPH" init
+    mkdir -p specs
+    echo "# Draft" > specs/x.md
+    assert_plan_refuses_dirty_specs . -n 1
+    [[ "$output" == *"specs/ has uncommitted changes"* ]]
+}
+
+@test "plan runs over a dirty README.md when specs/ is clean" {
+    "$RALPH" init
+    commit_spec
+    echo "readme" > README.md
+    run "$RALPH" plan --dry-run -g "the goal"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"specs/ has uncommitted changes"* ]]
     [[ "$output" == *"[dry-run] Would run"* ]]
 }
 
