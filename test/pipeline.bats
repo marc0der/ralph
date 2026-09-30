@@ -1212,6 +1212,8 @@ echo "\$count" > "\$CALL_LOG"
 if [[ "\$count" -eq 1 ]]; then
     mkdir -p specs
     echo "# New spec" > specs/new-thing.md
+    git add -- specs/new-thing.md
+    git commit -q -m "docs(specs): add new thing"
 fi
 echo '{"type":"result","result":"planning"}'
 MOCK
