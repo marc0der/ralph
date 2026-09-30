@@ -1893,8 +1893,16 @@ cmd_auto() {
         # item, and a cycle base. The guards mirror the hard stops in
         # require_open_items and require_review_preconditions, so auto never
         # starts a child that exits 1 on a gate. A guarded-out phase is
-        # skipped, not an abort.
+        # skipped, not an abort. Plan (3) mirrors require_fresh_cycle as a
+        # refusal instead: only --resume can reach it over a stale base.
         case $phase_num in
+            3)
+                if have_stale_cycle_base; then
+                    echo "Error: .ralph/cycle-base is left from a cycle that was built but not archived." >&2
+                    echo "Re-run 'ralph auto -g <goal>' without --resume; phase 1 archives the old cycle." >&2
+                    auto_report
+                    exit 1
+                fi ;;
             4|6)
                 if [[ ! -f IMPLEMENTATION_PLAN.md || ! -f PROGRESS.md ]]; then
                     phase_state[phase_num]="skipped — no plan artifacts"; continue
