@@ -645,8 +645,9 @@ cited_specs() {
     }' | LC_ALL=C sort -u
 }
 
-# Plan predicates shared by require_open_items, require_review_preconditions
-# and auto's guards, so every caller asks "can this mode run?" the same way.
+# Plan predicates shared by require_open_items, require_fresh_cycle,
+# require_review_preconditions and auto's guards, so every caller asks "can
+# this mode run?" the same way.
 have_open_items() {
     [[ "$(count_plan_items '^- \[ \]')" -gt 0 ]]
 }
@@ -655,12 +656,31 @@ have_shipped_items() {
     [[ "$(count_plan_items '^- \[x\]')" -gt 0 ]]
 }
 
+have_superseded_items() {
+    [[ "$(count_plan_items '^- \[~\]')" -gt 0 ]]
+}
+
+# A base with nothing open or superseded left is a built cycle never archived.
+have_stale_cycle_base() {
+    [[ -f "$CYCLE_BASE_FILE" ]] && ! have_open_items && ! have_superseded_items
+}
+
 # Refuse to start a build against a plan with nothing left to do.
 # This is a hard stop, not an iteration heuristic: it runs beside
 # require_init_artifacts so '-n' cannot bypass it.
 require_open_items() {
     if ! have_open_items; then
         echo "Error: no incomplete items in IMPLEMENTATION_PLAN.md. Run 'ralph plan' first." >&2
+        exit 1
+    fi
+}
+
+# Refuse to plan a new cycle on top of a built one; see
+# specs/plan-stale-cycle-guard.md.
+require_fresh_cycle() {
+    if have_stale_cycle_base; then
+        echo "Error: .ralph/cycle-base is left from a cycle that was built but not archived." >&2
+        echo "Run 'ralph archive' (or 'ralph clean'), then 'ralph init', before running 'ralph plan'." >&2
         exit 1
     fi
 }
@@ -1045,9 +1065,10 @@ cmd_loop() {
     require_init_artifacts "$mode"
 
     # Hard stops, checked unconditionally: a plan with no goal has nothing to
-    # plan against, a build with no open item has no work to pick up, a review
+    # plan against, a plan over a stale cycle base would widen the next
+    # review, a build with no open item has no work to pick up, a review
     # with no shipped item has nothing to audit, and neither '-n' nor
-    # '--dry-run' may turn any of the three into a run of empty iterations.
+    # '--dry-run' may turn any of them into a run of empty iterations.
     if [[ "$mode" == "plan" ]]; then
         # specs/meta-repo-hardening.md §12. plan derives its work from the goal;
         # with none it plans against whatever specs/ it happens to resolve,
@@ -1056,6 +1077,7 @@ cmd_loop() {
             echo "Error: 'plan' requires a goal. Pass -g <specification or directory>." >&2
             exit 1
         fi
+        require_fresh_cycle
     elif [[ "$mode" == "build" ]]; then
         require_open_items
     elif [[ "$mode" == "review" ]]; then
