@@ -665,6 +665,18 @@ have_stale_cycle_base() {
     [[ -f "$CYCLE_BASE_FILE" ]] && ! have_open_items && ! have_superseded_items
 }
 
+# Print the first repository whose specs/ holds a staged, unstaged or untracked change.
+have_dirty_specs() {
+    local repo sha
+    while read -r repo sha; do
+        if [[ -n "$(git -C "$repo" status --porcelain -- specs 2>/dev/null)" ]]; then
+            echo "$repo"
+            return 0
+        fi
+    done < <(repo_state)
+    return 1
+}
+
 # Refuse to start a build against a plan with nothing left to do.
 # This is a hard stop, not an iteration heuristic: it runs beside
 # require_init_artifacts so '-n' cannot bypass it.
@@ -681,6 +693,17 @@ require_fresh_cycle() {
     if have_stale_cycle_base; then
         echo "Error: .ralph/cycle-base is left from a cycle that was built but not archived." >&2
         echo "Run 'ralph archive' (or 'ralph clean'), then 'ralph init', before running 'ralph plan'." >&2
+        exit 1
+    fi
+}
+
+# Refuse to plan over spec edits the planner would commit as its own; see
+# specs/plan-commits-specs.md.
+require_clean_specs() {
+    local repo
+    if repo=$(have_dirty_specs); then
+        echo "Error: specs/ has uncommitted changes in $repo." >&2
+        echo "Commit or stash them before running 'ralph plan'; plan commits its own spec changes." >&2
         exit 1
     fi
 }
@@ -1078,6 +1101,7 @@ cmd_loop() {
             exit 1
         fi
         require_fresh_cycle
+        require_clean_specs
     elif [[ "$mode" == "build" ]]; then
         require_open_items
     elif [[ "$mode" == "review" ]]; then
