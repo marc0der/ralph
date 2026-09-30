@@ -1783,6 +1783,16 @@ cmd_loop() {
     fi
 }
 
+write_auto_state() {
+    mkdir -p "$ARCHIVE_DIR"
+    {
+        echo "phase=$1"
+        echo "phase_name=$2"
+        echo "child_exit=$3"
+        echo "failed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    } > "$AUTO_STATE_FILE"
+}
+
 cmd_auto() {
     # '-n' is rejected because each phase resolves its own iteration count
     # (see specs/auto-lifecycle.md §8).
@@ -1864,7 +1874,7 @@ cmd_auto() {
     # 130 under its own trap and auto records the phase in flight, prints the
     # report and exits 130. A signal to auto alone defers until the child
     # returns (§5 known hazard, §13 fix).
-    trap 'phase_state[phase_num]="interrupted"; mkdir -p "$ARCHIVE_DIR"; { echo "phase=$phase_num"; echo "phase_name=$phase"; echo "child_exit=130"; echo "failed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"; } > "$AUTO_STATE_FILE"; auto_report; exit 130' SIGINT SIGTERM
+    trap 'phase_state[phase_num]="interrupted"; write_auto_state "$phase_num" "$phase" 130; auto_report; exit 130' SIGINT SIGTERM
 
     # Resume entry (§5). A plain run starts at phase 1 and clears any stale
     # state file. --resume re-enters at the recorded phase, floored at
@@ -1974,13 +1984,7 @@ cmd_auto() {
                 local dirty_repo
                 if dirty_repo=$(have_dirty_specs); then
                     phase_state[phase_num]="refused — specs/ has uncommitted changes"
-                    mkdir -p "$ARCHIVE_DIR"
-                    {
-                        echo "phase=$phase_num"
-                        echo "phase_name=$phase"
-                        echo "child_exit=1"
-                        echo "failed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-                    } > "$AUTO_STATE_FILE"
+                    write_auto_state "$phase_num" "$phase" 1
                     echo "Error: specs/ has uncommitted changes in $dirty_repo." >&2
                     echo "Commit or stash them, then run 'ralph auto --resume'." >&2
                     auto_report
@@ -2012,13 +2016,7 @@ cmd_auto() {
         esac || child_exit=$?
         if [[ $child_exit -ne 0 ]]; then
             phase_state[phase_num]="failed — exit $child_exit"
-            mkdir -p "$ARCHIVE_DIR"
-            {
-                echo "phase=$phase_num"
-                echo "phase_name=$phase"
-                echo "child_exit=$child_exit"
-                echo "failed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            } > "$AUTO_STATE_FILE"
+            write_auto_state "$phase_num" "$phase" "$child_exit"
             echo "Re-run: $RALPH_SELF auto --resume" >&2
             auto_report
             exit 1
