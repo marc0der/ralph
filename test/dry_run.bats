@@ -33,11 +33,11 @@ load test_helper
     [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
 }
 
-@test "plan --dry-run never prints a push command" {
+@test "plan --dry-run prints the push command" {
     "$RALPH" init
     run "$RALPH" plan --dry-run -n 1 -g "the goal"
     [[ "$status" -eq 0 ]]
-    [[ "$output" != *"Would run: git push"* ]]
+    [[ "$output" == *"[dry-run] Would run: git push origin"* ]]
 }
 
 @test "build --dry-run respects iteration count" {
