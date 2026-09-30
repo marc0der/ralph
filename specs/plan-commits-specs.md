@@ -120,6 +120,10 @@ The push after each iteration runs in plan mode as well as build mode, with the 
 an unchanged branch, which is harmless. As in build, Ralph pushes the workspace and the planner
 pushes any nested repository it committed in.
 
+Plan shares build's push block, so under `--dry-run` plan prints the same
+`[dry-run] Would run: git push origin <branch>` line build prints, and pushes nothing. This is an
+assumption: "the same skips" is read as the same block, not as a silent skip.
+
 ### `auto`
 
 The phase 3 guard in `cmd_auto` gets a second check beside the stale-base refusal: when
