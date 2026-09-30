@@ -86,10 +86,11 @@ Finish the old cycle with `ralph review` first, because the plan is the only rec
 
 ```bash
 ralph archive                  # keep the old plan and progress under .ralph/
+ralph init                     # fresh plan and progress files
 ralph plan -g "New goal"
 ```
 
-Use `ralph clean` instead of `archive` if you don't need the history.
+Use `ralph clean` instead of `archive` if you don't need the history. `plan` enforces this step: it refuses to run over a built cycle that was not archived or cleaned.
 
 ### Choosing an agent and model
 
