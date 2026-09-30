@@ -743,8 +743,8 @@ calculate_build_iterations() {
     echo $(( (count * 6 + 4) / 5 ))
 }
 
-# Modes that never commit, so HEAD cannot measure their progress: they snapshot
-# the plan fingerprint instead, for both convergence and the metrics noop flag.
+# Modes whose commits cannot measure their progress — plan commits only specs,
+# review never commits — so they snapshot the plan fingerprint instead, for both convergence and the metrics noop flag.
 # One predicate, so a fourth such mode cannot be wired into two sites of three.
 mode_converges_on_plan() {
     case "$1" in
@@ -759,8 +759,8 @@ convergence_message() {
 }
 
 # Fingerprint the artifacts a plan iteration is allowed to change.
-# Plan mode never commits (IMPLEMENTATION_PLAN.md is gitignored), so HEAD cannot
-# detect progress. A pass that leaves this hash unchanged has converged.
+# It reads the working tree, so a spec commit is no change. A pass that leaves
+# this hash unchanged has converged.
 plan_state_hash() {
     {
         if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
@@ -1126,7 +1126,8 @@ cmd_loop() {
 
     # Hard stops, checked unconditionally: a plan with no goal has nothing to
     # plan against, a plan over a stale cycle base would widen the next
-    # review, a build with no open item has no work to pick up, a review
+    # review, a plan over a dirty specs/ would commit the operator's edits,
+    # a build with no open item has no work to pick up, a review
     # with no shipped item has nothing to audit, and neither '-n' nor
     # '--dry-run' may turn any of them into a run of empty iterations.
     if [[ "$mode" == "plan" ]]; then
@@ -1323,8 +1324,8 @@ cmd_loop() {
             "$iter_label" \
             "$(printf '%*s' "$pad_right" '' | tr ' ' '=')"
 
-        # Snapshot HEAD to detect noops. Plan and review never commit, so they
-        # fingerprint the artifacts they are allowed to change instead.
+        # Snapshot HEAD to detect noops. Plan commits only specs and review never
+        # commits, so they fingerprint the artifacts they may change instead.
         local head_before plan_state_before="" plan_state_after=""
         local state_before="" state_after=""
         head_before=$(git rev-parse -q --verify HEAD 2>/dev/null || echo -)
@@ -1741,7 +1742,7 @@ cmd_loop() {
 
         # Early exit. Build mode watches every git repository beneath the
         # workspace and tolerates one noop; -n overrides it.
-        # Plan never commits (IMPLEMENTATION_PLAN.md is gitignored), so it
+        # Plan commits only specs (IMPLEMENTATION_PLAN.md is gitignored), so it
         # watches the plan artifacts instead. A pass that changes nothing has
         # converged, and there is no second-chance iteration to wait for: -n caps
         # such a run but never disables the check. Review runs one pass, so it
