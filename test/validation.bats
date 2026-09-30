@@ -199,6 +199,55 @@ load test_helper
     [[ "$output" != *"built but not archived"* ]]
 }
 
+@test "plan runs over a base that is not stale when an item is open" {
+    "$RALPH" init
+    seed_open_item
+    seed_cycle_base
+    run "$RALPH" plan --dry-run -g "the goal"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"[dry-run] Would run"* ]]
+}
+
+@test "plan runs over a base that is not stale when an item is superseded" {
+    "$RALPH" init
+    seed_shipped_item
+    echo "- [~] **Superseded task**" >> IMPLEMENTATION_PLAN.md
+    seed_cycle_base
+    run "$RALPH" plan --dry-run -g "the goal"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"[dry-run] Would run"* ]]
+}
+
+@test "plan runs over a shipped plan with no stale base" {
+    "$RALPH" init
+    seed_shipped_item
+    run "$RALPH" plan --dry-run -g "the goal"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"[dry-run] Would run"* ]]
+}
+
+@test "plan runs after archive and init end a stale cycle" {
+    "$RALPH" init
+    seed_shipped_item
+    seed_cycle_base
+    "$RALPH" archive
+    "$RALPH" init
+    run "$RALPH" plan --dry-run -g "the goal"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"[dry-run] Would run"* ]]
+}
+
+@test "plan runs after clean and init end a stale cycle" {
+    "$RALPH" init
+    seed_shipped_item
+    seed_cycle_base
+    "$RALPH" clean
+    "$RALPH" init
+    run "$RALPH" plan --dry-run -g "the goal"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"[dry-run] Would run"* ]]
+}
+
 @test "build rejects a goal" {
     # build reads its work from IMPLEMENTATION_PLAN.md, so a goal cannot
     # change what it does. Accepting one silently would let the operator
