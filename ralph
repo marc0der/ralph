@@ -829,6 +829,36 @@ cycle_changed_files() {
     } | LC_ALL=C sort -u
 }
 
+# Stop a plan pass whose new commits leave specs/ or delete a spec; see
+# specs/plan-commits-specs.md.
+check_plan_pass() {
+    local iteration="$1" state_before="$2" state_after="$3"
+    local repo sha sha_before range path path_in_workspace repos_in_workspace
+    repos_in_workspace=$(cut -d' ' -f1 <<< "$state_after" | sed 's|^\./||')
+    while read -r repo sha; do
+        sha_before=$(awk -v r="$repo" '$1 == r { print $2 }' <<< "$state_before")
+        [[ "$sha" == "-" || "$sha" == "$sha_before" ]] && continue
+        if [[ -z "$sha_before" || "$sha_before" == "-" ]]; then
+            range=HEAD
+        else
+            range="$sha_before..HEAD"
+        fi
+        while IFS= read -r path; do
+            [[ -z "$path" || "$path" == specs/* ]] && continue
+            path_in_workspace="$repo/$path"
+            path_in_workspace=${path_in_workspace#./}
+            grep -qxF -- "$path_in_workspace" <<< "$repos_in_workspace" && continue
+            echo "Error: plan pass $iteration committed $path in $repo, which is outside specs/." >&2
+            exit 1
+        done < <(git -C "$repo" log --format= --name-only --no-renames "$range" 2>/dev/null)
+        path=$(git -C "$repo" log --format= --name-only --no-renames --diff-filter=D "$range" -- specs 2>/dev/null | grep -m1 . || true)
+        if [[ -n "$path" ]]; then
+            echo "Error: plan pass $iteration deleted $path in $repo; plan may not delete or move a spec." >&2
+            exit 1
+        fi
+    done <<< "$state_after"
+}
+
 truncate_line() {
     local text="$1" max="$2"
     if [[ ${#text} -gt $max ]]; then
@@ -1666,6 +1696,10 @@ cmd_loop() {
                     echo "Review may never un-tick an item. Restore IMPLEMENTATION_PLAN.md before re-running." >&2
                     exit 1
                 fi
+            fi
+
+            if [[ "$mode" == "plan" ]]; then
+                check_plan_pass "$iteration" "$state_before" "$state_after"
             fi
         fi
 
