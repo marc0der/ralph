@@ -82,7 +82,8 @@ predicate, `have_dirty_specs`, so `auto` can use it too.
 Ralph takes `repo_state` before and after each plan pass. For every repository whose `HEAD` moved,
 it lists the paths of each new commit with `git log --format= --name-only --no-renames`. A
 repository that was `-` before the pass, or absent from the listing, counts every commit reachable
-from `HEAD`. `--no-renames` lists a rename as a deletion plus an addition, so a moved spec is caught.
+from `HEAD`. `--no-renames` lists a rename as a deletion plus an addition, so a moved spec is
+caught.
 
 The pass fails when any of these holds:
 
@@ -101,8 +102,16 @@ Error: plan pass <N> deleted <path> in <repo>; plan may not delete or move a spe
 Error: plan pass <N> left uncommitted changes under specs/ in <repo>.
 ```
 
-The guard runs after the pass and before Ralph's push. The plan convergence check is unchanged: `plan_state_hash` reads the working tree, so a commit is not a
-change.
+When the uncommitted-changes check fails and `resolve_prompt` chose a project-local
+`PROMPT_plan.md`, Ralph adds a second line, because a local copy made before this change has no
+commit step, and without it every pass that records a decision fails here:
+
+```
+This project has its own PROMPT_plan.md; add the commit step from the installed prompts/plan.md.
+```
+
+The guard runs after the pass and before Ralph's push. The plan convergence check is unchanged:
+`plan_state_hash` reads the working tree, so a commit is not a change.
 
 ### Push after plan
 
@@ -164,6 +173,8 @@ Each test uses a mock backend that makes the stated commits.
 - A pass that commits `README.md` fails with the outside-specs error and is not pushed.
 - A pass that deletes or renames a spec fails with the deletion error.
 - A pass that edits a spec and does not commit it fails with the uncommitted error.
+- With a project-local `PROMPT_plan.md`, that failure also prints the stale-prompt line. Without
+  one, it does not.
 - A pass that commits nothing passes.
 - A pass that commits a spec in a nested repository and bumps its gitlink in the workspace passes.
 - A pass in a repository with no commits before the pass is checked across every commit.
