@@ -143,6 +143,62 @@ load test_helper
     [[ "$output" == *"'plan' requires a goal"* ]]
 }
 
+@test "plan fails on a cycle built but not archived" {
+    "$RALPH" init
+    seed_shipped_item
+    seed_cycle_base
+    run "$RALPH" plan -g "the goal"
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *".ralph/cycle-base is left from a cycle that was built but not archived."* ]]
+    [[ "$output" == *"Run 'ralph archive' (or 'ralph clean'), then 'ralph init', before running 'ralph plan'."* ]]
+}
+
+@test "plan --dry-run fails on a cycle built but not archived" {
+    "$RALPH" init
+    seed_shipped_item
+    seed_cycle_base
+    run "$RALPH" plan --dry-run -g "the goal"
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"built but not archived"* ]]
+    [[ "$output" != *"[dry-run]"* ]]
+}
+
+@test "plan -n 1 fails on a cycle built but not archived" {
+    "$RALPH" init
+    seed_shipped_item
+    seed_cycle_base
+    run "$RALPH" plan -n 1 -g "the goal"
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"built but not archived"* ]]
+}
+
+@test "plan without claude in PATH fails on a cycle built but not archived" {
+    # The stale cycle stop runs before resolve_backend, so a missing CLI cannot mask it.
+    "$RALPH" init
+    seed_shipped_item
+    seed_cycle_base
+    cp IMPLEMENTATION_PLAN.md "$TEST_DIR/plan.before"
+    local filtered_path
+    filtered_path=$(echo "$PATH" | tr ':' '\n' | while read -r dir; do
+        [[ -x "$dir/claude" ]] || printf "%s:" "$dir"
+    done)
+    PATH="${filtered_path%:}" run "$RALPH" plan -g "the goal"
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"built but not archived"* ]]
+    [[ "$output" != *"'claude' CLI not found"* ]]
+    cmp IMPLEMENTATION_PLAN.md "$TEST_DIR/plan.before"
+}
+
+@test "plan without a goal reports the goal over a stale cycle" {
+    "$RALPH" init
+    seed_shipped_item
+    seed_cycle_base
+    run "$RALPH" plan
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"'plan' requires a goal"* ]]
+    [[ "$output" != *"built but not archived"* ]]
+}
+
 @test "build rejects a goal" {
     # build reads its work from IMPLEMENTATION_PLAN.md, so a goal cannot
     # change what it does. Accepting one silently would let the operator
