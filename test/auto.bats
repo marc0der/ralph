@@ -301,6 +301,7 @@ seed_resume_state() {
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"built but not archived"* ]]
     [[ "$output" == *"without --resume"* ]]
+    [[ "$output" == *"Lifecycle summary"* ]]
     [[ "$output" != *"3 plan      ran"* ]]
     grep -q '^phase=1$' .ralph/auto-state
 }
