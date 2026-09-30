@@ -6,7 +6,7 @@ A meta repository holds no service code of its own. It has a manifest and a sync
 
 - **Commits anywhere count as progress.** Ralph watches every git repository beneath the workspace, not just the workspace's own. A pass that only commits inside `source/svc` is progress, not a no-op. The scan follows symlinks and goes 6 levels deep.
 - **Ralph pushes the workspace only.** If the workspace has no `origin`, or no commits yet, ralph skips the push and carries on. A push that git rejects is still a failure.
-- **The agent commits where each file lives.** The build prompt finds the repository that owns each changed file and runs its git commands, push included, there.
+- **The agent commits where each file lives.** The build prompt finds the repository that owns each changed file and runs its git commands, push included, there. The plan prompt does the same for the spec changes it commits.
 - **The plan and progress log stay at the root.** `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` always live where you ran ralph, whatever the goal points at. The goal can name a spec anywhere below the root: inside a service's clone for a single-service feature, or in the workspace's own `specs/` for a feature that spans services.
 
 ## Set up your guardrails
