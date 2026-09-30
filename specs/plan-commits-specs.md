@@ -196,6 +196,10 @@ Each test uses a mock backend that makes the stated commits.
   planner that edits another file and leaves it uncommitted passes.
 - **Several plan passes, several commits.** A decision revised in a later pass produces a second
   commit, not an amended one. The history stays honest, at the cost of noise.
+- **Re-planning mid-cycle puts spec commits in the cycle's work.** A `plan` run after build has
+  written `.ralph/cycle-base`, for example to replace a `[~]` item, commits after the base. Review
+  then counts those spec diffs as changed files and may file text findings against them. This is no
+  regression: today the same edits reach the cycle's work folded into build commits.
 - **A rejected commit stays on the branch, pushed or not.** Ralph stops without rewriting history,
   and the operator reverts it.
 
