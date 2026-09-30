@@ -43,6 +43,16 @@ seed_committed_spec() {
     git commit -q -m "docs(specs): add existing"
 }
 
+# Create a repository at $1 with one commit, copied from nested_repos.bats.
+init_repo() {
+    local path="$1"
+    mkdir -p "$path"
+    git -C "$path" init --quiet
+    git -C "$path" config user.email "nested@test.com"
+    git -C "$path" config user.name "Nested"
+    git -C "$path" commit --allow-empty -m "nested initial" --quiet
+}
+
 run_plan() {
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan -g "the goal" "$@"
 }
@@ -143,4 +153,42 @@ git add -- specs/new.md specs/features/03-foo.md && git commit -q -m "docs(specs
     [ "$status" -eq 0 ]
     [[ "$output" != *"Error: plan pass"* ]]
     [[ "$output" == *"Completed 1 iteration"* ]]
+}
+
+@test "a pass that commits a nested spec and bumps its gitlink passes" {
+    "$RALPH" init
+    init_repo source/svc
+    git -c advice.addEmbeddedRepo=false add -- source/svc
+    git commit -q -m "chore: add source/svc"
+    create_scripted_backend
+    # shellcheck disable=SC2016 # $(...) expands when the mock sources the snippet
+    on_iteration 1 'mkdir -p source/svc/specs && echo "# Svc" > source/svc/specs/x.md &&
+git -C source/svc add -- specs/x.md && git -C source/svc commit -q -m "docs(specs): add svc spec" &&
+git add -- source/svc && git commit -q -m "chore: bump source/svc to $(git -C source/svc rev-parse --short HEAD)"'
+
+    run_plan --skip-push
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Error: plan pass"* ]]
+    [[ "$(git log -1 --format=%s)" == "chore: bump source/svc to "* ]]
+    [[ "$(git ls-tree HEAD source/svc)" == "160000 commit $(git -C source/svc rev-parse HEAD)"* ]]
+}
+
+@test "a pass in a repository with no commits before it checks every commit" {
+    "$RALPH" init
+    mkdir -p source/empty
+    git -C source/empty init --quiet
+    git -C source/empty config user.email "nested@test.com"
+    git -C source/empty config user.name "Nested"
+    echo "source/" >> .gitignore
+    git add -- .gitignore
+    git commit -q -m "chore: ignore source"
+    create_scripted_backend
+    on_iteration 1 'echo "x" > source/empty/README.md && git -C source/empty add -- README.md &&
+git -C source/empty commit -q -m "docs: readme" &&
+mkdir -p source/empty/specs && echo "# Spec" > source/empty/specs/x.md &&
+git -C source/empty add -- specs/x.md && git -C source/empty commit -q -m "docs(specs): add spec"'
+
+    run_plan --skip-push
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Error: plan pass 1 committed README.md in ./source/empty, which is outside specs/."* ]]
 }
