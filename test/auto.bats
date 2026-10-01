@@ -78,6 +78,18 @@ seed_resume_state() {
     [[ "$output" == *"iteration"* ]]
 }
 
+@test "auto --verbose exits 1 with the getopt message" {
+    DEVCONTAINER=true run "$RALPH" auto --verbose -g "the goal"
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"ralph auto: unrecognized option '--verbose'"* ]]
+}
+
+@test "auto -v exits 1 with the getopt message" {
+    DEVCONTAINER=true run "$RALPH" auto -v -g "the goal"
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"ralph auto: invalid option -- 'v'"* ]]
+}
+
 @test "auto with no -g exits 1 and names the goal" {
     # The goal is the one input auto cannot derive: phase 3 is plan, which
     # plans against whatever specs/ it resolves when the goal is empty.
@@ -383,6 +395,17 @@ seed_resume_state() {
     [[ "$(grep -E '^ +5 review' <<< "$output")" != *"-g"* ]]
 }
 
+@test "--dry-run -q shows -q on the plan, build and review rows only" {
+    DEVCONTAINER=true run "$RALPH" auto --dry-run -q -g "the goal"
+    [[ "$status" -eq 0 ]]
+    [[ "$(grep -E '^ +3 plan' <<< "$output")" == *" -q "* ]]
+    [[ "$(grep -E '^ +4 build' <<< "$output")" == *" -q "* ]]
+    [[ "$(grep -E '^ +5 review' <<< "$output")" == *" -q "* ]]
+    [[ "$(grep -E '^ +6 build' <<< "$output")" == *" -q "* ]]
+    [[ "$(grep -E '^ +1 archive' <<< "$output")" != *"-q"* ]]
+    [[ "$(grep -E '^ +2 init' <<< "$output")" != *"-q"* ]]
+}
+
 # --- Flag forwarding by behaviour (§11) -------------------------------------
 
 @test "--no-metrics reaches children: no .ralph/metrics directory is created" {
@@ -396,6 +419,14 @@ seed_resume_state() {
     create_committing_backend
     run_auto --skip-push --no-metrics
     [[ "$output" == *"Backend command:"* ]]
+}
+
+@test "auto -q reaches children: no Backend command: line appears" {
+    create_committing_backend
+    run_auto -q --skip-push --no-metrics
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"6 build     ran"* ]]
+    [[ "$output" != *"Backend command:"* ]]
 }
 
 @test "--skip-push reaches children: a lifecycle completes in a repo with no remote" {
