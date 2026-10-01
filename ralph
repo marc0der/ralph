@@ -256,7 +256,7 @@ Options:
                        never pushes)
       --dry-run        Print what would be executed without running
       --no-metrics     Don't record per-iteration metrics under .ralph/metrics/
-  -v, --verbose        Stream backend activity live; show commands, exit codes and the raw stream path
+  -q, --quiet          Don't stream backend activity; hide commands, exit codes and the raw stream path
   -y, --yes            Skip the confirmation when running outside a sandbox
   -h, --help           Show this help message
 
@@ -1070,11 +1070,11 @@ cmd_loop() {
     local backend=""
     local skip_push=false
     local dry_run=false
-    local verbose=false
+    local quiet=false
     local assume_yes=false
     local no_metrics=false
 
-    ARGS=$(getopt -o n:g:m:b:vyh --long iterations:,goal:,model:,backend:,skip-push,dry-run,no-metrics,verbose,yes,help -n 'ralph' -- "$@")
+    ARGS=$(getopt -o n:g:m:b:qyh --long iterations:,goal:,model:,backend:,skip-push,dry-run,no-metrics,quiet,yes,help -n 'ralph' -- "$@")
     eval set -- "$ARGS"
 
     while true; do
@@ -1096,7 +1096,7 @@ cmd_loop() {
             --skip-push)     skip_push=true;      shift ;;
             --dry-run)       dry_run=true;        shift ;;
             --no-metrics)    no_metrics=true;     shift ;;
-            -v|--verbose)    verbose=true;        shift ;;
+            -q|--quiet)      quiet=true;          shift ;;
             -y|--yes)        assume_yes=true;     shift ;;
             -h|--help)       usage ;;
             --)              shift; break ;;
@@ -1258,7 +1258,7 @@ cmd_loop() {
     # the live renderer's own output as backend stderr, because both write to
     # fd 2, and a silent backend still produced an empty pair of markers.
     stderr_handler() {
-        if $verbose; then
+        if ! $quiet; then
             local line
             local saw_line=false
             while IFS= read -r line || [[ -n "$line" ]]; do
@@ -1408,7 +1408,7 @@ cmd_loop() {
                 stream_retained=true
             fi
 
-            if $verbose; then
+            if ! $quiet; then
                 if [[ "$BACKEND_STDIN_PROMPT" == "true" ]]; then
                     echo "Backend command: ${BACKEND_CMD[*]}" >&2
                 else
@@ -1456,7 +1456,7 @@ cmd_loop() {
             # Decide the branch once and record it: the verbose report below
             # keys on whether the renderer ran, and re-deriving that condition
             # there let the two drift apart.
-            if [[ -n "$raw_file" ]] && $verbose && [[ -n "$BACKEND_JQ_LIVE" ]]; then
+            if [[ -n "$raw_file" ]] && ! $quiet && [[ -n "$BACKEND_JQ_LIVE" ]]; then
                 live_render=true
             fi
             set +e
@@ -1544,7 +1544,7 @@ cmd_loop() {
                 fi
             fi
 
-            if $verbose; then
+            if ! $quiet; then
                 if $stream_pointer; then
                     echo "Raw stream: $raw_file" >&2
                 elif $stream_rendered; then
@@ -1586,8 +1586,8 @@ cmd_loop() {
                 local backend_hint="Hint: re-run with --dry-run to inspect the prompt"
                 if $stream_retained; then
                     backend_hint="Hint: inspect the raw backend stream at $raw_file, or re-run with --dry-run to inspect the prompt"
-                elif ! $verbose; then
-                    backend_hint="$backend_hint, or --verbose for full diagnostics"
+                elif $quiet; then
+                    backend_hint="$backend_hint, or re-run without --quiet for full diagnostics"
                 fi
                 echo "$backend_hint" >&2
                 exit "$backend_exit"
@@ -1628,14 +1628,14 @@ cmd_loop() {
                     # whole extra backend iteration to reprint that file.
                     if $stream_retained; then
                         echo "Hint: inspect the raw backend stream at $raw_file" >&2
-                    elif ! $verbose; then
-                        echo "Hint: re-run with --verbose to see raw backend output before jq processing" >&2
+                    elif $quiet; then
+                        echo "Hint: re-run without --quiet to see raw backend output before jq processing" >&2
                     fi
                     exit "$jq_exit"
                 fi
             fi
 
-            if $verbose; then
+            if ! $quiet; then
                 echo "Exit codes — backend: $backend_exit, jq: $jq_exit" >&2
             fi
 
@@ -1733,7 +1733,7 @@ cmd_loop() {
                             echo "$push_output" >&2
                             exit 1
                         fi
-                    elif $verbose; then
+                    elif ! $quiet; then
                         echo "Push output:" >&2
                         echo "$push_output" >&2
                     fi
