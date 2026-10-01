@@ -392,9 +392,9 @@ seed_resume_state() {
     [[ ! -d .ralph/metrics ]]
 }
 
-@test "-v reaches children: verbose markers appear on the output" {
+@test "auto without --quiet shows Backend command: lines" {
     create_committing_backend
-    run_auto -v --skip-push --no-metrics
+    run_auto --skip-push --no-metrics
     [[ "$output" == *"Backend command:"* ]]
 }
 

@@ -246,7 +246,7 @@ MOCK
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
     create_streaming_backend
 
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 0 ]]
 
     local line

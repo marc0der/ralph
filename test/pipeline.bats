@@ -2,34 +2,12 @@
 
 load test_helper
 
-# --- Verbose flag acceptance ---
-
-@test "--verbose flag is accepted without error (build, dry-run)" {
-    "$RALPH" init
-    seed_open_item
-    run "$RALPH" build --dry-run -n 1 --verbose
-    [[ "$status" -eq 0 ]]
-}
-
-@test "--verbose flag is accepted without error (plan, dry-run)" {
-    "$RALPH" init
-    run "$RALPH" plan --dry-run -n 1 --verbose -g "the goal"
-    [[ "$status" -eq 0 ]]
-}
-
-@test "-v shorthand is accepted without error" {
-    "$RALPH" init
-    seed_open_item
-    run "$RALPH" build --dry-run -n 1 -v
-    [[ "$status" -eq 0 ]]
-}
-
 # --- Verbose output content ---
 
 @test "--verbose dry-run output includes the backend command line" {
     "$RALPH" init
     seed_open_item
-    run "$RALPH" build --dry-run -n 1 --verbose
+    run "$RALPH" build --dry-run -n 1
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
 }
@@ -66,9 +44,9 @@ exit 1
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --no-metrics
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --no-metrics --quiet
     [[ "$status" -ne 0 ]]
-    [[ "$output" == *"--verbose"* ]]
+    [[ "$output" == *"or re-run without --quiet for full diagnostics"* ]]
     [[ "$output" == *"--dry-run"* ]]
 }
 
@@ -103,8 +81,9 @@ echo '{"type":"result","result":"done"}'
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --quiet
     [[ "$output" == *"stderr message from backend"* ]]
+    [[ "$output" != *"=== Backend stderr ==="* ]]
 }
 
 # --- Non-verbose, non-failure: no extra output ---
@@ -119,7 +98,7 @@ echo '{"type":"result","result":"hello world"}'
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --quiet
     [[ "$status" -eq 0 ]]
     [[ "$output" != *"Backend command:"* ]]
     [[ "$output" != *"Exit codes"* ]]
@@ -449,7 +428,7 @@ echo '{"type":"result","result":"ok"}'
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Exit codes"* ]]
     [[ "$output" == *"backend: 0"* ]]
@@ -468,7 +447,7 @@ echo '{"type":"result","result":"ok"}'
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Backend command: claude"* ]]
 }
@@ -485,7 +464,7 @@ MOCK
     seed_open_item
     create_streaming_backend
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 0 ]]
     # shellcheck disable=SC2154  # set by bats `run --separate-stderr`, not by this script
     [[ "$stderr" == *"→ Bash ls -la"* ]]
@@ -496,7 +475,7 @@ MOCK
     seed_open_item
     create_streaming_backend
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *"done here"* ]]
 }
@@ -509,10 +488,11 @@ MOCK
     seed_open_item
     create_streaming_backend
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --quiet
     [[ "$status" -eq 0 ]]
     [[ "$output" != *"→ Bash ls -la"* ]]
     [[ "$stderr" != *"→ Bash ls -la"* ]]
+    [[ "$stderr" != *"Raw stream: "* ]]
     [[ "$output" == *"done here"* ]]
 }
 
@@ -532,7 +512,7 @@ echo '{"type":"result","subtype":"success","duration_ms":1234,"result":"done her
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *'→ Bash ["ls","-la"]'* ]]
     [[ "$stderr" == *"after it"* ]]
@@ -558,7 +538,7 @@ echo '{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"te
 MOCK
     chmod +x "$TEST_DIR/bin/pi"
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 -b pi --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 -b pi --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *"→ bash ls -la"* ]]
     [[ "$output" == *"listed the files"* ]]
@@ -577,7 +557,7 @@ MOCK
     seed_open_item
     create_streaming_backend
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *"Raw stream:"* ]]
     [[ "$stderr" == *"iter-001.stream.jsonl"* ]]
@@ -600,7 +580,7 @@ echo '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","tex
 MOCK
     chmod +x "$TEST_DIR/bin/codex"
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 -b codex --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 -b codex --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"codex done"* ]]
     [[ "$stderr" == *"Raw stream: "*"iter-001.stream.jsonl"* ]]
@@ -620,7 +600,7 @@ echo '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","tex
 MOCK
     chmod +x "$TEST_DIR/bin/codex"
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 -b codex --skip-push --no-metrics --verbose
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 -b codex --skip-push --no-metrics
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *"Raw stream not retained"* ]]
     [[ "$stderr" != *"Raw stream:"* ]]
@@ -645,7 +625,7 @@ MOCK
 
     BACKEND_JQ_LIVE='if .item.type == "agent_message" then "  LEAKED " + .item.text else empty end' \
         PATH="$TEST_DIR/bin:$PATH" \
-        run --separate-stderr "$RALPH" build -n 1 -b codex --skip-push --verbose
+        run --separate-stderr "$RALPH" build -n 1 -b codex --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"codex done"* ]]
     # The leaked filter never runs, so nothing renders and no failed render
@@ -669,7 +649,7 @@ MOCK
 
     MOCK_TMP_LISTING="$TEST_DIR/tmpdir-listing" TMPDIR="$TEST_DIR/tmp" \
         PATH="$TEST_DIR/bin:$PATH" \
-        run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics --verbose
+        run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *"→ Bash ls -la"* ]]
     [[ "$stderr" == *"Raw stream not retained"* ]]
@@ -702,7 +682,7 @@ MOCK
     mkdir -p .ralph
     touch .ralph/metrics
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
     rm -f .ralph/metrics
 
     [[ "$status" -eq 0 ]]
@@ -738,7 +718,7 @@ MOCK
     } > "$TEST_DIR/bin/mkdir"
     chmod +x "$TEST_DIR/bin/mkdir"
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 0 ]]
     # Metrics stayed enabled: the run still announced its metrics file and only
     # failed when it tried to write into the directory that was never created.
@@ -788,7 +768,7 @@ MOCK
     } > "$TEST_DIR/bin/jq"
     chmod +x "$TEST_DIR/bin/jq"
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
     # The renderer is not the backend: its failure must not end the iteration.
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *"live rendering failed on iteration 1"* ]]
@@ -836,7 +816,7 @@ MOCK
     } > "$TEST_DIR/bin/jq"
     chmod +x "$TEST_DIR/bin/jq"
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 2 --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 2 --skip-push
     [[ "$status" -eq 0 ]]
     # Reaching iteration 2 is the whole point: before the guards the run ended
     # inside iteration 1.
@@ -866,7 +846,7 @@ MOCK
     create_streaming_backend
 
     MOCK_EXIT=42 PATH="$TEST_DIR/bin:$PATH" \
-        run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+        run --separate-stderr "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 42 ]]
     # The rendered line proves the run went through the tee branch, so the
     # status below is PIPESTATUS[0] and not a plain command's exit code.
@@ -907,7 +887,7 @@ exit "$status"
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 0 ]]
     # The noise still reached the user, so this is about routing rather than
     # about stderr being swallowed.
@@ -966,7 +946,7 @@ echo '{"type":"result","subtype":"success","duration_ms":1234,"result":"done her
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
     # Non-zero from the summary filter, not from the backend: the mock exits 0.
     [[ "$status" -ne 0 ]]
     [[ "$stderr" == *"jq parse failure on iteration 1"* ]]
@@ -999,7 +979,7 @@ MOCK
     seed_open_item
     create_streaming_backend
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$stderr" != *"=== Backend stderr ==="* ]]
     [[ "$stderr" != *"=== End backend stderr ==="* ]]
@@ -1021,7 +1001,7 @@ exec "$(dirname "$0")/streaming-events"
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *"=== Backend stderr ==="* ]]
     [[ "$stderr" == *"refreshing credentials"* ]]
@@ -1063,7 +1043,7 @@ MOCK
     # changes nothing about the write failure itself.
     # shellcheck disable=SC2016  # $0 is the inner shell's argv[0], set below
     run --separate-stderr env "PATH=$TEST_DIR/bin:$PATH" \
-        bash -c 'ulimit -c 0; ulimit -f 8; exec "$0" build -n 1 --skip-push --no-metrics' "$RALPH"
+        bash -c 'ulimit -c 0; ulimit -f 8; exec "$0" build -n 1 --skip-push --no-metrics --quiet' "$RALPH"
 
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *"raw backend stream write failed on iteration 1"* ]]
@@ -1098,7 +1078,7 @@ MOCK
     [[ ! -e "$sentinel" ]]
 
     MOCK_DELAY=3 MOCK_SENTINEL="$sentinel" PATH="$TEST_DIR/bin:$PATH" \
-        "$RALPH" build -n 1 --skip-push --verbose >/dev/null 2>"$err" &
+        "$RALPH" build -n 1 --skip-push >/dev/null 2>"$err" &
     local pid=$!
 
     # Poll for up to 10s — the mock needs ~6s to finish, so a renderer that
@@ -1384,12 +1364,12 @@ echo 'NOT JSON AT ALL'
 MOCK
     chmod +x "$TEST_DIR/bin/codex"
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 -b codex --skip-push
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 -b codex --skip-push --quiet
     [[ "$status" -ne 0 ]]
     [[ "$stderr" == *"jq parse failure on iteration 1"* ]]
     [[ "$stderr" == *"Hint: inspect the raw backend stream at"*"iter-001.stream.jsonl"* ]]
     # The stream is on disk, so asking for another run to see it is wrong.
-    [[ "$stderr" != *"re-run with --verbose"* ]]
+    [[ "$stderr" != *"re-run without --quiet"* ]]
 
     # The hint names a file that is really there.
     local hinted
@@ -1414,13 +1394,13 @@ exit 42
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --quiet
     [[ "$status" -eq 42 ]]
     [[ "$stderr" == *"backend command failed on iteration 1"* ]]
     [[ "$stderr" == *"Hint: inspect the raw backend stream at"*"iter-001.stream.jsonl"* ]]
     [[ "$stderr" == *"--dry-run"* ]]
-    # --verbose is already on, so advising it is noise.
-    [[ "$stderr" != *"--verbose for full diagnostics"* ]]
+    # The stream is on disk, so asking for another run to see it is wrong.
+    [[ "$stderr" != *"re-run without --quiet for full diagnostics"* ]]
 }
 
 # The counterpart rule on the warning path: a diagnostic may name only a file
@@ -1484,7 +1464,7 @@ MOCK
     chmod +x "$TEST_DIR/bin/mktemp"
 
     TMPDIR="$TEST_DIR/tmp" PATH="$TEST_DIR/bin:$PATH" \
-        run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics --verbose
+        run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics
     # Losing the stream file costs the record, never the iteration.
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"done here"* ]]
