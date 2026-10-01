@@ -409,6 +409,7 @@ scaffold() {
 }
 
 cmd_sandbox() {
+    reject_quiet sandbox "$@"
     local rebuild=false
 
     case "${1:-}" in
