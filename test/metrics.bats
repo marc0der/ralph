@@ -237,11 +237,11 @@ MOCK
 }
 
 # The tee branch is a second, distinct write site for the raw stream: under
-# --verbose the file is written by `tee` inside a pipeline rather than by a
+# default output the file is written by `tee` inside a pipeline rather than by a
 # plain `>` redirect. The metrics reader parses that same file after the
 # backend exits, so this pins that a torn or truncated tee write would show up
 # as a missing histogram rather than passing silently.
-@test "tool histogram is read from the stream file written under --verbose" {
+@test "tool histogram is read from the stream file written by default" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
     create_streaming_backend

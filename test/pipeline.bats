@@ -4,7 +4,7 @@ load test_helper
 
 # --- Verbose output content ---
 
-@test "--verbose dry-run output includes the backend command line" {
+@test "dry-run output includes the backend command line by default" {
     "$RALPH" init
     seed_open_item
     run "$RALPH" build --dry-run -n 1
@@ -94,7 +94,7 @@ MOCK
 # --no-metrics is what makes this the no-retained-stream case: the iteration
 # streams to the per-run temp file, which the EXIT trap deletes, so there is
 # nothing to name and another run is the only way to see the output.
-@test "pipeline failure error message suggests --verbose and --dry-run" {
+@test "pipeline failure error message suggests dropping --quiet and --dry-run" {
     "$RALPH" init
     seed_open_item
     mkdir -p "$TEST_DIR/bin"
@@ -146,7 +146,7 @@ MOCK
 
 # --- Backend stderr visibility ---
 
-@test "backend stderr remains visible in non-verbose mode" {
+@test "backend stderr remains visible under --quiet" {
     "$RALPH" init
     seed_open_item
     mkdir -p "$TEST_DIR/bin"
@@ -162,9 +162,9 @@ MOCK
     [[ "$output" != *"=== Backend stderr ==="* ]]
 }
 
-# --- Non-verbose, non-failure: no extra output ---
+# --- Quiet, non-failure: no extra output ---
 
-@test "non-verbose non-failure run produces no extra verbose output" {
+@test "--quiet non-failure run produces no extra verbose output" {
     "$RALPH" init
     seed_open_item
     mkdir -p "$TEST_DIR/bin"
@@ -494,7 +494,7 @@ MOCK
 
 # --- Verbose mode: exit codes shown ---
 
-@test "--verbose output includes exit codes after each iteration" {
+@test "output includes exit codes after each iteration by default" {
     "$RALPH" init
     seed_open_item
     mkdir -p "$TEST_DIR/bin"
@@ -513,7 +513,7 @@ MOCK
 
 # --- Verbose mode: backend command shown ---
 
-@test "--verbose output includes backend command before execution" {
+@test "output includes backend command before execution by default" {
     "$RALPH" init
     seed_open_item
     mkdir -p "$TEST_DIR/bin"
@@ -535,7 +535,7 @@ MOCK
 # stdout keeps carrying only the per-iteration summary, which is why every test
 # in this section needs --separate-stderr to tell the two apart.
 
-@test "--verbose renders tool calls live on stderr" {
+@test "tool calls render live on stderr by default" {
     "$RALPH" init
     seed_open_item
     create_streaming_backend
@@ -546,7 +546,7 @@ MOCK
     [[ "$stderr" == *"→ Bash ls -la"* ]]
 }
 
-@test "--verbose renders assistant text live on stderr" {
+@test "assistant text renders live on stderr by default" {
     "$RALPH" init
     seed_open_item
     create_streaming_backend
@@ -559,7 +559,7 @@ MOCK
 # The default path must stay quiet. The mock's result event repeats the text as
 # `.result`, because that is the field the claude summary filter reads — so this
 # also proves the summary survives the live-render branch being skipped.
-@test "non-verbose run renders no live lines but still prints the summary" {
+@test "--quiet run renders no live lines but still prints the summary" {
     "$RALPH" init
     seed_open_item
     create_streaming_backend
@@ -576,7 +576,7 @@ MOCK
 # arriving with the wrong type. A raise inside the content iteration discards
 # every *remaining* item of that event, so one odd tool input used to swallow
 # the assistant text that followed it. Both halves are asserted here.
-@test "--verbose renders a tool call whose input has the wrong type" {
+@test "a tool call whose input has the wrong type renders by default" {
     "$RALPH" init
     seed_open_item
     mkdir -p "$TEST_DIR/bin"
@@ -600,7 +600,7 @@ MOCK
 # undrained pipe leaves ralph writing into a closed reader. The events are
 # pi-shaped: tool_execution_start carries toolName/args flat on itself, unlike
 # the nested toolCall items the summary filter reads from agent_end.
-@test "--verbose renders pi tool calls live on stderr" {
+@test "pi tool calls render live on stderr by default" {
     "$RALPH" init
     seed_open_item
     mkdir -p "$TEST_DIR/bin"
@@ -622,13 +622,13 @@ MOCK
 
 # --- Verbose mode: raw stream pointer vs raw dump ---
 
-# Section 7 of the spec gives --verbose two mutually exclusive forms per
+# Section 7 of the spec gives the default output two mutually exclusive forms per
 # iteration. A stream the run retains and has already rendered live prints as a
 # one-line path, because re-printing it would bury the live output. Everything
 # else keeps the raw dump. These tests pin which form each case gets, so a
 # change to one condition cannot silently collapse both into the same output.
 
-@test "--verbose prints the raw stream path, not the raw JSON body" {
+@test "the raw stream path prints by default, not the raw JSON body" {
     "$RALPH" init
     seed_open_item
     create_streaming_backend
@@ -717,7 +717,7 @@ MOCK
 # Rendering is unaffected by that, though: --no-metrics only removes the path.
 # Keying the dump on retention made this run render every event live and then
 # print the whole stream again, burying the live output it had just produced.
-@test "--no-metrics --verbose renders live and names no stream" {
+@test "--no-metrics renders live and names no stream by default" {
     "$RALPH" init
     seed_open_item
     create_streaming_backend
@@ -820,7 +820,7 @@ MOCK
 # The renderer swallows jq's diagnostics with 2>/dev/null and drains the pipe
 # with `|| cat`, so a filter that never compiled looks exactly like one that
 # rendered every event: exit 0, no output. Combined with the pointer, that made
-# --verbose print *less* than it did before live rendering existed — a single
+# a default run print *less* than it did before live rendering existed — a single
 # `Raw stream:` line and nothing else. The drain now ends in `false`
 # so ${st[2]} carries the renderer's verdict, and a dead renderer gives the
 # dump back. A jq shim that fails only for the -rR call stands in for the real
@@ -862,10 +862,10 @@ MOCK
 # — or that removes .ralph itself — takes the stream file with it while the
 # iteration is still running. The write survives (the fd outlives the unlink),
 # but every later read by path fails. Under `set -euo pipefail` the unguarded
-# `cat` in the verbose dump killed the run outright, with cat's own message as
+# `cat` in the default dump killed the run outright, with cat's own message as
 # the only diagnostic and no further iterations. Both reads of the path are now
 # guarded, so a local file fault degrades one iteration instead of the run.
-@test "a removed stream file does not stop the loop under --verbose" {
+@test "a removed stream file does not stop the loop by default" {
     "$RALPH" init
     seed_open_item
     mkdir -p "$TEST_DIR/bin"
@@ -912,11 +912,11 @@ MOCK
 # These two tests pin the contracts that arrangement puts at risk: the backend
 # exit code must still reach the caller through PIPESTATUS (spec section 5),
 # and backend stderr must stay out of the raw stream file that the summary
-# filter and the metrics reader both parse (spec section 1). The non-verbose
+# filter and the metrics reader both parse (spec section 1). The --quiet
 # counterpart of the first test is "pipeline failure (backend exits non-zero)"
 # above, which never enters the tee branch.
 
-@test "backend exit code survives the tee pipeline under --verbose" {
+@test "backend exit code survives the tee pipeline by default" {
     "$RALPH" init
     seed_open_item
     create_streaming_backend
@@ -948,7 +948,7 @@ MOCK
 # leaks loudly: it aborts the summary filter, which cannot parse it. A
 # well-formed event leaks silently, and is the real hazard — it would be
 # adopted as the iteration result, so only reading the stream file catches it.
-@test "backend stderr stays out of the raw stream under --verbose" {
+@test "backend stderr stays out of the raw stream by default" {
     "$RALPH" init
     seed_open_item
     create_streaming_backend
@@ -1050,7 +1050,7 @@ MOCK
 # renderer writes to fd 2 as well, so a marker printed before any stderr
 # arrived framed every rendered line as backend stderr — and a silent backend,
 # which is the common case, produced an empty pair around nothing at all.
-@test "a silent backend prints no stderr markers under --verbose" {
+@test "a silent backend prints no stderr markers by default" {
     "$RALPH" init
     seed_open_item
     create_streaming_backend
@@ -1065,7 +1065,7 @@ MOCK
 
 # The other half of the contract: gating the markers must not lose them when
 # the backend really does write to stderr.
-@test "a noisy backend still frames its stderr under --verbose" {
+@test "a noisy backend still frames its stderr by default" {
     "$RALPH" init
     seed_open_item
     create_streaming_backend
@@ -1455,9 +1455,9 @@ MOCK
 
 # The same rule as the jq hint, on the other exit path: a failing iteration has
 # already written a partial stream, and when the run retains it that file is
-# the backend's own account of the failure. Advising --verbose there costs a
-# whole extra backend iteration to reproduce bytes already on disk, and says
-# nothing at all when --verbose is what produced the failing run.
+# the backend's own account of the failure. Advising a re-run without --quiet
+# there costs a whole extra backend iteration to reproduce bytes already on
+# disk, and says nothing at all when --quiet is off.
 @test "the backend failure hint names a retained stream" {
     "$RALPH" init
     seed_open_item
@@ -1483,7 +1483,7 @@ MOCK
 # the user can still open. Without metrics the stream lands in the per-run temp
 # file, which the next iteration truncates and the EXIT trap deletes, so naming
 # it printed a dead /tmp path once per iteration of an ordinary run — and this
-# warning is not gated on --verbose, so every `ralph build --no-metrics` saw it.
+# warning is not gated on --quiet, so every `ralph build --no-metrics` saw it.
 @test "the empty-stream warning names no temp path" {
     "$RALPH" init
     seed_open_item
@@ -1513,9 +1513,9 @@ MOCK
 # cause — a full or read-only $TMPDIR, or a BSD/macOS mktemp handed a template
 # it rejects — and with --no-metrics there is no second candidate to fall back
 # to. The tee path needs a real file, so the renderer cannot run here; the dump
-# of the captured variable is the only form --verbose can print, and the
+# of the captured variable is the only form a default run can print, and the
 # summary must still reach stdout from that same variable.
-@test "the variable capture fallback still summarises under --verbose" {
+@test "the variable capture fallback still summarises by default" {
     "$RALPH" init
     seed_open_item
     create_streaming_backend
