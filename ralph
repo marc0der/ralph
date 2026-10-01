@@ -278,12 +278,25 @@ EOF
     exit 0
 }
 
+reject_quiet() {
+    local command="$1"; shift
+    local arg
+    for arg in "$@"; do
+        if [[ "$arg" == "-q" || "$arg" == "--quiet" ]]; then
+            echo "Error: '$command' does not accept --quiet." >&2
+            exit 1
+        fi
+    done
+}
+
 cmd_version() {
+    reject_quiet version "$@"
     echo "ralph $VERSION"
     exit 0
 }
 
 cmd_clean() {
+    reject_quiet clean "$@"
     local found=false
     for file in "${ARTIFACTS[@]}"; do
         [[ "$file" == PROMPT_*.md ]] && continue
@@ -297,6 +310,7 @@ cmd_clean() {
 }
 
 cmd_archive() {
+    reject_quiet archive "$@"
     local found=false
     for file in "${ARTIFACTS[@]}"; do
         [[ "$file" == PROMPT_*.md ]] && continue
@@ -331,7 +345,7 @@ cmd_init() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -p|--prompts) with_prompts=true; shift ;;
-            *) echo "Error: unknown init option '$1'"; exit 1 ;;
+            *) echo "Error: unknown init option '$1'" >&2; exit 1 ;;
         esac
     done
 
@@ -999,6 +1013,7 @@ metrics_summary_suffix() {
 }
 
 cmd_metrics() {
+    reject_quiet metrics "$@"
     local file="${1:-}"
     if [[ -z "$file" ]]; then
         # shellcheck disable=SC2012  # newest-by-mtime needs ls; paths are ralph-generated (no odd filenames)
@@ -2052,9 +2067,9 @@ case "${1:-}" in
     auto)       shift; cmd_auto "$@" ;;
     metrics)    shift; cmd_metrics "$@" ;;
     init)       shift; cmd_init "$@" ;;
-    clean)      cmd_clean ;;
-    archive)    cmd_archive ;;
-    version)    cmd_version ;;
+    clean)      shift; cmd_clean "$@" ;;
+    archive)    shift; cmd_archive "$@" ;;
+    version)    shift; cmd_version "$@" ;;
     -h|--help)  usage ;;
     "")         usage ;;
     *)          echo "Error: unknown command '$1'"; exit 1 ;;
