@@ -102,3 +102,14 @@ load test_helper
         done
     done
 }
+
+@test "sandbox refuses -q and --quiet after a subcommand" {
+    local subcommand flag
+    for subcommand in clean --rebuild; do
+        for flag in -q --quiet; do
+            run --separate-stderr "$RALPH" sandbox "$subcommand" "$flag"
+            [[ "$status" -eq 1 ]]
+            [[ "$stderr" == "Error: 'sandbox' does not accept --quiet." ]]
+        done
+    done
+}
