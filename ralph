@@ -1803,12 +1803,12 @@ cmd_auto() {
     local skip_push=false
     local dry_run=false
     local no_metrics=false
-    local verbose=false
+    local quiet=false
     local resume=false
     local force=false
 
     local args
-    args=$(getopt -o n:g:m:b:vyh --long iterations:,goal:,model:,backend:,skip-push,dry-run,no-metrics,verbose,yes,help,resume,force -n 'ralph auto' -- "$@")
+    args=$(getopt -o n:g:m:b:qyh --long iterations:,goal:,model:,backend:,skip-push,dry-run,no-metrics,quiet,yes,help,resume,force -n 'ralph auto' -- "$@")
     eval set -- "$args"
 
     while true; do
@@ -1822,7 +1822,7 @@ cmd_auto() {
             --skip-push)   skip_push=true;  shift ;;
             --dry-run)     dry_run=true;    shift ;;
             --no-metrics)  no_metrics=true; shift ;;
-            -v|--verbose)  verbose=true;    shift ;;
+            -q|--quiet)    quiet=true;      shift ;;
             -y|--yes)      shift ;;
             --resume)      resume=true;     shift ;;
             --force)       force=true;      shift ;;
@@ -1933,7 +1933,7 @@ cmd_auto() {
     [[ -n $backend ]] && child_flags+=(-b "$backend")
     $skip_push        && child_flags+=(--skip-push)
     $no_metrics       && child_flags+=(--no-metrics)
-    $verbose          && child_flags+=(-v)
+    $quiet            && child_flags+=(-q)
 
     # Dry run (§8). Print the six phases and, for each loop phase, the exact
     # child command line auto would invoke with the resolved goal/model/backend.
