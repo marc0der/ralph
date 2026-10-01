@@ -587,10 +587,10 @@ MOCK
     [[ "$stderr" != *'"type":"assistant"'* ]]
 }
 
-# codex ships no BACKEND_JQ_LIVE, so nothing rendered live and the dump is the
-# only way to see the stream. The mock must not read stdin: codex sets
+# codex ships no BACKEND_JQ_LIVE, so nothing renders live, yet a dump of every
+# pass would bury the summary. The mock must not read stdin: codex sets
 # BACKEND_STDIN_PROMPT=false, so nothing feeds the pipe and a `cat` would block.
-@test "a backend without a live filter keeps the raw dump under --verbose" {
+@test "a backend without a live filter prints the raw stream path" {
     "$RALPH" init
     seed_open_item
     mkdir -p "$TEST_DIR/bin"
@@ -603,9 +603,29 @@ MOCK
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 -b codex --skip-push --verbose
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"codex done"* ]]
-    [[ "$stderr" == *"Raw backend output:"* ]]
-    [[ "$stderr" == *'"type":"item.completed"'* ]]
+    [[ "$stderr" == *"Raw stream: "*"iter-001.stream.jsonl"* ]]
+    [[ "$stderr" != *"Raw backend output:"* ]]
+    [[ "$stderr" != *'"type":"item.completed"'* ]]
+}
+
+# With metrics off codex's stream lives in the per-run temp file, so the
+# pointer has no file to name.
+@test "a backend without a live filter names no stream under --no-metrics" {
+    "$RALPH" init
+    seed_open_item
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/codex" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"codex done"}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/codex"
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 -b codex --skip-push --no-metrics --verbose
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"Raw stream not retained"* ]]
     [[ "$stderr" != *"Raw stream:"* ]]
+    [[ "$stderr" != *"Raw backend output:"* ]]
+    [[ "$stderr" != *'"type":"item.completed"'* ]]
 }
 
 # An exported BACKEND_JQ_LIVE used to reach a backend that ships none, because
@@ -628,12 +648,12 @@ MOCK
         run --separate-stderr "$RALPH" build -n 1 -b codex --skip-push --verbose
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"codex done"* ]]
-    # The leaked filter renders nothing, so codex keeps the raw dump and never
-    # gains the stream pointer that a live filter would have earned it.
+    # The leaked filter never runs, so nothing renders and no failed render
+    # falls back to the raw dump.
     [[ "$stderr" != *"LEAKED"* ]]
-    [[ "$stderr" == *"Raw backend output:"* ]]
-    [[ "$stderr" == *'"type":"item.completed"'* ]]
-    [[ "$stderr" != *"Raw stream:"* ]]
+    [[ "$stderr" == *"Raw stream:"* ]]
+    [[ "$stderr" != *"Raw backend output:"* ]]
+    [[ "$stderr" != *'"type":"item.completed"'* ]]
 }
 
 # With metrics off the stream lives in the per-run temp file, which the EXIT

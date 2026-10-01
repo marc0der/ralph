@@ -1532,11 +1532,12 @@ cmd_loop() {
             # live *and* dump the same bytes again, which is the one outcome
             # section 7 replaced the dump to avoid.
             #
-            # A renderer that never ran (no live filter, as with codex and
-            # copilot) or died rendered nothing, so the dump is that
-            # iteration's only form.
+            # A backend with no live filter, as with codex and copilot, takes
+            # the pointer forms too: dumping its whole stream every pass would
+            # bury the summary. A renderer that died rendered nothing, so the
+            # dump is that iteration's only form.
             local stream_rendered=false stream_pointer=false
-            if $live_render && ! $live_render_failed; then
+            if [[ -z "$BACKEND_JQ_LIVE" ]] || { $live_render && ! $live_render_failed; }; then
                 stream_rendered=true
                 if $stream_retained; then
                     stream_pointer=true
