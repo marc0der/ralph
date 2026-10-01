@@ -78,7 +78,7 @@ ralph auto -g specs/checkout-flow.md
 - **It tells you what happened.** At the end you get a `Lifecycle summary`, one row per phase: ran, skipped and why, failed, or not reached.
 - **It can pick up where it stopped.** After a failure or `Ctrl-C`, fix the problem and run `ralph auto --resume -g specs/checkout-flow.md`. It never re-runs `archive` or `init`.
 
-`--dry-run` shows the six commands it would run, without running any. Every phase gets your `-m`, `-b`, `--skip-push`, `--no-metrics` and `-v` flags. Only `-n` is refused, because each phase sizes itself.
+`--dry-run` shows the six commands it would run, without running any. Every phase gets your `-m`, `-b`, `--skip-push`, `--no-metrics` and `-q` flags. Only `-n` is refused, because each phase sizes itself.
 
 ## Day to day
 
@@ -111,7 +111,7 @@ ralph build -m sonnet          # use a different model
 
 ### Watching a run
 
-A normal run prints one line per pass. Add `-v` to watch the agent work as it happens: one line per tool call and per message. (For Codex and Copilot, `-v` prints the raw output after each pass.)
+A run shows the agent work as it happens: one line per tool call and per message. Add `-q` for one line per pass. (Codex and Copilot show only the path to the raw output.)
 
 Every run also keeps a record under `.ralph/metrics/`: how long each pass took, what it cost, and what it committed. Run `ralph metrics` to see the latest run as a table. Cost and token counts are recorded for the `claude` backend only.
 
@@ -174,7 +174,7 @@ Outside a container, ralph warns you and asks `Continue anyway? [y/N]` before it
 | `--skip-push`        | Don't push after each plan or build pass |
 | `--dry-run`          | Show what would run, without running it |
 | `--no-metrics`       | Don't record metrics under `.ralph/metrics/` |
-| `-v`, `--verbose`    | Stream the agent's activity live |
+| `-q`, `--quiet`      | Don't stream the agent's activity live |
 | `-y`, `--yes`        | Skip the `Continue anyway? [y/N]` prompt outside a sandbox |
 | `--resume`           | `auto` only: continue from the phase that failed |
 | `--force`            | `auto` only: run outside a container |
