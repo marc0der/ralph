@@ -793,17 +793,30 @@ MOCK
     "$RALPH" init
     seed_open_item
     mkdir -p "$TEST_DIR/bin"
-    # codex ships no live filter, so this takes the raw-dump branch — the one
-    # that reads the file back. BACKEND_STDIN_PROMPT=false for codex, so the
-    # mock must not read stdin or it would block.
-    cat > "$TEST_DIR/bin/codex" <<'MOCK'
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
-echo '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"codex done"}}'
+cat > /dev/null
+echo '{"type":"result","result":"done"}'
 rm -rf .ralph/metrics
 MOCK
-    chmod +x "$TEST_DIR/bin/codex"
+    chmod +x "$TEST_DIR/bin/claude"
 
-    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 2 -b codex --skip-push --verbose
+    # A failing live filter takes the raw-dump branch, the one that reads the
+    # file back.
+    local real_jq
+    real_jq=$(command -v jq)
+    {
+        printf '#!/usr/bin/env bash\nREAL_JQ=%q\n' "$real_jq"
+        cat <<'MOCK'
+for arg in "$@"; do
+    case "$arg" in -rR) exit 3 ;; esac
+done
+exec "$REAL_JQ" "$@"
+MOCK
+    } > "$TEST_DIR/bin/jq"
+    chmod +x "$TEST_DIR/bin/jq"
+
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 2 --skip-push --verbose
     [[ "$status" -eq 0 ]]
     # Reaching iteration 2 is the whole point: before the guards the run ended
     # inside iteration 1.
