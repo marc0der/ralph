@@ -1263,13 +1263,13 @@ cmd_loop() {
             local saw_line=false
             while IFS= read -r line || [[ -n "$line" ]]; do
                 if ! $saw_line; then
-                    echo "[verbose] === Backend stderr ===" >&2
+                    echo "=== Backend stderr ===" >&2
                     saw_line=true
                 fi
                 printf '%s\n' "$line" >&2
             done
             if $saw_line; then
-                echo "[verbose] === End backend stderr ===" >&2
+                echo "=== End backend stderr ===" >&2
             fi
         else
             cat >&2
@@ -1410,13 +1410,13 @@ cmd_loop() {
 
             if $verbose; then
                 if [[ "$BACKEND_STDIN_PROMPT" == "true" ]]; then
-                    echo "[verbose] Backend command: ${BACKEND_CMD[*]}" >&2
+                    echo "Backend command: ${BACKEND_CMD[*]}" >&2
                 else
                     local truncated_prompt="$prompt"
                     if [[ ${#truncated_prompt} -gt 200 ]]; then
                         truncated_prompt="${truncated_prompt:0:200}..."
                     fi
-                    echo "[verbose] Backend command: ${BACKEND_CMD[*]} $truncated_prompt" >&2
+                    echo "Backend command: ${BACKEND_CMD[*]} $truncated_prompt" >&2
                 fi
             fi
 
@@ -1545,11 +1545,11 @@ cmd_loop() {
 
             if $verbose; then
                 if $stream_pointer; then
-                    echo "[verbose] Raw stream: $raw_file" >&2
+                    echo "Raw stream: $raw_file" >&2
                 elif $stream_rendered; then
-                    echo "[verbose] Raw stream not retained" >&2
+                    echo "Raw stream not retained" >&2
                 else
-                    echo "[verbose] Raw backend output:" >&2
+                    echo "Raw backend output:" >&2
                     if [[ -n "$raw_file" ]]; then
                         # The stream file can vanish between the write and this
                         # read: an agent that runs `git clean -xfd` or removes
@@ -1560,7 +1560,7 @@ cmd_loop() {
                         # so the trailing `2>/dev/null` hides only cat's
                         # complaint, and the loop reports the gap itself.
                         if ! cat "$raw_file" >&2 2>/dev/null; then
-                            echo "[verbose] Raw stream unavailable: $raw_file" >&2
+                            echo "Raw stream unavailable: $raw_file" >&2
                         fi
                     else
                         printf '%s\n' "$fallback_output" >&2
@@ -1635,7 +1635,7 @@ cmd_loop() {
             fi
 
             if $verbose; then
-                echo "[verbose] Exit codes — backend: $backend_exit, jq: $jq_exit" >&2
+                echo "Exit codes — backend: $backend_exit, jq: $jq_exit" >&2
             fi
 
             echo "$jq_output"
@@ -1733,7 +1733,7 @@ cmd_loop() {
                             exit 1
                         fi
                     elif $verbose; then
-                        echo "[verbose] Push output:" >&2
+                        echo "Push output:" >&2
                         echo "$push_output" >&2
                     fi
                 fi

@@ -392,10 +392,10 @@ seed_resume_state() {
     [[ ! -d .ralph/metrics ]]
 }
 
-@test "-v reaches children: [verbose] markers appear on the output" {
+@test "-v reaches children: verbose markers appear on the output" {
     create_committing_backend
     run_auto -v --skip-push --no-metrics
-    [[ "$output" == *"[verbose]"* ]]
+    [[ "$output" == *"Backend command:"* ]]
 }
 
 @test "--skip-push reaches children: a lifecycle completes in a repo with no remote" {
