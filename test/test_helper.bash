@@ -75,7 +75,7 @@ sleep "${MOCK_DELAY:-0}"
 echo '{"type":"assistant","message":{"content":[{"type":"text","text":"done here"}]}}'
 sleep "${MOCK_DELAY:-0}"
 # `result` carries the text too: the claude summary filter reads `.result`, so
-# a result event without it renders a bare empty line on the non-verbose path.
+# a result event without it renders a bare empty line on the --quiet path.
 echo '{"type":"result","subtype":"success","duration_ms":1234,"duration_api_ms":1000,"num_turns":3,"result":"done here","session_id":"s1","total_cost_usd":0.02,"usage":{"input_tokens":100,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":50}}'
 [[ -n "${MOCK_SENTINEL:-}" ]] && : > "$MOCK_SENTINEL"
 exit "${MOCK_EXIT:-0}"
