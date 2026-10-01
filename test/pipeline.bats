@@ -121,7 +121,9 @@ MOCK
 
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 0 ]]
-    [[ "$output" != *"[verbose]"* ]]
+    [[ "$output" != *"Backend command:"* ]]
+    [[ "$output" != *"Exit codes"* ]]
+    [[ "$output" != *"Raw stream"* ]]
     [[ "$output" == *"hello world"* ]]
 }
 
@@ -449,7 +451,7 @@ MOCK
 
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --verbose
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"[verbose] Exit codes"* ]]
+    [[ "$output" == *"Exit codes"* ]]
     [[ "$output" == *"backend: 0"* ]]
     [[ "$output" == *"jq: 0"* ]]
 }
@@ -468,7 +470,7 @@ MOCK
 
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --verbose
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"[verbose] Backend command: claude"* ]]
+    [[ "$output" == *"Backend command: claude"* ]]
 }
 
 # --- Verbose mode: live stream rendering ---
@@ -577,9 +579,9 @@ MOCK
 
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
     [[ "$status" -eq 0 ]]
-    [[ "$stderr" == *"[verbose] Raw stream:"* ]]
+    [[ "$stderr" == *"Raw stream:"* ]]
     [[ "$stderr" == *"iter-001.stream.jsonl"* ]]
-    [[ "$stderr" != *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" != *"Raw backend output:"* ]]
     # The rendered lines carry no JSON punctuation, so a raw event on fd 2 can
     # only have come from a dump the pointer was meant to replace.
     [[ "$stderr" != *'"type":"assistant"'* ]]
@@ -601,9 +603,9 @@ MOCK
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 -b codex --skip-push --verbose
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"codex done"* ]]
-    [[ "$stderr" == *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" == *"Raw backend output:"* ]]
     [[ "$stderr" == *'"type":"item.completed"'* ]]
-    [[ "$stderr" != *"[verbose] Raw stream:"* ]]
+    [[ "$stderr" != *"Raw stream:"* ]]
 }
 
 # An exported BACKEND_JQ_LIVE used to reach a backend that ships none, because
@@ -629,9 +631,9 @@ MOCK
     # The leaked filter renders nothing, so codex keeps the raw dump and never
     # gains the stream pointer that a live filter would have earned it.
     [[ "$stderr" != *"LEAKED"* ]]
-    [[ "$stderr" == *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" == *"Raw backend output:"* ]]
     [[ "$stderr" == *'"type":"item.completed"'* ]]
-    [[ "$stderr" != *"[verbose] Raw stream:"* ]]
+    [[ "$stderr" != *"Raw stream:"* ]]
 }
 
 # With metrics off the stream lives in the per-run temp file, which the EXIT
@@ -650,12 +652,12 @@ MOCK
         run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics --verbose
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *"→ Bash ls -la"* ]]
-    [[ "$stderr" == *"[verbose] Raw stream not retained"* ]]
+    [[ "$stderr" == *"Raw stream not retained"* ]]
     # One form per iteration: the rendered lines are the output, so neither the
     # dump header nor any raw event body may follow them.
-    [[ "$stderr" != *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" != *"Raw backend output:"* ]]
     [[ "$stderr" != *'"type":"result"'* ]]
-    [[ "$stderr" != *"[verbose] Raw stream:"* ]]
+    [[ "$stderr" != *"Raw stream:"* ]]
     # The mock listed $TMPDIR mid-iteration, so the stream file has to be there:
     # an explicit mktemp template is what makes the temp path exist at all, and
     # without it every --no-metrics run silently falls to variable capture.
@@ -685,10 +687,10 @@ MOCK
 
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *"metrics disabled for this run"* ]]
-    [[ "$stderr" != *"[verbose] Raw stream:"* ]]
-    [[ "$stderr" == *"[verbose] Raw stream not retained"* ]]
+    [[ "$stderr" != *"Raw stream:"* ]]
+    [[ "$stderr" == *"Raw stream not retained"* ]]
     [[ "$stderr" == *"→ Bash ls -la"* ]]
-    [[ "$stderr" != *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" != *"Raw backend output:"* ]]
     [[ "$stderr" != *'"type":"result"'* ]]
 }
 
@@ -725,10 +727,10 @@ MOCK
     # The stream fell back to the per-run temp file, which the EXIT trap
     # deletes, so its path must not be offered as something to inspect. The
     # renderer still ran, so the live lines stay the iteration's only form.
-    [[ "$stderr" != *"[verbose] Raw stream:"* ]]
-    [[ "$stderr" == *"[verbose] Raw stream not retained"* ]]
+    [[ "$stderr" != *"Raw stream:"* ]]
+    [[ "$stderr" == *"Raw stream not retained"* ]]
     [[ "$stderr" == *"→ Bash ls -la"* ]]
-    [[ "$stderr" != *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" != *"Raw backend output:"* ]]
     [[ "$stderr" != *'"type":"result"'* ]]
     # The degrade is a decision, not a fault, so it must be silent apart from
     # ralph's own metrics warning. Bash applies redirections left to right, so
@@ -743,7 +745,7 @@ MOCK
 # with `|| cat`, so a filter that never compiled looks exactly like one that
 # rendered every event: exit 0, no output. Combined with the pointer, that made
 # --verbose print *less* than it did before live rendering existed — a single
-# `[verbose] Raw stream:` line and nothing else. The drain now ends in `false`
+# `Raw stream:` line and nothing else. The drain now ends in `false`
 # so ${st[2]} carries the renderer's verdict, and a dead renderer gives the
 # dump back. A jq shim that fails only for the -rR call stands in for the real
 # causes: a typo in a future BACKEND_JQ_LIVE, or a jq built without Oniguruma,
@@ -770,8 +772,8 @@ MOCK
     # The renderer is not the backend: its failure must not end the iteration.
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *"live rendering failed on iteration 1"* ]]
-    [[ "$stderr" != *"[verbose] Raw stream:"* ]]
-    [[ "$stderr" == *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" != *"Raw stream:"* ]]
+    [[ "$stderr" == *"Raw backend output:"* ]]
     [[ "$stderr" == *'"type":"result"'* ]]
     # Nothing rendered, so the dump is the only copy the user gets.
     [[ "$stderr" != *"→ Bash ls -la"* ]]
@@ -806,7 +808,7 @@ MOCK
     # Reaching iteration 2 is the whole point: before the guards the run ended
     # inside iteration 1.
     [[ "$output" == *"ITERATION 2 / 2"* ]]
-    [[ "$stderr" == *"[verbose] Raw stream unavailable:"* ]]
+    [[ "$stderr" == *"Raw stream unavailable:"* ]]
     [[ "$stderr" == *"iter-001.stream.jsonl"* ]]
     # cat's own complaint is the diagnostic the guard replaces; the loop's
     # warning names the file instead.
@@ -845,7 +847,7 @@ MOCK
     # on the error line proves the ordering, not just the presence of both.
     [[ "$stderr" == *"iter-001.stream.jsonl"* ]]
     before_error="${stderr%%Error: backend command failed*}"
-    [[ "$before_error" == *"[verbose] Raw stream:"* ]]
+    [[ "$before_error" == *"Raw stream:"* ]]
 }
 
 # Wrap the helper's mock so the backend writes to stderr as well as emitting
@@ -1454,14 +1456,14 @@ MOCK
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"done here"* ]]
     # The dump reads from the captured variable, not from a path.
-    [[ "$stderr" == *"[verbose] Raw backend output:"* ]]
+    [[ "$stderr" == *"Raw backend output:"* ]]
     [[ "$stderr" == *'"type":"result"'* ]]
-    [[ "$stderr" != *"[verbose] Raw stream unavailable"* ]]
+    [[ "$stderr" != *"Raw stream unavailable"* ]]
     # No writable file means no tee, so nothing rendered live and neither
     # pointer form applies.
     [[ "$stderr" != *"→ Bash ls -la"* ]]
-    [[ "$stderr" != *"[verbose] Raw stream:"* ]]
-    [[ "$stderr" != *"[verbose] Raw stream not retained"* ]]
+    [[ "$stderr" != *"Raw stream:"* ]]
+    [[ "$stderr" != *"Raw stream not retained"* ]]
     # A failed mktemp must leave nothing behind for the EXIT trap to miss.
     [[ -z "$(find "$TEST_DIR/tmp" -maxdepth 1 -name 'ralph.*' -print -quit)" ]]
 }
