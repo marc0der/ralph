@@ -110,6 +110,22 @@ MOCK
     [[ "$output" == *"--dry-run"* ]]
 }
 
+@test "a backend failure by default under --no-metrics prints no --quiet hint" {
+    "$RALPH" init
+    seed_open_item
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+exit 1
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --no-metrics
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"Hint: re-run with --dry-run to inspect the prompt"* ]]
+    [[ "$output" != *"re-run without --quiet"* ]]
+}
+
 # --- Pipeline failure: jq parse failure ---
 
 @test "jq failure is reported distinctly from a backend failure" {
@@ -142,6 +158,22 @@ MOCK
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"jq parse failure"* ]]
     [[ "$output" == *"Hint: re-run without --quiet to see raw backend output before jq processing"* ]]
+}
+
+@test "a jq failure by default under --no-metrics prints no --quiet hint" {
+    "$RALPH" init
+    seed_open_item
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo "this is not valid json"
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --no-metrics
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"jq parse failure"* ]]
+    [[ "$output" != *"re-run without --quiet"* ]]
 }
 
 # --- Backend stderr visibility ---
@@ -1591,6 +1623,23 @@ add_bare_origin() {
     remote_head=$(git --git-dir="$TEST_DIR/remote.git" rev-parse "$branch")
     [[ "$remote_head" != "$before" ]]
     [[ "$remote_head" == "$(git rev-parse HEAD)" ]]
+}
+
+@test "a pushing build prints Push output: by default and not under --quiet" {
+    "$RALPH" init
+    seed_open_item
+    create_committing_backend
+    add_bare_origin
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Push output:"* ]]
+
+    seed_open_item
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --quiet
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Push output:"* ]]
+    [[ "$(git --git-dir="$TEST_DIR/remote.git" rev-parse "$(git branch --show-current)")" == "$(git rev-parse HEAD)" ]]
 }
 
 @test "an origin that is not a repository still fails the push" {
