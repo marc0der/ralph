@@ -76,3 +76,29 @@ load test_helper
     # 'ralph plan', which is the run that wrote a plan in the wrong directory.
     [[ "$output" == *"--goal TEXT"*"plan and auto only; required"* ]]
 }
+
+@test "commands without verbose output refuse -q and --quiet" {
+    # Spec (verbose-by-default.md section 8): only plan, build, review and auto
+    # accept the flag; every other command exits 1 with an error on stderr.
+    local command flag
+    for command in sandbox init archive clean metrics version; do
+        for flag in -q --quiet; do
+            run --separate-stderr "$RALPH" "$command" "$flag"
+            [[ "$status" -eq 1 ]]
+            # shellcheck disable=SC2154  # set by bats `run --separate-stderr`, not by this script
+            [[ -n "$stderr" ]]
+        done
+    done
+}
+
+@test "archive, clean, metrics and version name themselves in the --quiet refusal" {
+    local command flag
+    for command in archive clean metrics version; do
+        for flag in -q --quiet; do
+            run --separate-stderr "$RALPH" "$command" "$flag"
+            [[ "$status" -eq 1 ]]
+            [[ "$stderr" == "Error: '$command' does not accept --quiet." ]]
+            [[ -z "$output" ]]
+        done
+    done
+}
