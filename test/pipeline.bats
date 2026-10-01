@@ -12,6 +12,66 @@ load test_helper
     [[ "$output" == *"[dry-run] Would run: claude -p"* ]]
 }
 
+# --- Quiet flag ---
+
+@test "plan accepts -q under --dry-run" {
+    "$RALPH" init
+    run "$RALPH" plan --dry-run -n 1 -g "the goal" -q
+    [[ "$status" -eq 0 ]]
+}
+
+@test "plan accepts --quiet under --dry-run" {
+    "$RALPH" init
+    run "$RALPH" plan --dry-run -n 1 -g "the goal" --quiet
+    [[ "$status" -eq 0 ]]
+}
+
+@test "build accepts -q under --dry-run" {
+    "$RALPH" init
+    seed_open_item
+    run "$RALPH" build --dry-run -n 1 -q
+    [[ "$status" -eq 0 ]]
+}
+
+@test "build accepts --quiet under --dry-run" {
+    "$RALPH" init
+    seed_open_item
+    run "$RALPH" build --dry-run -n 1 --quiet
+    [[ "$status" -eq 0 ]]
+}
+
+@test "review accepts -q under --dry-run" {
+    "$RALPH" init
+    seed_shipped_item
+    seed_cycle_base
+    run "$RALPH" review --dry-run -q
+    [[ "$status" -eq 0 ]]
+}
+
+@test "review accepts --quiet under --dry-run" {
+    "$RALPH" init
+    seed_shipped_item
+    seed_cycle_base
+    run "$RALPH" review --dry-run --quiet
+    [[ "$status" -eq 0 ]]
+}
+
+@test "build rejects --verbose" {
+    "$RALPH" init
+    seed_open_item
+    run "$RALPH" build --verbose
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"ralph: unrecognized option '--verbose'"* ]]
+}
+
+@test "build rejects -v" {
+    "$RALPH" init
+    seed_open_item
+    run "$RALPH" build -v
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"ralph: invalid option -- 'v'"* ]]
+}
+
 # --- Pipeline failure: backend exits non-zero ---
 
 @test "pipeline failure (backend exits non-zero) produces error with iteration and exit code" {
@@ -66,6 +126,22 @@ MOCK
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"jq parse failure"* ]]
     [[ "$output" != *"backend command failed"* ]]
+}
+
+@test "a jq failure under --quiet --no-metrics hints to re-run without --quiet" {
+    "$RALPH" init
+    seed_open_item
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+echo "this is not valid json"
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --quiet --no-metrics
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"jq parse failure"* ]]
+    [[ "$output" == *"Hint: re-run without --quiet to see raw backend output before jq processing"* ]]
 }
 
 # --- Backend stderr visibility ---
