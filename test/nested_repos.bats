@@ -347,15 +347,14 @@ on_iteration() {
     [[ "$output" == *"Completed 2 iterations"* ]]
 }
 
-@test "plan converges while a nested repository moves" {
+@test "plan fails when a nested repository moves" {
     "$RALPH" init
     nested_repo "source/svc"
     create_nested_committing_backend
 
     TARGET_REPO="source/svc" PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push -g "the goal"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"Plan converged — pass 1 changed nothing"* ]]
-    [[ "$output" == *"Completed 1 iterations"* ]]
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Error: plan pass 1 committed in ./source/svc; plan may not commit, Ralph commits its spec changes."* ]]
 }
 
 @test "review runs one pass while a nested repository moves" {

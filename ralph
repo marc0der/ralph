@@ -874,41 +874,27 @@ cycle_changed_files() {
     } | LC_ALL=C sort -u
 }
 
-# Stop a plan pass whose new commits leave specs/ or delete a spec; see
+# Fail a plan pass that moved a HEAD or deleted a spec; see
 # specs/plan-commits-specs.md.
 check_plan_pass() {
     local iteration="$1" state_before="$2" state_after="$3" prompt_file="$4"
-    local repo sha sha_before range path path_in_workspace repos_in_workspace
-    repos_in_workspace=$(cut -d' ' -f1 <<< "$state_after" | sed 's|^\./||')
+    local repo sha path
     while read -r repo sha; do
-        sha_before=$(awk -v r="$repo" '$1 == r { print $2 }' <<< "$state_before")
-        [[ "$sha" == "-" || "$sha" == "$sha_before" ]] && continue
-        if [[ -z "$sha_before" || "$sha_before" == "-" ]]; then
-            range=HEAD
-        else
-            range="$sha_before..HEAD"
+        grep -qxF -- "$repo $sha" <<< "$state_before" && continue
+        echo "Error: plan pass $iteration committed in $repo; plan may not commit, Ralph commits its spec changes." >&2
+        if [[ "$prompt_file" == "PROMPT_plan.md" ]]; then
+            echo "This project has its own PROMPT_plan.md; remove its commit step, or delete it and run 'ralph init --prompts'." >&2
         fi
-        while IFS= read -r path; do
-            [[ -z "$path" || "$path" == specs/* ]] && continue
-            path_in_workspace="$repo/$path"
-            path_in_workspace=${path_in_workspace#./}
-            grep -qxF -- "$path_in_workspace" <<< "$repos_in_workspace" && continue
-            echo "Error: plan pass $iteration committed $path in $repo, which is outside specs/." >&2
-            exit 1
-        done < <(git -C "$repo" log --format= --name-only --no-renames "$range" 2>/dev/null)
-        path=$(git -C "$repo" log --format= --name-only --no-renames --diff-filter=D "$range" -- specs 2>/dev/null | grep -m1 . || true)
+        return 1
+    done <<< "$state_after"
+    while read -r repo sha; do
+        path=$(git -C "$repo" status --porcelain --no-renames -- specs 2>/dev/null \
+            | awk 'substr($0, 1, 1) == "D" || substr($0, 2, 1) == "D" { print substr($0, 4); exit }')
         if [[ -n "$path" ]]; then
             echo "Error: plan pass $iteration deleted $path in $repo; plan may not delete or move a spec." >&2
-            exit 1
+            return 1
         fi
     done <<< "$state_after"
-    if repo=$(have_dirty_specs); then
-        echo "Error: plan pass $iteration left uncommitted changes under specs/ in $repo." >&2
-        if [[ "$prompt_file" == "PROMPT_plan.md" ]]; then
-            echo "This project has its own PROMPT_plan.md; add the commit step from the installed prompts/plan.md." >&2
-        fi
-        exit 1
-    fi
 }
 
 truncate_line() {
@@ -1755,7 +1741,7 @@ cmd_loop() {
             fi
 
             if [[ "$mode" == "plan" ]]; then
-                check_plan_pass "$iteration" "$state_before" "$state_after" "$prompt_file"
+                check_plan_pass "$iteration" "$state_before" "$state_after" "$prompt_file" || exit 1
             fi
         fi
 
