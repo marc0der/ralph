@@ -1282,8 +1282,8 @@ MOCK
 @test "plan exits on the first pass that changes nothing" {
     "$RALPH" init
     mkdir -p "$TEST_DIR/bin"
-    # Plan commits only specs (IMPLEMENTATION_PLAN.md is gitignored), so
-    # convergence is measured against the plan fingerprint, not HEAD.
+    # A plan pass commits nothing, so convergence is measured against the
+    # plan fingerprint, not HEAD.
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
 echo '{"type":"result","result":"planning"}'
