@@ -283,6 +283,24 @@ git -C source/empty add -- specs/x.md && git -C source/empty commit -q -m "docs(
     [ -z "$(git status --porcelain -- source/svc)" ]
 }
 
+@test "a run commits a spec in an ignored nested clone without a bump" {
+    "$RALPH" init
+    init_repo source/svc
+    echo "source/" >> .gitignore
+    git add -- .gitignore
+    git commit -q -m "chore: ignore source"
+    local before
+    before=$(commit_count)
+    create_scripted_backend
+    on_iteration 1 'mkdir -p source/svc/specs && echo "# Svc" > source/svc/specs/x.md'
+
+    run_plan --skip-push
+    [ "$status" -eq 0 ]
+    [[ "$(git -C source/svc log -1 --format=%s)" == "docs(specs): record plan decisions" ]]
+    [ "$(commit_count)" -eq "$before" ]
+    [ "$(git log --format=%s | grep -c '^chore: bump')" -eq 0 ]
+}
+
 @test "a run with an origin commits its spec change and pushes nothing" {
     "$RALPH" init
     add_bare_origin
