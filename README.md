@@ -139,7 +139,7 @@ Outside a container, ralph warns you and asks `Continue anyway? [y/N]` before it
 
 **The prompts.** `ralph init --prompts` copies the prompts into your project as `PROMPT_plan.md`, `PROMPT_build.md` and `PROMPT_review.md`, where they override the installed ones. The defaults mention Claude model names, so edit them if you use another agent. A local copy doesn't update when ralph does, so refresh it after an upgrade.
 
-**Commit style.** The build prompt asks for small [Conventional Commits](https://www.conventionalcommits.org/), with only the relevant files staged. The plan prompt commits its spec changes as `docs(specs)` commits, and nothing else. The plan file, progress log and `.ralph/` are never committed. Edit `PROMPT_build.md` to change this.
+**Commit style.** The build prompt asks for small [Conventional Commits](https://www.conventionalcommits.org/), with only the relevant files staged. The planner edits specs but commits nothing. When the plan run ends, Ralph commits the planner's spec changes as one `docs(specs)` commit per repository. The plan file, progress log and `.ralph/` are never committed. Edit `PROMPT_build.md` to change this.
 
 **Further reading:**
 - [docs/plan-format.md](docs/plan-format.md): what a plan item looks like and the rules it follows
@@ -171,7 +171,7 @@ Outside a container, ralph warns you and asks `Continue anyway? [y/N]` before it
 | `-n`, `--iterations` | Maximum passes. In `build` it also stops the early exit. `review` and `auto` refuse it |
 | `-m`, `--model`      | Model to use (default depends on the backend) |
 | `-b`, `--backend`    | `claude`, `codex`, `copilot` or `pi` (default: `claude`) |
-| `--skip-push`        | Don't push after each plan or build pass |
+| `--skip-push`        | Don't push after each build pass. Plan and review never push |
 | `--dry-run`          | Show what would run, without running it |
 | `--no-metrics`       | Don't record metrics under `.ralph/metrics/` |
 | `-q`, `--quiet`      | Don't stream the agent's activity live |
