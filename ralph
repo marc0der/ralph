@@ -739,8 +739,8 @@ require_fresh_cycle() {
     fi
 }
 
-# Refuse to plan over spec edits the planner would commit as its own; see
-# specs/plan-commits-specs.md.
+# Refuse to plan over the operator's spec edits, because Ralph commits the
+# planner's spec changes when the run ends; see specs/plan-commits-specs.md.
 require_clean_specs() {
     local repo
     if repo=$(have_dirty_specs); then
@@ -795,8 +795,9 @@ calculate_build_iterations() {
     echo $(( (count * 6 + 4) / 5 ))
 }
 
-# Modes whose commits cannot measure their progress — plan commits only specs,
-# review never commits — so they snapshot the plan fingerprint instead, for both convergence and the metrics noop flag.
+# Modes whose commits cannot measure their progress — plan commits nothing and
+# Ralph commits its specs at run end, review never commits — so they snapshot
+# the plan fingerprint instead, for both convergence and the metrics noop flag.
 # One predicate, so a fourth such mode cannot be wired into two sites of three.
 mode_converges_on_plan() {
     case "$1" in
@@ -811,8 +812,8 @@ convergence_message() {
 }
 
 # Fingerprint the artifacts a plan iteration is allowed to change.
-# It reads the working tree, so a spec commit is no change. A pass that leaves
-# this hash unchanged has converged.
+# It reads the working tree, so Ralph's end-of-run spec commit never affects
+# it. A pass that leaves this hash unchanged has converged.
 plan_state_hash() {
     {
         if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
@@ -1410,8 +1411,8 @@ cmd_loop() {
             "$iter_label" \
             "$(printf '%*s' "$pad_right" '' | tr ' ' '=')"
 
-        # Snapshot HEAD to detect noops. Plan commits only specs and review never
-        # commits, so they fingerprint the artifacts they may change instead.
+        # Snapshot HEAD to detect noops. Plan and review commit nothing during a
+        # pass, so they fingerprint the artifacts they may change instead.
         local head_before plan_state_before="" plan_state_after=""
         local state_before="" state_after=""
         head_before=$(git rev-parse -q --verify HEAD 2>/dev/null || echo -)
@@ -1838,8 +1839,8 @@ cmd_loop() {
 
         # Early exit. Build mode watches every git repository beneath the
         # workspace and tolerates one noop; -n overrides it.
-        # Plan commits only specs (IMPLEMENTATION_PLAN.md is gitignored), so it
-        # watches the plan artifacts instead. A pass that changes nothing has
+        # Plan commits nothing, and Ralph commits its specs only when the run
+        # ends, so it watches the plan artifacts instead. A pass that changes nothing has
         # converged, and there is no second-chance iteration to wait for: -n caps
         # such a run but never disables the check. Review runs one pass, so it
         # has no early exit.
