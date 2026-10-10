@@ -692,6 +692,19 @@ have_dirty_specs() {
     return 1
 }
 
+# Print the first repository with a specs/ directory whose HEAD is detached.
+have_detached_spec_repo() {
+    local repo sha
+    while read -r repo sha; do
+        [[ -d "$repo/specs" ]] || continue
+        if ! git -C "$repo" symbolic-ref -q HEAD >/dev/null 2>&1; then
+            echo "$repo"
+            return 0
+        fi
+    done < <(repo_state)
+    return 1
+}
+
 # Refuse to start a build against a plan with nothing left to do.
 # This is a hard stop, not an iteration heuristic: it runs beside
 # require_init_artifacts so '-n' cannot bypass it.
@@ -719,6 +732,16 @@ require_clean_specs() {
     if repo=$(have_dirty_specs); then
         echo "Error: specs/ has uncommitted changes in $repo." >&2
         echo "Commit or stash them before running 'ralph plan'; plan commits its own spec changes." >&2
+        exit 1
+    fi
+}
+
+# Ralph never creates a branch for the operator; see specs/plan-commits-specs.md.
+require_attached_spec_repos() {
+    local repo
+    if repo=$(have_detached_spec_repo); then
+        echo "Error: $repo is on a detached HEAD." >&2
+        echo "Check out a branch before running 'ralph plan'; plan commits its spec changes there." >&2
         exit 1
     fi
 }
@@ -1156,6 +1179,7 @@ cmd_loop() {
         fi
         require_fresh_cycle
         require_clean_specs
+        require_attached_spec_repos
     elif [[ "$mode" == "build" ]]; then
         require_open_items
     elif [[ "$mode" == "review" ]]; then
