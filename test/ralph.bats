@@ -60,9 +60,9 @@ load test_helper
 @test "ralph --help states that review never pushes" {
     run "$RALPH" --help
     [[ "$status" -eq 0 ]]
-    # Spec (plan-commits-specs.md section 3): plan pushes like build, and
-    # --skip-push stays inert for review.
-    [[ "$output" == *"--skip-push"*"plan or build iteration (review"*"never pushes)"* ]]
+    # Spec (plan-commits-specs.md "No push"): only build pushes, so
+    # --skip-push stays inert for plan and review.
+    [[ "$output" == *"--skip-push"*"build iteration (plan and review"*"never push)"* ]]
 }
 
 @test "ralph --help marks the goal as plan-and-auto only and required" {

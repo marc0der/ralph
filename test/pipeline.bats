@@ -1415,7 +1415,7 @@ MOCK
     [[ "$output" == *"Completed 1 iterations"* ]]
 }
 
-@test "plan reaches the push block and skips without an origin" {
+@test "plan never reaches the push block" {
     "$RALPH" init
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
@@ -1426,7 +1426,7 @@ MOCK
 
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan -n 1 -g "the goal"
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"No 'origin' remote"* ]]
+    [[ "$output" != *"No 'origin' remote"* ]]
     [[ "$output" == *"Completed 1 iteration"* ]]
 }
 

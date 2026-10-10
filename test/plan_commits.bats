@@ -283,6 +283,19 @@ git -C source/empty add -- specs/x.md && git -C source/empty commit -q -m "docs(
     [ -z "$(git status --porcelain -- source/svc)" ]
 }
 
+@test "a run with an origin commits its spec change and pushes nothing" {
+    "$RALPH" init
+    add_bare_origin
+    create_scripted_backend
+    on_iteration 1 'mkdir -p specs && echo "# New" > specs/new.md'
+
+    run_plan
+    [ "$status" -eq 0 ]
+    [[ "$(git log -1 --format=%s)" == "docs(specs): record plan decisions" ]]
+    [[ "$output" != *"No upstream branch found"* ]]
+    [ -z "$(git ls-remote origin)" ]
+}
+
 @test "a run leaves a staged file outside specs/ uncommitted" {
     "$RALPH" init
     echo "readme" > README.md
