@@ -35,6 +35,11 @@ add_bare_origin() {
     git remote add origin "$TEST_DIR/remote.git"
 }
 
+# Count the commits on HEAD in repository $1 (default: the workspace).
+commit_count() {
+    git -C "${1:-.}" rev-list --count HEAD
+}
+
 # Commit specs/existing.md before the plan runs, so a pass can edit, delete or move it.
 seed_committed_spec() {
     mkdir -p specs
@@ -187,7 +192,7 @@ git -C source/empty add -- specs/x.md && git -C source/empty commit -q -m "docs(
     run_plan --skip-push
     [ "$status" -eq 0 ]
     [[ "$output" != *"Error: plan pass"* ]]
-    [[ "$(git log -1 --format=%s)" == "docs(specs): add existing" ]]
+    [[ "$(git log -1 --format=%s)" == "docs(specs): record plan decisions" ]]
 }
 
 @test "a pass that commits nothing passes" {
@@ -198,4 +203,114 @@ git -C source/empty add -- specs/x.md && git -C source/empty commit -q -m "docs(
     [ "$status" -eq 0 ]
     [[ "$output" != *"Error: plan pass"* ]]
     [[ "$output" == *"Completed 1 iteration"* ]]
+}
+
+@test "a run that adds and edits specs ends with one record plan decisions commit" {
+    "$RALPH" init
+    mkdir -p specs/features
+    echo "# Foo" > specs/features/03-foo.md
+    git add -- specs/features/03-foo.md
+    git commit -q -m "docs(specs): add foo"
+    local before
+    before=$(commit_count)
+    create_scripted_backend
+    on_iteration 1 'echo "# New" > specs/new.md && echo "decision" >> specs/features/03-foo.md'
+
+    run_plan --skip-push
+    [ "$status" -eq 0 ]
+    [ "$(commit_count)" -eq $((before + 1)) ]
+    [[ "$(git log -1 --format=%s)" == "docs(specs): record plan decisions" ]]
+    [[ "$(git log -1 --format=%b)" == *"- M specs/features/03-foo.md"* ]]
+    [[ "$(git log -1 --format=%b)" == *"- A specs/new.md"* ]]
+    [ -z "$(git status --porcelain -- specs)" ]
+}
+
+@test "a run whose two passes change specs makes one commit" {
+    "$RALPH" init
+    local before
+    before=$(commit_count)
+    create_scripted_backend
+    on_iteration 1 'mkdir -p specs && echo "# One" > specs/one.md'
+    on_iteration 2 'echo "# Two" > specs/two.md'
+
+    run_plan --skip-push
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Completed 3 iterations"* ]]
+    [ "$(commit_count)" -eq $((before + 1)) ]
+    [ "$(git log -1 --format=%b)" == "$(printf -- '- A specs/one.md\n- A specs/two.md')" ]
+}
+
+@test "a run with more than three spec changes lists two and the rest as a count" {
+    "$RALPH" init
+    create_scripted_backend
+    on_iteration 1 'mkdir -p specs && touch specs/a.md specs/b.md specs/c.md specs/d.md specs/e.md'
+
+    run_plan --skip-push
+    [ "$status" -eq 0 ]
+    [ "$(git log -1 --format=%b)" == "$(printf -- '- A specs/a.md\n- A specs/b.md\n- and 3 more')" ]
+}
+
+@test "a run that changes no spec makes no commit" {
+    "$RALPH" init
+    local before
+    before=$(commit_count)
+    create_scripted_backend
+    on_iteration 1 'echo "x" > notes.txt'
+
+    run_plan --skip-push
+    [ "$status" -eq 0 ]
+    [ "$(commit_count)" -eq "$before" ]
+}
+
+@test "a run commits a nested submodule spec and bumps its gitlink" {
+    "$RALPH" init
+    init_repo source/svc
+    git -c advice.addEmbeddedRepo=false add -- source/svc
+    git commit -q -m "chore: add source/svc"
+    local before nested_before
+    before=$(commit_count)
+    nested_before=$(commit_count source/svc)
+    create_scripted_backend
+    on_iteration 1 'mkdir -p source/svc/specs && echo "# Svc" > source/svc/specs/x.md'
+
+    run_plan --skip-push
+    [ "$status" -eq 0 ]
+    [ "$(commit_count source/svc)" -eq $((nested_before + 1)) ]
+    [[ "$(git -C source/svc log -1 --format=%s)" == "docs(specs): record plan decisions" ]]
+    [[ "$(git -C source/svc log -1 --format=%b)" == "- A specs/x.md" ]]
+    [ "$(commit_count)" -eq $((before + 1)) ]
+    [[ "$(git log -1 --format=%s)" == "chore: bump source/svc to $(git -C source/svc rev-parse --short HEAD)" ]]
+    [ -z "$(git status --porcelain -- source/svc)" ]
+}
+
+@test "a run leaves a staged file outside specs/ uncommitted" {
+    "$RALPH" init
+    echo "readme" > README.md
+    git add -- README.md
+    git commit -q -m "docs: add readme"
+    create_scripted_backend
+    on_iteration 1 'mkdir -p specs && echo "# New" > specs/new.md &&
+echo "edit" >> README.md && git add -- README.md'
+
+    run_plan --skip-push
+    [ "$status" -eq 0 ]
+    [[ "$(git log -1 --format=%s)" == "docs(specs): record plan decisions" ]]
+    [ "$(git show --name-only --format= HEAD)" == "specs/new.md" ]
+    [ "$(git status --porcelain -- README.md)" == "M  README.md" ]
+}
+
+@test "a failing spec commit exits 1 and leaves specs/ dirty" {
+    "$RALPH" init
+    printf '#!/bin/sh\necho "hook says no" >&2\nexit 1\n' > .git/hooks/pre-commit
+    chmod +x .git/hooks/pre-commit
+    local before
+    before=$(commit_count)
+    create_scripted_backend
+    on_iteration 1 'mkdir -p specs && echo "# New" > specs/new.md'
+
+    run_plan --skip-push
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"hook says no"* ]]
+    [ "$(commit_count)" -eq "$before" ]
+    [ -n "$(git status --porcelain -- specs)" ]
 }

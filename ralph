@@ -897,6 +897,44 @@ check_plan_pass() {
     done <<< "$state_after"
 }
 
+# Commit the planner's spec changes, one commit per repository, and bump the
+# workspace gitlink of a nested submodule; see specs/plan-commits-specs.md.
+commit_plan_specs() {
+    local repos repo changes count message output path gitlink short_sha
+    repos=$(dirty_spec_repos)
+    while IFS= read -r repo; do
+        [[ -n "$repo" ]] || continue
+        if ! output=$(git -C "$repo" add -A -- specs 2>&1); then
+            echo "$output" >&2
+            return 1
+        fi
+        changes=$(git -C "$repo" diff --cached --no-renames --name-status -- specs)
+        count=$(grep -c '^' <<< "$changes")
+        message="docs(specs): record plan decisions"$'\n\n'
+        if (( count > 3 )); then
+            message+=$(head -n 2 <<< "$changes" | awk -F '\t' '{ print "- " $1 " " $2 }')
+            message+=$'\n'"- and $((count - 2)) more"
+        else
+            message+=$(awk -F '\t' '{ print "- " $1 " " $2 }' <<< "$changes")
+        fi
+        if ! output=$(git -C "$repo" commit --only -F - -- specs <<< "$message" 2>&1); then
+            echo "$output" >&2
+            return 1
+        fi
+
+        [[ "$repo" == "." ]] && continue
+        path=${repo#./}
+        gitlink=$(git status --porcelain -- "$path" 2>/dev/null)
+        [[ "$gitlink" == M?" "* || "$gitlink" == ?M" "* ]] || continue
+        short_sha=$(git -C "$repo" rev-parse --short HEAD)
+        if ! output=$({ git add -- "$path" &&
+            git commit --only -m "chore: bump $path to $short_sha" -- "$path"; } 2>&1); then
+            echo "$output" >&2
+            return 1
+        fi
+    done <<< "$repos"
+}
+
 truncate_line() {
     local text="$1" max="$2"
     if [[ ${#text} -gt $max ]]; then
@@ -1800,6 +1838,10 @@ cmd_loop() {
             fi
         fi
     done
+
+    if [[ "$mode" == "plan" ]] && ! $dry_run; then
+        commit_plan_specs || exit 1
+    fi
 
     # Ralph counts these itself, so a clean review stays distinguishable from a
     # backend that did nothing.
