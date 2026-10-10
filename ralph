@@ -259,8 +259,8 @@ Options:
   -g, --goal TEXT      Goal to inject into the prompt template (plan and auto only; required)
   -m, --model MODEL    Model to use (default depends on backend)
   -b, --backend NAME   Backend to use: claude, codex, copilot, pi (default: claude)
-      --skip-push      Don't push after each plan or build iteration (review
-                       never pushes)
+      --skip-push      Don't push after each build iteration (plan and review
+                       never push)
       --dry-run        Print what would be executed without running
       --no-metrics     Don't record per-iteration metrics under .ralph/metrics/
   -q, --quiet          Don't stream backend activity; hide commands, exit codes and the raw stream path
@@ -1807,9 +1807,9 @@ cmd_loop() {
             fi
         fi
 
-        # Push changes after each iteration. Plan pushes its spec commits;
-        # review never commits, so it never pushes.
-        if [[ "$mode" == "build" || "$mode" == "plan" ]]; then
+        # Push changes after each build iteration. Plan and review never push;
+        # build pushes Ralph's spec commits with its own.
+        if [[ "$mode" == "build" ]]; then
             if $dry_run; then
                 echo "[dry-run] Would run: git push origin $current_branch"
             elif ! $skip_push; then
