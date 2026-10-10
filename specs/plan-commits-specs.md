@@ -78,7 +78,9 @@ unchanged, prints to stderr and exits 1.
 **Clean `specs/`.** Unchanged from the first version. `plan` refuses to start when any repository
 in `repo_state` has an uncommitted change under its `specs/`, whether staged, unstaged or
 untracked. Otherwise Ralph cannot tell an operator's edit from the planner's, and commits the
-operator's edit under its own message. The check is the shared predicate `have_dirty_specs`.
+operator's edit under its own message. The check is the shared predicate `have_dirty_specs`,
+which prints the first line of `dirty_spec_repos`. That helper lists every repository in
+`repo_state` order whose `git status --porcelain -- specs` is non-empty.
 
 ```
 Error: specs/ has uncommitted changes in <repo>.
@@ -144,7 +146,7 @@ commit step first runs both guard checks against that pass: `HEAD` moved, and a 
 moved. When either fails, Ralph prints the guard's error, commits nothing, and leaves `specs/` as
 it is.
 
-For each repository `have_dirty_specs` would report, in `repo_state` order:
+For each repository `dirty_spec_repos` lists, in `repo_state` order:
 
 1. Stage `specs/` with `git -C <repo> add -A -- specs`. The guard checks have already rejected
    deletions, so this stages only additions and edits.
