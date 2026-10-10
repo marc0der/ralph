@@ -680,16 +680,23 @@ have_stale_cycle_base() {
     [[ -f "$CYCLE_BASE_FILE" ]] && ! have_open_items && ! have_superseded_items
 }
 
-# Print the first repository whose specs/ holds a staged, unstaged or untracked change.
-have_dirty_specs() {
+# List, in repo_state order, every repository whose specs/ holds a staged,
+# unstaged or untracked change.
+dirty_spec_repos() {
     local repo sha
     while read -r repo sha; do
         if [[ -n "$(git -C "$repo" status --porcelain -- specs 2>/dev/null)" ]]; then
             echo "$repo"
-            return 0
         fi
     done < <(repo_state)
-    return 1
+}
+
+# Print the first repository whose specs/ holds a staged, unstaged or untracked change.
+have_dirty_specs() {
+    local repos
+    repos=$(dirty_spec_repos)
+    [[ -n "$repos" ]] || return 1
+    head -n 1 <<< "$repos"
 }
 
 # Print the first repository with a specs/ directory whose HEAD is detached.
