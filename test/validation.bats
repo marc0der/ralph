@@ -22,6 +22,29 @@ assert_plan_refuses_dirty_specs() {
     [[ "$(git status --porcelain --untracked-files=all)" == "$before" ]]
 }
 
+# Run plan and assert it fails on the detached HEAD of $1 without touching the tree.
+assert_plan_refuses_detached_head() {
+    local repo=$1
+    shift
+    local before
+    before=$(git status --porcelain --untracked-files=all)
+    run "$RALPH" plan "$@" -g "the goal"
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: $repo is on a detached HEAD."* ]]
+    [[ "$output" == *"Check out a branch before running 'ralph plan'; plan commits its spec changes there."* ]]
+    [[ "$(git status --porcelain --untracked-files=all)" == "$before" ]]
+}
+
+# Create a committed nested repository at source/svc, ignored by the workspace.
+create_nested_repo() {
+    echo "source/" > .gitignore
+    git add -- .gitignore
+    git commit --quiet -m "chore: ignore source"
+    mkdir -p source/svc
+    git -C source/svc init --quiet
+    git -C source/svc -c user.email=t@t -c user.name=T commit --allow-empty --quiet -m "initial"
+}
+
 @test "build rejects non-integer iterations" {
     run "$RALPH" build -n abc
     [[ "$status" -ne 0 ]]
@@ -299,12 +322,7 @@ assert_plan_refuses_dirty_specs() {
 
 @test "plan fails on an untracked spec in a nested repository" {
     "$RALPH" init
-    echo "source/" > .gitignore
-    git add -- .gitignore
-    git commit --quiet -m "chore: ignore source"
-    mkdir -p source/svc
-    git -C source/svc init --quiet
-    git -C source/svc -c user.email=t@t -c user.name=T commit --allow-empty --quiet -m "initial"
+    create_nested_repo
     mkdir -p source/svc/specs
     echo "# Draft" > source/svc/specs/x.md
     local nested_before
@@ -336,6 +354,50 @@ assert_plan_refuses_dirty_specs() {
     [[ "$status" -eq 0 ]]
     [[ "$output" != *"specs/ has uncommitted changes"* ]]
     [[ "$output" == *"[dry-run] Would run"* ]]
+}
+
+@test "plan fails when the workspace with specs/ is on a detached HEAD" {
+    "$RALPH" init
+    commit_spec
+    git checkout --quiet --detach
+    assert_plan_refuses_detached_head .
+}
+
+@test "plan fails when a nested repository with specs/ is on a detached HEAD" {
+    "$RALPH" init
+    create_nested_repo
+    mkdir -p source/svc/specs
+    echo "# Spec" > source/svc/specs/a.md
+    git -C source/svc add -- specs/a.md
+    git -C source/svc -c user.email=t@t -c user.name=T commit --quiet -m "docs(specs): add a"
+    git -C source/svc checkout --quiet --detach
+    assert_plan_refuses_detached_head ./source/svc
+}
+
+@test "plan runs when a nested repository without specs/ is on a detached HEAD" {
+    "$RALPH" init
+    commit_spec
+    create_nested_repo
+    git -C source/svc checkout --quiet --detach
+    run "$RALPH" plan --dry-run -g "the goal"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"is on a detached HEAD"* ]]
+    [[ "$output" == *"[dry-run] Would run"* ]]
+}
+
+@test "plan --dry-run fails when the workspace is on a detached HEAD" {
+    "$RALPH" init
+    commit_spec
+    git checkout --quiet --detach
+    assert_plan_refuses_detached_head . --dry-run
+    [[ "$output" != *"[dry-run]"* ]]
+}
+
+@test "plan -n 1 fails when the workspace is on a detached HEAD" {
+    "$RALPH" init
+    commit_spec
+    git checkout --quiet --detach
+    assert_plan_refuses_detached_head . -n 1
 }
 
 @test "build rejects a goal" {
