@@ -2012,8 +2012,9 @@ cmd_auto() {
         # starts a child that exits 1 on a gate. A guarded-out phase is
         # skipped, not an abort. Plan (3) mirrors require_fresh_cycle as a
         # refusal instead: only --resume can reach it over a stale base. It
-        # also mirrors require_clean_specs, and records the state file so
-        # --resume continues once the operator has committed specs/.
+        # also mirrors require_clean_specs and require_attached_spec_repos, and
+        # records the state file so --resume continues once the operator has
+        # committed specs/ or checked out a branch.
         case $phase_num in
             3)
                 if have_stale_cycle_base; then
@@ -2028,6 +2029,15 @@ cmd_auto() {
                     write_auto_state "$phase_num" "$phase" 1
                     echo "Error: specs/ has uncommitted changes in $dirty_repo." >&2
                     echo "Commit or stash them, then run 'ralph auto --resume'." >&2
+                    auto_report
+                    exit 1
+                fi
+                local detached_repo
+                if detached_repo=$(have_detached_spec_repo); then
+                    phase_state[phase_num]="refused — detached HEAD"
+                    write_auto_state "$phase_num" "$phase" 1
+                    echo "Error: $detached_repo is on a detached HEAD." >&2
+                    echo "Check out a branch, then run 'ralph auto --resume'." >&2
                     auto_report
                     exit 1
                 fi ;;

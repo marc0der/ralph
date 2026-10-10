@@ -354,6 +354,36 @@ seed_resume_state() {
     grep -q 'mock-planned-item' IMPLEMENTATION_PLAN.md
 }
 
+@test "a detached HEAD refuses phase 3 and records it for --resume" {
+    create_committing_backend
+    mkdir -p specs
+    echo "spec" > specs/x.md
+    git add -- specs/x.md; git commit -q -m "docs(specs): add x"
+    git checkout -q --detach
+    MOCK_REVIEW_NOOP=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics -g "the goal"
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: . is on a detached HEAD."* ]]
+    [[ "$output" == *"Check out a branch, then run 'ralph auto --resume'."* ]]
+    [[ "$output" == *"3 plan      refused — detached HEAD"* ]]
+    run ! grep -q 'mock-planned-item' IMPLEMENTATION_PLAN.md
+    grep -q '^phase=3$' .ralph/auto-state
+    grep -q '^child_exit=1$' .ralph/auto-state
+}
+
+@test "--resume plans once the detached workspace checks out a branch" {
+    create_committing_backend
+    mkdir -p specs
+    echo "spec" > specs/x.md
+    git add -- specs/x.md; git commit -q -m "docs(specs): add x"
+    git checkout -q --detach
+    MOCK_REVIEW_NOOP=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics -g "the goal"
+    [[ "$status" -eq 1 ]]
+    git checkout -q -b work
+    MOCK_REVIEW_NOOP=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --resume --skip-push --no-metrics -g "the goal"
+    [[ "$status" -eq 0 ]]
+    grep -q 'mock-planned-item' IMPLEMENTATION_PLAN.md
+}
+
 @test "--resume prints the recorded phase, child exit and manual-repair notice" {
     create_committing_backend
     seed_resume_state 5
