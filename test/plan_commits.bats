@@ -314,3 +314,54 @@ echo "edit" >> README.md && git add -- README.md'
     [ "$(commit_count)" -eq "$before" ]
     [ -n "$(git status --porcelain -- specs)" ]
 }
+
+@test "a backend that fails after editing a spec still commits it" {
+    "$RALPH" init
+    local before
+    before=$(commit_count)
+    create_scripted_backend
+    on_iteration 1 'mkdir -p specs && echo "# New" > specs/new.md && exit 1'
+
+    run_plan --skip-push
+    [ "$status" -ne 0 ]
+    [ "$(commit_count)" -eq $((before + 1)) ]
+    [[ "$(git log -1 --format=%s)" == "docs(specs): record plan decisions" ]]
+    [ -z "$(git status --porcelain -- specs)" ]
+}
+
+@test "a backend that fails after committing commits nothing of its own" {
+    "$RALPH" init
+    create_scripted_backend
+    on_iteration 1 'mkdir -p specs && echo "# New" > specs/new.md &&
+git add -- specs/new.md && git commit -q -m "docs(specs): planner commit" &&
+echo "# Edit" >> specs/new.md && exit 1'
+
+    run_plan --skip-push
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Error: plan pass 1 committed in .; plan may not commit, Ralph commits its spec changes."* ]]
+    [[ "$(git log -1 --format=%s)" == "docs(specs): planner commit" ]]
+    [ -n "$(git status --porcelain -- specs)" ]
+}
+
+@test "a plan run interrupted after editing a spec commits it" {
+    "$RALPH" init
+    local before pid status_code=0 waited=0
+    before=$(commit_count)
+    create_scripted_backend
+    on_iteration 1 "mkdir -p specs && echo '# New' > specs/new.md && touch '$TEST_DIR/edited' && sleep 1"
+
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" plan -g "the goal" --skip-push > "$TEST_DIR/out" 2>&1 &
+    pid=$!
+    while [[ ! -f "$TEST_DIR/edited" ]] && (( waited < 100 )); do
+        sleep 0.1
+        waited=$((waited + 1))
+    done
+    kill -TERM "$pid"
+    wait "$pid" || status_code=$?
+
+    [ "$status_code" -eq 130 ]
+    grep -q "Interrupted at iteration 1" "$TEST_DIR/out"
+    [ "$(commit_count)" -eq $((before + 1)) ]
+    [[ "$(git log -1 --format=%s)" == "docs(specs): record plan decisions" ]]
+    [ -z "$(git status --porcelain -- specs)" ]
+}
