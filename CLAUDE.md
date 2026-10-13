@@ -34,7 +34,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 | `plan` | Run planning loop (max 6 iterations, exits on convergence) — requires a goal (`-g`), reads specs/source, produces `IMPLEMENTATION_PLAN.md` |
 | `build` | Run build loop (default: open items plus 20% headroom) — picks next task, implements, tests, commits, pushes |
 | `review` | Run one review pass — reviews the cycle's work against its cited specs, the written rules and the review catalogue, files findings as new `- [ ]` items |
-| `sandbox` | Enter/manage devcontainer (`sandbox`, `sandbox clean`, `sandbox --rebuild`) |
+| `sandbox` | Enter/manage devcontainer (`sandbox`, `sandbox clean`, `sandbox --rebuild`, `sandbox token`, `sandbox exec <command>`) |
 | `init` | Initialize workspace artifacts and directories |
 | `archive` | Move artifacts to `.ralph/<timestamp>/` |
 | `clean` | Delete artifacts |
@@ -79,6 +79,8 @@ Uses the `devcontainer` CLI to manage container lifecycle. Key details:
 - Mounts: workspace, `~/.claude` (with `settings.json` read-only), `~/.codex`, `~/.copilot`, `~/.pi`, `~/.gitconfig`, `~/.ssh`, `~/.config/gh`, Docker socket, SSH agent, optional GPG agent socket with `pubring.kbx`, ralph binary, ralph config dir
 - Forwards API keys and a GitHub token, deriving `GH_TOKEN` from `gh auth token` when neither token is set
 - Shell history persists via Docker volumes keyed by a hash of the workspace path
+- `plan`, `build`, `review` and `auto` started on the host re-run themselves through `sandbox exec` (`sandbox_delegate`), unless `--host`, `RALPH_ALLOW_HOST=1`, `--dry-run`, `--help` or `auto --force` is given. `test/test_helper.bash` exports `RALPH_ALLOW_HOST=1` so the suite exercises the host path; `test/sandbox_exec.bats` unsets it
+- `sandbox exec` forwards credentials with `docker exec -e NAME`, so the values come from ralph's environment and never reach a command line. The plan token is read from `$RALPH_CONFIG_DIR/oauth-token` (written by `sandbox token`), and `ANTHROPIC_API_KEY` is forwarded only when no plan token exists. The interactive `ralph sandbox` still forwards with `--remote-env KEY=value`, which is visible in the process list
 - Runs as `node` user with passwordless sudo
 
 ### Installation layout

@@ -127,11 +127,15 @@ Agents run headless, so they can't stop and ask before running a command. Ralph 
 ralph sandbox              # start or reuse this project's container
 ralph sandbox --rebuild    # rebuild the image, e.g. after updating ralph
 ralph sandbox clean        # remove the container
+ralph sandbox token        # save your Claude plan token (see below)
+ralph sandbox exec build   # run a ralph command in the container, with no shell
 ```
 
 Each project gets its own container, with every supported agent, Node.js, Bun, uv, SDKMAN and the Docker CLI pre-installed. Your agent logins, git and GitHub config, SSH agent and API keys come with you. [docs/sandbox.md](docs/sandbox.md) lists exactly what is mounted and forwarded.
 
-Outside a container, ralph warns you and asks `Continue anyway? [y/N]` before it starts. Pass `-y` to skip the question. Scripts and CI, which have no terminal, go ahead without it.
+`plan`, `build`, `review` and `auto` use the sandbox by themselves. Start one on your machine and ralph runs it inside this project's container, starting the container if needed. You never have to enter the container first. To run on the host anyway, pass `--host` or set `RALPH_ALLOW_HOST=1`; ralph then warns you and asks `Continue anyway? [y/N]` (`-y` skips the question, and scripts and CI go ahead without it). `--dry-run` and `--help` always run on the host.
+
+**Using your Claude plan.** Your plan login lives in the macOS Keychain, which the container can't read. Run `claude setup-token`, sign in, then run `ralph sandbox token` and paste the token it printed. Ralph checks the format, saves it to `~/.config/ralph/oauth-token` (mode 600) and passes it into sandbox runs from then on. With a plan token saved, an `ANTHROPIC_API_KEY` is not passed in, so runs don't bill per token. Credentials reach the container through its environment, never the command line.
 
 ## Customising
 
@@ -154,9 +158,11 @@ Outside a container, ralph warns you and asks `Continue anyway? [y/N]` before it
 | `plan`              | Turn a goal into `IMPLEMENTATION_PLAN.md`. Requires `-g`. At most 6 passes |
 | `build`             | Implement, test, commit and push the next open item (default: open items plus 20% headroom) |
 | `review`            | Review the cycle's work against its specs, rules and catalogue, and add findings as new items. One pass |
-| `auto`              | Run the whole lifecycle unattended: archive, init, plan, build, review, build. Requires `-g`; refuses to run outside a container |
+| `auto`              | Run the whole lifecycle unattended: archive, init, plan, build, review, build. Requires `-g`; runs in the sandbox, and refuses to run on the host without `--force` |
 | `sandbox`           | Enter this project's devcontainer. `--rebuild` rebuilds the image |
 | `sandbox clean`     | Remove this project's devcontainer |
+| `sandbox token`     | Save the Claude plan token that `claude setup-token` prints |
+| `sandbox exec`      | Run a ralph command in the sandbox with no shell. `plan`, `build`, `review` and `auto` do this when started on the host; `--host` stops it |
 | `init`              | Create `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and `specs/`. `--prompts` also copies the prompts |
 | `archive`           | Move the plan and progress log to `.ralph/<timestamp>/` |
 | `clean`             | Delete the plan and progress log |
