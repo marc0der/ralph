@@ -6,6 +6,10 @@ export RALPH="$BATS_TEST_DIRNAME/../ralph"
 # When tests run inside the devcontainer DEVCONTAINER=true leaks in and silently
 # flips that branch — unset it so every test sees the same host-side defaults.
 unset DEVCONTAINER
+# plan, build, review and auto re-run themselves in the sandbox when started on
+# the host. These tests exercise the host path, so opt out for the whole suite;
+# test/sandbox_exec.bats unsets it to test the delegation itself.
+export RALPH_ALLOW_HOST=1
 
 setup() {
     # bats leaves stdin attached: ralph's `[[ -t 0 ]]` guard would prompt and block.

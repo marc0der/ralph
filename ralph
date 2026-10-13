@@ -218,6 +218,8 @@ ralph — autonomous AI coding agent loop runner
 Usage:
   ralph sandbox [--rebuild]
   ralph sandbox clean
+  ralph sandbox token
+  ralph sandbox exec <command> [args]
   ralph <plan|build|review> [options]
   ralph auto [options]
   ralph init
@@ -229,6 +231,9 @@ Usage:
 Modes:
   sandbox        Enter a devcontainer shell for the current project
   sandbox clean  Remove the devcontainer for the current project
+  sandbox token  Save the Claude plan token that 'claude setup-token' prints
+  sandbox exec   Run a ralph command in the sandbox, with no shell; plan, build,
+                 review and auto do this by themselves when started on the host
   plan           Analyse specs and source, create/update IMPLEMENTATION_PLAN.md
   build          Pick the next item, implement, test, commit, push
   review         Review the cycle's work in one pass and file findings as new plan items
@@ -240,6 +245,10 @@ Modes:
 
 Sandbox options:
       --rebuild        Rebuild the container image from scratch
+
+Host runs (plan, build, review, auto):
+      --host           Run on this machine, not in the sandbox. RALPH_ALLOW_HOST=1
+                       does the same. --dry-run and --help never use the sandbox
 
 Init options:
   -p, --prompts      Also copy prompt templates for local customisation
@@ -415,12 +424,96 @@ scaffold() {
     fi
 }
 
+# Save the Claude plan token that `claude setup-token` prints, where sandbox
+# runs read it. Hidden input on a terminal; stdin otherwise. The format check
+# exists because the token is easy to replace with other clipboard text.
+sandbox_token() {
+    local file="$CONFIG_DIR/oauth-token" token=""
+    if [[ -t 0 ]]; then
+        echo "Run 'claude setup-token', sign in, then paste the token it prints." >&2
+        printf 'Token (hidden): ' >&2
+        read -rs token || true
+        echo >&2
+    else
+        token="$(cat)"
+    fi
+    token="$(printf '%s' "$token" | tr -d '[:space:]')"
+    if [[ "$token" != sk-ant-oat01-* || ${#token} -lt 80 ]]; then
+        echo "Error: that is not a Claude plan token. It starts with sk-ant-oat01- and is" >&2
+        echo "about 100 characters long. Nothing was saved." >&2
+        exit 1
+    fi
+    mkdir -p "$CONFIG_DIR"
+    (umask 077; printf '%s\n' "$token" > "$file")
+    chmod 600 "$file"
+    echo "Saved to $file (mode 600). Sandbox runs now use your Claude plan."
+}
+
+# Run `ralph "$@"` in the running sandbox container. Credentials travel as
+# `docker exec -e NAME`, which reads each value from this process's
+# environment, so no secret appears in the process list.
+sandbox_exec_run() {
+    local cid="$1"
+    shift
+    local env_args=() name
+
+    local oauth_file="$CONFIG_DIR/oauth-token"
+    if [[ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" && -s "$oauth_file" ]]; then
+        CLAUDE_CODE_OAUTH_TOKEN="$(tr -d '[:space:]' < "$oauth_file")"
+    fi
+    if [[ -z "${GH_TOKEN:-}" && -z "${GITHUB_TOKEN:-}" ]] && command -v gh >/dev/null 2>&1; then
+        GH_TOKEN="$(gh auth token 2>/dev/null)" || GH_TOKEN=""
+    fi
+
+    for name in CLAUDE_CODE_OAUTH_TOKEN GH_TOKEN GITHUB_TOKEN OPENAI_API_KEY \
+                OPENROUTER_API_KEY GEMINI_API_KEY ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN; do
+        if [[ -n "${!name:-}" ]]; then
+            export "${name?}"
+            env_args+=("-e" "$name")
+        fi
+    done
+    # The plan token wins: an API key bills per token, so it goes in only when
+    # no plan token is available.
+    if [[ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" && -n "${ANTHROPIC_API_KEY+set}" ]]; then
+        export ANTHROPIC_API_KEY
+        env_args+=("-e" "ANTHROPIC_API_KEY")
+    fi
+    # The mounted host gitconfig names a credential helper by a host path. Reset
+    # the helper list and use the container's own gh, which reads GH_TOKEN.
+    if [[ -n "${GH_TOKEN:-}${GITHUB_TOKEN:-}" ]]; then
+        env_args+=("-e" "GIT_CONFIG_COUNT=2"
+            "-e" "GIT_CONFIG_KEY_0=credential.helper" "-e" "GIT_CONFIG_VALUE_0="
+            "-e" "GIT_CONFIG_KEY_1=credential.helper" "-e" "GIT_CONFIG_VALUE_1=!gh auth git-credential")
+    fi
+
+    local tty_args=()
+    if [[ -t 0 && -t 1 ]]; then
+        tty_args=("-i" "-t")
+    fi
+    docker exec ${tty_args[@]+"${tty_args[@]}"} -u node -w /workspace \
+        ${env_args[@]+"${env_args[@]}"} "$cid" ralph "$@"
+}
+
+# Re-run a command in the sandbox instead of on the host. Returns the command's
+# exit status, which the caller passes on.
+sandbox_delegate() {
+    cmd_sandbox exec "$@"
+}
+
 cmd_sandbox() {
-    reject_quiet sandbox "$@"
-    local rebuild=false
+    # `sandbox exec` carries another command's arguments, which may include --quiet.
+    [[ "${1:-}" == exec ]] || reject_quiet sandbox "$@"
+    local rebuild=false exec_mode=false
 
     case "${1:-}" in
         clean)     sandbox_clean; return ;;
+        token)     sandbox_token; return ;;
+        exec)      exec_mode=true; shift
+                   [[ "${1:-}" == "--" ]] && shift
+                   if [[ $# -eq 0 ]]; then
+                       echo "Error: 'sandbox exec' needs a command, e.g. ralph sandbox exec build" >&2
+                       exit 1
+                   fi ;;
         --rebuild) rebuild=true ;;
         "")        ;;
         *)         echo "Error: unknown sandbox option '$1'" >&2; exit 1 ;;
@@ -508,6 +601,9 @@ cmd_sandbox() {
             fi
         fi
     fi
+    # sandbox exec forwards credentials at exec time (sandbox_exec_run), as
+    # environment names rather than values on a command line.
+    if ! $exec_mode; then
     if [[ -n "${OPENAI_API_KEY:-}" ]]; then
         ssh_env+=("--remote-env" "OPENAI_API_KEY=$OPENAI_API_KEY")
     fi
@@ -546,6 +642,7 @@ cmd_sandbox() {
     if [[ -n "${GITHUB_TOKEN:-}" ]]; then
         ssh_env+=("--remote-env" "GITHUB_TOKEN=$GITHUB_TOKEN")
     fi
+    fi
 
     # Shell history volume (deterministic per workspace)
     local workspace_hash
@@ -565,6 +662,23 @@ cmd_sandbox() {
     )
     if $rebuild; then
         up_args+=("--remove-existing-container" "--build-no-cache")
+    fi
+
+    if $exec_mode; then
+        if ! command -v docker >/dev/null 2>&1; then
+            echo "Error: 'docker' not found in PATH." >&2
+            exit 1
+        fi
+        echo "Starting sandbox..." >&2
+        devcontainer up "${up_args[@]}" >/dev/null || return 1
+        local cid
+        cid=$(docker ps --filter "label=devcontainer.local_folder=$PWD" --format '{{.ID}}' | head -n 1)
+        if [[ -z "$cid" ]]; then
+            echo "Error: no running sandbox container found for $PWD" >&2
+            exit 1
+        fi
+        sandbox_exec_run "$cid" "$@"
+        return
     fi
 
     echo "Starting sandbox..."
@@ -2154,6 +2268,34 @@ cmd_auto() {
 }
 
 # Main dispatch — test/resolve_prompt.bats sources everything above this line
+
+# Host guard. plan, build, review and auto run the backend with its permission
+# prompts off, so a host run reaches the whole tree and $HOME. Outside the
+# container, re-run the command in the sandbox. --host or RALPH_ALLOW_HOST=1
+# keeps it on the host; --dry-run, --help and `auto --force` never delegate.
+host_ok="${RALPH_ALLOW_HOST:-}"
+case "${1:-}" in
+    plan|build|review|auto)
+        cmd_name="$1"; filtered=(); past_dd=false
+        for arg in "$@"; do
+            if ! $past_dd; then
+                case "$arg" in
+                    --host)              host_ok=1; continue ;;
+                    --dry-run|-h|--help) host_ok=1 ;;
+                    --force)             [[ "$cmd_name" == auto ]] && host_ok=1 ;;
+                    --)                  past_dd=true ;;
+                esac
+            fi
+            filtered+=("$arg")
+        done
+        set -- "${filtered[@]}"
+        if [[ "${DEVCONTAINER:-false}" != "true" && -z "$host_ok" ]]; then
+            sandbox_delegate "$@"
+            exit $?
+        fi
+        ;;
+esac
+
 case "${1:-}" in
     sandbox)    shift; cmd_sandbox "$@" ;;
     plan|build|review) cmd_loop "$@" ;;
