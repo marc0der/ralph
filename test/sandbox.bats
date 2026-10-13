@@ -521,3 +521,34 @@ MKDIREOF
     [[ "$post_start" == *"safe.directory '*'"* ]]
     run ! grep -q "safe.directory /workspace" "$config"
 }
+
+# The mounted host ~/.gitconfig can name a credential helper by a host-only path
+# (macOS Homebrew: /opt/homebrew/bin/gh). With a GitHub token forwarded, git is
+# pointed at the container's own gh instead.
+@test "sandbox points git at the container's gh when GH_TOKEN is set" {
+    setup_sandbox_mock
+    unset GH_TOKEN GITHUB_TOKEN
+    GH_TOKEN="gh-token-123" run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    grep -q "^GIT_CONFIG_COUNT=2$" "$DEVCONTAINER_CALL_LOG"
+    grep -q "^GIT_CONFIG_KEY_0=credential.helper$" "$DEVCONTAINER_CALL_LOG"
+    grep -q "^GIT_CONFIG_VALUE_0=$" "$DEVCONTAINER_CALL_LOG"
+    grep -q "^GIT_CONFIG_KEY_1=credential.helper$" "$DEVCONTAINER_CALL_LOG"
+    grep -q "^GIT_CONFIG_VALUE_1=!gh auth git-credential$" "$DEVCONTAINER_CALL_LOG"
+}
+
+@test "sandbox points git at the container's gh when GITHUB_TOKEN is set" {
+    setup_sandbox_mock
+    unset GH_TOKEN GITHUB_TOKEN
+    GITHUB_TOKEN="github-token-123" run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    grep -q "^GIT_CONFIG_VALUE_1=!gh auth git-credential$" "$DEVCONTAINER_CALL_LOG"
+}
+
+@test "sandbox leaves git config alone when no GitHub token is available" {
+    setup_sandbox_mock
+    unset GH_TOKEN GITHUB_TOKEN MOCK_GH_AUTH_TOKEN
+    run "$RALPH" sandbox
+    [[ "$status" -eq 0 ]]
+    run ! grep -q "GIT_CONFIG_COUNT" "$DEVCONTAINER_CALL_LOG"
+}
