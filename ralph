@@ -546,6 +546,18 @@ cmd_sandbox() {
     if [[ -n "${GITHUB_TOKEN:-}" ]]; then
         ssh_env+=("--remote-env" "GITHUB_TOKEN=$GITHUB_TOKEN")
     fi
+    # The mounted host ~/.gitconfig can name a credential helper by a host-only
+    # path (macOS Homebrew: /opt/homebrew/bin/gh), which does not exist in the
+    # container, so every push fails. When a GitHub token is forwarded, reset
+    # the helper list and use the container's own gh, which reads that token.
+    # None of these values is a secret.
+    if [[ -n "${GH_TOKEN:-}${GITHUB_TOKEN:-}" ]]; then
+        ssh_env+=("--remote-env" "GIT_CONFIG_COUNT=2"
+            "--remote-env" "GIT_CONFIG_KEY_0=credential.helper"
+            "--remote-env" "GIT_CONFIG_VALUE_0="
+            "--remote-env" "GIT_CONFIG_KEY_1=credential.helper"
+            "--remote-env" "GIT_CONFIG_VALUE_1=!gh auth git-credential")
+    fi
 
     # Shell history volume (deterministic per workspace)
     local workspace_hash
