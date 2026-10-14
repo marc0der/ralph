@@ -29,7 +29,7 @@ ralph build
 
 Or let it run the whole thing for you: `ralph auto -g specs/my-feature.md`.
 
-You'll need Docker (rootful) and the devcontainer CLI (`npm install -g @devcontainers/cli`) for the sandbox, plus the CLI of whichever agent you use.
+You'll need Docker (rootful) and the devcontainer CLI (`npm install -g @devcontainers/cli`) for the sandbox, plus the CLI of whichever agent you use. Ralph reads its config file with [mikefarah `yq` v4](https://github.com/mikefarah/yq), so install that on the host too; the sandbox already has it.
 
 ## How it works
 
@@ -78,7 +78,7 @@ ralph auto -g specs/checkout-flow.md
 - **It tells you what happened.** At the end you get a `Lifecycle summary`, one row per phase: ran, skipped and why, failed, or not reached.
 - **It can pick up where it stopped.** After a failure or `Ctrl-C`, fix the problem and run `ralph auto --resume -g specs/checkout-flow.md`. It never re-runs `archive` or `init`.
 
-`--dry-run` shows the six commands it would run, without running any. Every phase gets your `-m`, `-b`, `--skip-push`, `--no-metrics` and `-q` flags. Only `-n` is refused, because each phase sizes itself.
+`--dry-run` shows the six commands it would run, without running any. Every phase gets your `-m`, `-b`, `-e`, `--skip-push`, `--push`, `--no-metrics`, `--metrics`, `-q` and `--verbose` flags, which beat every section of the config file. Only `-n` is refused, because each phase sizes itself.
 
 ## Day to day
 
@@ -139,6 +139,25 @@ Outside a container, ralph warns you and asks `Continue anyway? [y/N]` before it
 
 **The prompts.** `ralph init --prompts` copies the prompts into your project as `PROMPT_plan.md`, `PROMPT_build.md` and `PROMPT_review.md`, where they override the installed ones. The defaults mention Claude model names, so edit them if you use another agent. A local copy doesn't update when ralph does, so refresh it after an upgrade.
 
+**The config file.** A YAML file sets the backend, model, effort, iteration count and loop tuning for each phase. Ralph reads `./ralph.yaml` when it exists and ignores the central copy, otherwise `~/.config/ralph/config.yaml`, which `install.sh` writes on every install, otherwise nothing, and then it uses the built-in defaults. The winning file is read whole: a key it leaves out takes the built-in default, never the central copy's value. A CLI flag beats the file. `ralph init --config` copies the central copy into your project as `ralph.yaml`, which `ralph init` gitignores.
+
+The file holds up to five sections: `defaults`, `plan`, `build`, `fix` and `review`. Each phase section inherits from `defaults` key by key, but when it sets a different `backend` it inherits no `model`, `effort` or `extra_args`. `fix` configures `ralph fix`, the build that `auto` runs last, and does not inherit from `build`. Ralph validates the whole file before every run, so a typo in one section fails every phase.
+
+| Key             | Type                                    | Phases           | Default                      | Flag |
+|-----------------|-----------------------------------------|------------------|------------------------------|------|
+| `backend`       | `claude`, `codex`, `copilot` or `pi`    | all              | `claude`                     | `-b` |
+| `model`         | non-empty string                        | all              | the backend's default model  | `-m` |
+| `effort`        | a level the backend lists               | all              | none: the backend's default  | `-e` |
+| `extra_args`    | list of strings                         | all              | `[]`                         | none |
+| `metrics`       | boolean                                 | all              | `true`                       | `--no-metrics` / `--metrics` |
+| `quiet`         | boolean                                 | all              | `false`                      | `-q` / `--verbose` |
+| `iterations`    | positive integer                        | plan, build, fix | plan: 6; else self-sizing    | `-n` |
+| `headroom_pct`  | non-negative integer                    | build, fix       | `20`                         | none |
+| `noop_patience` | positive integer                        | build, fix       | `2`                          | none |
+| `skip_push`     | boolean                                 | build, fix       | `false`                      | `--skip-push` / `--push` |
+
+`defaults` takes only the keys whose phases read "all". `iterations` turns self-sizing off, so a section that sets it can't also set `headroom_pct` or `noop_patience`. Every run prints a `Config:` block naming the file, the section and the values it used.
+
 **Commit style.** The build prompt asks for small [Conventional Commits](https://www.conventionalcommits.org/), with only the relevant files staged. The planner edits specs but commits nothing. When the plan run ends, Ralph commits the planner's spec changes as one `docs(specs)` commit per repository. The plan file, progress log and `.ralph/` are never committed. Edit `PROMPT_build.md` to change this.
 
 **Further reading:**
@@ -153,28 +172,33 @@ Outside a container, ralph warns you and asks `Continue anyway? [y/N]` before it
 |---------------------|--------------|
 | `plan`              | Turn a goal into `IMPLEMENTATION_PLAN.md`. Requires `-g`. At most 6 passes |
 | `build`             | Implement, test, commit and push the next open item (default: open items plus 20% headroom) |
+| `fix`               | Run `build` with the `fix` section of the config file. `auto` runs it last |
 | `review`            | Review the cycle's work against its specs, rules and catalogue, and add findings as new items. One pass |
 | `auto`              | Run the whole lifecycle unattended: archive, init, plan, build, review, build. Requires `-g`; refuses to run outside a container |
 | `sandbox`           | Enter this project's devcontainer. `--rebuild` rebuilds the image |
 | `sandbox clean`     | Remove this project's devcontainer |
-| `init`              | Create `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and `specs/`. `--prompts` also copies the prompts |
+| `init`              | Create `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and `specs/`. `--prompts` also copies the prompts, `--config` copies the config file to `ralph.yaml` |
 | `archive`           | Move the plan and progress log to `.ralph/<timestamp>/` |
 | `clean`             | Delete the plan and progress log |
 | `metrics`           | Summarise the latest run's metrics, or a given `metrics.jsonl` |
 | `version`           | Print the version |
 
-### Options (plan, build, review and auto)
+### Options (plan, build, fix, review and auto)
 
 | Flag                 | Description |
 |----------------------|-------------|
 | `-g`, `--goal`       | The spec, directory or sentence to plan from. `plan` and `auto` only, and required there |
-| `-n`, `--iterations` | Maximum passes. In `build` it also stops the early exit. `review` and `auto` refuse it |
+| `-n`, `--iterations` | Maximum passes. In `build` and `fix` it also stops the early exit. `review` and `auto` refuse it |
 | `-m`, `--model`      | Model to use (default depends on the backend) |
 | `-b`, `--backend`    | `claude`, `codex`, `copilot` or `pi` (default: `claude`) |
+| `-e`, `--effort`     | Effort level, one the backend lists (default: the backend's own) |
 | `--skip-push`        | Don't push after each build pass. Plan and review never push |
+| `--push`             | Push after each build pass, overriding `skip_push: true` |
 | `--dry-run`          | Show what would run, without running it |
 | `--no-metrics`       | Don't record metrics under `.ralph/metrics/` |
+| `--metrics`          | Record metrics, overriding `metrics: false` |
 | `-q`, `--quiet`      | Don't stream the agent's activity live |
+| `--verbose`          | Stream the agent's activity live, overriding `quiet: true` |
 | `-y`, `--yes`        | Skip the `Continue anyway? [y/N]` prompt outside a sandbox |
 | `--resume`           | `auto` only: continue from the phase that failed |
 | `--force`            | `auto` only: run outside a container |
@@ -189,6 +213,8 @@ Outside a container, ralph warns you and asks `Continue anyway? [y/N]` before it
 | `specs/`                 | Your specifications: what to build |
 | `CLAUDE.md`, `AGENTS.md` | Your project's rules for the agent. You own these |
 | `PROMPT_*.md`            | Optional project-local prompts |
+| `ralph.yaml`             | Optional project-local config file. Gitignored by `ralph init` |
+| `config.yaml`            | The central config file under `~/.config/ralph/`, written by `install.sh` |
 | `.ralph/`                | Archives, metrics and `auto` state. Gitignored by `ralph init` |
 
 ### Environment
@@ -196,7 +222,7 @@ Outside a container, ralph warns you and asks `Continue anyway? [y/N]` before it
 | Variable           | Default           | Description |
 |--------------------|-------------------|-------------|
 | `RALPH_BIN_DIR`    | `~/.local/bin`    | Where `install.sh` puts the CLI |
-| `RALPH_CONFIG_DIR` | `~/.config/ralph` | Where prompts, templates and container config live |
+| `RALPH_CONFIG_DIR` | `~/.config/ralph` | Where prompts, templates, `config.yaml` and container config live |
 
 ## Troubleshooting
 
