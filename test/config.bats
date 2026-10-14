@@ -639,3 +639,32 @@ run_build_with_config() {
     [[ "$stderr" == *"Config: $RALPH_CONFIG_DIR/config.yaml (central) [build]"* ]]
     [[ "$stderr" != *"overrides config backend"* ]]
 }
+
+# Helper: the Config block of a --dry-run in each phase, with the source label cut.
+# Review runs first, while the plan holds no open item; plan, build and fix follow one.
+dry_run_config_blocks() {
+    local phase config_stderr
+    grep -v '^- \[ \]' IMPLEMENTATION_PLAN.md > plan.tmp && mv plan.tmp IMPLEMENTATION_PLAN.md
+    for phase in review plan build fix; do
+        [[ "$phase" == plan ]] && seed_open_item
+        local args=()
+        [[ "$phase" == plan ]] && args=(-g goal)
+        config_stderr=$("$RALPH" "$phase" --dry-run "${args[@]}" 2>&1 >/dev/null) || return 1
+        awk '/^Config: /{sub(/^Config: .* \[/, "["); n = 3} n-- > 0' <<< "$config_stderr"
+    done
+}
+
+@test "the shipped config.yaml drifts from no built-in in plan, build, fix and review" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_shipped_item
+    seed_cycle_base
+    cp "$BATS_TEST_DIRNAME/../config.yaml" "$RALPH_CONFIG_DIR/config.yaml"
+    local shipped builtin
+    shipped=$(dry_run_config_blocks)
+    rm "$RALPH_CONFIG_DIR/config.yaml"
+    builtin=$(dry_run_config_blocks)
+    [[ "$(grep -c '^\[' <<< "$shipped")" -eq 4 ]]
+    [[ "$shipped" == "[review]"*"[plan]"*"[build]"*"[fix]"* ]]
+    [[ "$shipped" == "$builtin" ]]
+}
