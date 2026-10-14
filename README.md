@@ -66,7 +66,7 @@ ralph build -m sonnet                  # a cheaper model follows the steps
 
 ## Running unattended
 
-`ralph auto` runs the whole cycle in one go: `archive`, `init`, `plan`, `build`, `review`, and a final `build` to fix what review found.
+`ralph auto` runs the whole cycle in one go: `archive`, `init`, `plan`, `build`, `review`, and a final `fix` to fix what review found.
 
 ```bash
 git add specs/checkout-flow.md && git commit -m 'docs(specs): add checkout flow'
