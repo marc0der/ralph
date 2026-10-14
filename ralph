@@ -1261,7 +1261,7 @@ iso_utc() {
 write_iteration_metrics() {
     local metrics_file="$1" raw_file="$2" mode="$3" branch="$4" backend="$5" model="$6"
     local iteration="$7" started="$8" ended="$9" head_before="${10}" head_after="${11}" plan_done_before="${12}"
-    local noop_override="${13:-}"
+    local noop_override="${13:-}" effort="${14:-}" config_file="${15:-}" section="${16:-$3}"
 
     local commits=0 stat="" files="" ins="" del="" noop=true
     if [[ "$head_before" != "$head_after" ]]; then
@@ -1325,6 +1325,7 @@ write_iteration_metrics() {
         --argjson iteration "$iteration" \
         --arg mode "$mode" --arg branch "$branch" \
         --arg backend "$backend" --arg model "$model" \
+        --arg effort "$effort" --arg config "$config_file" --arg section "$section" \
         --arg started "$(iso_utc "$started")" \
         --arg ended "$(iso_utc "$ended")" \
         --argjson wall_s "$(( ended - started ))" \
@@ -1333,7 +1334,9 @@ write_iteration_metrics() {
         --argjson noop "$noop" --argjson plan_done "$plan_delta" \
         --argjson backend_summary "$backend_summary" \
         '{iteration: $iteration, mode: $mode, branch: $branch, backend: $backend,
-          model: $model, started: $started, ended: $ended, wall_s: $wall_s}
+          model: $model, effort: (if $effort == "" then null else $effort end),
+          config: (if $config == "" then null else $config end), section: $section,
+          started: $started, ended: $ended, wall_s: $wall_s}
          + $backend_summary
          + {git: {commits: $commits, files_changed: $files,
                   insertions: $insertions, deletions: $deletions, noop: $noop},
@@ -1368,6 +1371,9 @@ cmd_metrics() {
     fi
 
     echo "Run: $file"
+    jq -rs 'map(select(has("section"))) | first // empty
+        | "Config: \(.config // "built-in (no config file)") [\(.section)]"
+          + " backend=\(.backend) model=\(.model) effort=\(.effort // "default")"' "$file"
     echo ""
 
     local table
@@ -2112,7 +2118,7 @@ cmd_loop() {
                 if write_iteration_metrics "$metrics_file" "${raw_file:-/dev/null}" "$mode" \
                     "$current_branch" "$BACKEND_NAME" "$model" "$iteration" \
                     "$iter_start" "$iter_end" "$head_before" "$head_after_m" \
-                    "$plan_done_before" "$noop_override"; then
+                    "$plan_done_before" "$noop_override" "$effort" "$config_file" "$section"; then
                     echo ""
                     truncate_line "Metrics: $(fmt_duration $((iter_end - iter_start))) wall$(metrics_summary_suffix "$metrics_file")" "$line_width"
                 else
