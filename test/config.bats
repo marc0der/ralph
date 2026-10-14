@@ -614,6 +614,24 @@ run_build_with_config() {
     [[ "$output" == *"Error: no incomplete items in IMPLEMENTATION_PLAN.md. Run 'ralph plan' first."* ]]
 }
 
+@test "fix names fix in the goal refusal" {
+    "$RALPH" init
+    seed_open_item
+    run "$RALPH" fix -g x --dry-run
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: 'fix' does not accept -g/--goal"* ]]
+}
+
+@test "fix names fix in the missing artifacts error" {
+    "$RALPH" init
+    seed_open_item
+    rm PROGRESS.md
+    run "$RALPH" fix --dry-run
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"missing workspace artifacts required for 'fix': PROGRESS.md"* ]]
+    [[ "$output" == *"before running 'ralph fix'"* ]]
+}
+
 @test "install.sh installs config.yaml over the old central copy" {
     echo "stale: true" > "$RALPH_CONFIG_DIR/config.yaml"
     RALPH_BIN_DIR="$TEST_DIR/install-bin" run "$BATS_TEST_DIRNAME/../install.sh"
