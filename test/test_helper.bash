@@ -165,3 +165,10 @@ require_yq_or_skip() {
     [[ "$version_line" == *mikefarah* && "$version_line" =~ version\ v?4\. ]] \
         || skip "yq on PATH is not mikefarah yq v4: $version_line"
 }
+
+# Helper: put a yq on PATH that prints the given version line.
+create_fake_yq() {
+    mkdir -p "$TEST_DIR/bin"
+    printf '#!/usr/bin/env bash\necho "%s"\n' "$1" > "$TEST_DIR/bin/yq"
+    chmod +x "$TEST_DIR/bin/yq"
+}

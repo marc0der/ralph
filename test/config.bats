@@ -11,13 +11,6 @@ ralph_fn() {
     )
 }
 
-# Helper: put a yq on PATH that prints the given version line.
-create_fake_yq() {
-    mkdir -p "$TEST_DIR/bin"
-    printf '#!/usr/bin/env bash\necho "%s"\n' "$1" > "$TEST_DIR/bin/yq"
-    chmod +x "$TEST_DIR/bin/yq"
-}
-
 # Helper: a PATH without yq, or a skip when yq shares a directory with a tool ralph needs.
 path_without_yq() {
     local yq_dir tool
