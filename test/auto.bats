@@ -479,6 +479,62 @@ seed_resume_state() {
     [[ "$output" != *" -e "* ]]
 }
 
+# --- Config validation (specs/phase-config.md §7) ---------------------------
+
+@test "--dry-run fails on an invalid ralph.yaml before listing the phases" {
+    require_yq_or_skip
+    printf 'build:\n  bogus: 1\n' > ralph.yaml
+    DEVCONTAINER=true run "$RALPH" auto --dry-run -g g
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: ralph.yaml: build.bogus is not a known key."* ]]
+    [[ "$output" != *"1 archive"* ]]
+}
+
+@test "auto fails on an invalid ralph.yaml before phase 1 runs" {
+    require_yq_or_skip
+    create_committing_backend
+    printf 'review:\n  iterations: 2\n' > ralph.yaml
+    run_auto --skip-push --no-metrics
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: ralph.yaml: review.iterations is not allowed"* ]]
+    [[ "$output" != *"Lifecycle summary"* ]]
+    [[ ! -f IMPLEMENTATION_PLAN.md ]]
+    [[ ! -f .ralph/auto-state ]]
+}
+
+@test "auto fails on an invalid central config.yaml" {
+    require_yq_or_skip
+    printf 'defaults:\n  skip_push: true\n' > "$RALPH_CONFIG_DIR/config.yaml"
+    DEVCONTAINER=true run "$RALPH" auto --dry-run -g g
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"defaults.skip_push is not allowed in defaults"* ]]
+}
+
+@test "auto needs mikefarah yq when a config file exists" {
+    printf 'build:\n  effort: high\n' > ralph.yaml
+    create_fake_yq "yq 3.4.1"
+    PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --dry-run -g g
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"needs mikefarah yq v4"* ]]
+}
+
+@test "--dry-run lists the phases over a valid ralph.yaml" {
+    require_yq_or_skip
+    printf 'build:\n  effort: high\n' > ralph.yaml
+    DEVCONTAINER=true run "$RALPH" auto --dry-run -g g
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"6 fix"* ]]
+}
+
+@test "auto -e high puts -e high on the plan, build, review and fix rows" {
+    DEVCONTAINER=true run "$RALPH" auto --dry-run -e high -g g
+    [[ "$status" -eq 0 ]]
+    local row
+    for row in '3 plan' '4 build' '5 review' '6 fix'; do
+        [[ "$(grep -E "^ +$row" <<< "$output")" == *" -e high -y"* ]]
+    done
+}
+
 # --- Flag forwarding by behaviour (§11) -------------------------------------
 
 @test "--no-metrics reaches children: no .ralph/metrics directory is created" {
