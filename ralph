@@ -236,7 +236,7 @@ Usage:
   ralph sandbox clean
   ralph <plan|build|fix|review> [options]
   ralph auto [options]
-  ralph init
+  ralph init [--prompts] [--config]
   ralph clean
   ralph archive
   ralph metrics [file]
@@ -260,6 +260,7 @@ Sandbox options:
 
 Init options:
   -p, --prompts      Also copy prompt templates for local customisation
+      --config       Also copy the central config.yaml to ./ralph.yaml
 
 Auto options:
       --resume         Re-enter the lifecycle at the phase in .ralph/auto-state;
@@ -276,11 +277,15 @@ Options:
   -g, --goal TEXT      Goal to inject into the prompt template (plan and auto only; required)
   -m, --model MODEL    Model to use (default depends on backend)
   -b, --backend NAME   Backend to use: claude, codex, copilot, pi (default: claude)
+  -e, --effort LEVEL   Effort level for the run (levels depend on backend)
       --skip-push      Don't push after each build or fix iteration (plan and review
                        never push)
+      --push           Push after each build or fix iteration; overrides skip_push: true
       --dry-run        Print what would be executed without running
       --no-metrics     Don't record per-iteration metrics under .ralph/metrics/
+      --metrics        Record metrics; overrides metrics: false
   -q, --quiet          Don't stream backend activity; hide commands, exit codes and the raw stream path
+      --verbose        Stream backend activity; overrides quiet: true
   -y, --yes            Skip the confirmation when running outside a sandbox
   -h, --help           Show this help message
 
@@ -290,6 +295,8 @@ Examples:
   ralph plan -g "Migrate to hexagonal architecture"
   ralph build -n 10 -m sonnet
   ralph build -b codex
+  ralph build -e high
+  ralph fix
   ralph build --iterations 5
   ralph build && ralph review && ralph build
   ralph review -b codex
@@ -1540,6 +1547,7 @@ cmd_loop() {
         require_review_preconditions
     fi
 
+    # CLI flag beats the winning config file, which beats the built-in default.
     local config_file
     config_file=$(resolve_config)
     [[ -z "$config_file" ]] || require_valid_config "$config_file"
