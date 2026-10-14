@@ -137,9 +137,9 @@ Ralph passes the value unchanged to the backend's own flag:
 | Backend | Flag | Levels |
 |---------|------|--------|
 | claude | `--effort <level>` | low, medium, high, xhigh, max |
-| codex | `-c model_reasoning_effort=<level>` | minimal, low, medium, high, xhigh |
+| codex | `-c model_reasoning_effort=<level>` | minimal, low, medium, high, xhigh, max, ultra |
 | copilot | `--reasoning-effort <level>` | none, minimal, low, medium, high, xhigh, max |
-| pi | `--thinking <level>` | off, minimal, low, medium, high, xhigh, max |
+| pi | `--thinking <level>` | off, minimal, low, medium, high, xhigh |
 
 Each `backend_<name>` function declares `BACKEND_EFFORT_LEVELS` and passes the effort to
 `build_backend_cmd` beside the model. When no effort is set, `build_backend_cmd` adds no flag, and
@@ -149,12 +149,20 @@ Ralph checks the effort against the resolved backend's `BACKEND_EFFORT_LEVELS` b
 starts, whether it came from the file or from `-e`:
 
 ```
-Error: effort 'max' is not a codex level; use one of: minimal low medium high xhigh.
+Error: effort 'max' is not a pi level; use one of: off minimal low medium high xhigh.
 ```
 
-The levels in the table are what the installed CLIs report on 2026-10-14. The codex levels must be
-confirmed against `codex` before implementation, because its flag is a config override and its
-help lists no values.
+The levels in the table are what the installed CLIs report on 2026-10-14. `claude --help` and
+`copilot --help` list their levels. `pi --help` lists `off, minimal, low, medium, high, xhigh` and
+no `max`.
+
+The codex levels come from the binary, not from its help. `codex exec -c
+model_reasoning_effort=bogus` starts a thread without complaint, so codex validates the value
+server-side and against the model, never locally. Ralph therefore owns the list alone. The
+`ReasoningEffort` variants in the `codex` binary are `minimal`, `low`, `medium`, `high`, `xhigh`,
+`max` and `ultra`. Ralph accepts all seven. A level the chosen model does not support fails at the
+backend, which is the safer failure: a short list refuses a valid level and no flag can override
+it.
 
 ## 7. `fix` and `auto`
 
