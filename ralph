@@ -716,6 +716,15 @@ config_json() {
     printf '%s\n' "$CONFIG_JSON"
 }
 
+# Runs outside a command substitution, so config_json's cache survives.
+require_valid_config() {
+    local config_file="$1"
+
+    require_yq "$config_file"
+    config_json "$config_file" >/dev/null
+    validate_config "$config_file"
+}
+
 # specs/phase-config.md §5. Prints the section's value, else the defaults
 # value, else nothing; a list prints one item per line. Backend-tied keys stop
 # inheriting when the section names a backend other than the defaults one.
@@ -1515,11 +1524,7 @@ cmd_loop() {
 
     local config_file
     config_file=$(resolve_config)
-    if [[ -n "$config_file" ]]; then
-        require_yq "$config_file"
-        config_json "$config_file" >/dev/null
-        validate_config "$config_file"
-    fi
+    [[ -z "$config_file" ]] || require_valid_config "$config_file"
 
     local config_backend file_model="" file_effort="" file_extra_args=()
     config_backend=$(config_get "$section" backend)
@@ -2298,6 +2303,12 @@ cmd_auto() {
         echo "Error: 'auto' requires a goal. Pass -g <specification or directory>." >&2
         exit 1
     fi
+
+    # specs/phase-config.md §7. Each child resolves its own section, but a bad
+    # file must stop auto before phase 1 and under --dry-run.
+    local config_file
+    config_file=$(resolve_config)
+    [[ -z "$config_file" ]] || require_valid_config "$config_file"
 
     # Report state (§6). One row state per phase, indexed 1-6. The report is the
     # product of the command, so auto_report prints it on every exit path:
