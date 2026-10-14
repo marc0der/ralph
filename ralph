@@ -738,6 +738,96 @@ config_get() {
         | if . == null then empty elif type == "array" then .[] else tostring end'
 }
 
+# specs/phase-config.md §8. Checks every section, not only the one the run
+# reads, so a typo in review fails a build. Prints every error, then exits 1.
+validate_config() {
+    local config_file="$1" levels_json errors backend_name
+
+    levels_json=$(for backend_name in "${SUPPORTED_BACKENDS[@]}"; do
+        ("backend_$backend_name"
+         jq -n --arg name "$backend_name" '{($name): $ARGS.positional}' --args "${BACKEND_EFFORT_LEVELS[@]}")
+    done | jq -s 'add')
+
+    errors=$(config_json "$config_file" | jq -r --arg file "$config_file" --argjson levels "$levels_json" '
+        def phase_keys: {
+            backend: "all", model: "all", effort: "all", extra_args: "all",
+            metrics: "all", quiet: "all",
+            iterations: ["plan", "build", "fix"],
+            headroom_pct: ["build", "fix"],
+            noop_patience: ["build", "fix"],
+            skip_push: ["build", "fix"]
+        };
+        def sections: ["defaults", "plan", "build", "review", "fix"];
+        def or_list: if length == 1 then .[0] else (.[:-1] | join(", ")) + " or " + .[-1] end;
+        def is_int: type == "number" and . == floor;
+        def type_error($key):
+            if $key == "backend" then
+                if type == "string" and (. as $name | $levels | has($name)) then empty
+                else "must be one of: \($levels | keys_unsorted | join(" "))" end
+            elif $key == "model" then
+                if type == "string" and length > 0 then empty else "must be a non-empty string" end
+            elif $key == "effort" then
+                if type == "string" then empty else "must be a string" end
+            elif $key == "extra_args" then
+                if type == "array" and all(.[]; type == "string") then empty else "must be a list of strings" end
+            elif $key == "metrics" or $key == "quiet" or $key == "skip_push" then
+                if type == "boolean" then empty else "must be true or false" end
+            elif $key == "headroom_pct" then
+                if is_int and . >= 0 then empty else "must be a non-negative integer" end
+            else
+                if is_int and . >= 1 then empty else "must be a positive integer" end
+            end;
+        def phase_error($section; $key):
+            phase_keys[$key] as $phases
+            | if $phases == "all" or ($phases | index($section)) then empty
+              elif $section == "review" and $key == "iterations" then "is not allowed; review runs one pass"
+              else "is not allowed in \($section); set it under \($phases | or_list)" end;
+        def present: with_entries(select(.value != null));
+        def key_errors($section):
+            to_entries[] | .key as $key | .value as $value
+            | if phase_keys | has($key) | not then "\($section).\($key) is not a known key."
+              else
+                (phase_error($section; $key) | "\($section).\($key) \(.).")
+                // ($value | type_error($key) | "\($section).\($key) \(.); got \($value | tojson).")
+              end;
+        def tuning_errors($section):
+            . as $own
+            | select(has("iterations"))
+            | ["headroom_pct", "noop_patience"][]
+            | select(. as $tuning | $own | has($tuning))
+            | "\($section) sets iterations with \(.); iterations turns self-sizing off.";
+        def effort_errors($section; $defaults_backend):
+            (.backend // $defaults_backend // "claude") as $backend
+            | .effort
+            | select(type == "string" and ($backend | type) == "string" and ($levels | has($backend)))
+            | select(. as $effort | $levels[$backend] | index($effort) | not)
+            | "\($section).effort \u0027\(.)\u0027 is not a \($backend) level; use one of: \($levels[$backend] | join(" ")).";
+        def section_errors($defaults_backend):
+            .key as $section | .value as $map
+            | if sections | index($section) | not then "\($section) is not a known section."
+              elif ($map | type) != "object" then "\($section) is not a map."
+              else
+                ($map | present)
+                | key_errors($section),
+                  tuning_errors($section),
+                  effort_errors($section; if $section == "defaults" then null else $defaults_backend end)
+              end;
+
+        if . == null then empty
+        elif type != "object" then "the top level is not a map."
+        else
+            present
+            | (.defaults | if type == "object" then .backend else null end) as $defaults_backend
+            | to_entries[] | section_errors($defaults_backend)
+        end
+        | "Error: \($file): \(.)"')
+
+    if [[ -n "$errors" ]]; then
+        printf '%s\n' "$errors" >&2
+        exit 1
+    fi
+}
+
 # Review needs PROGRESS.md as well as the plan: it writes its review entry
 # there, so the second requirement is real and not symmetry.
 require_init_artifacts() {
@@ -1384,6 +1474,7 @@ cmd_loop() {
     if [[ -n "$config_file" ]]; then
         require_yq "$config_file"
         config_json "$config_file" >/dev/null
+        validate_config "$config_file"
     fi
 
     backend="${backend:-claude}"

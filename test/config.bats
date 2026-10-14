@@ -208,3 +208,116 @@ path_without_yq() {
     run ralph_fn config_get fix model
     [[ -z "$output" ]]
 }
+
+# Helper: run build --dry-run over a ralph.yaml holding the given text.
+run_build_with_config() {
+    "$RALPH" init
+    seed_open_item
+    printf '%b' "$1" > ralph.yaml
+    run --separate-stderr "$RALPH" build --dry-run -n 1
+}
+
+@test "validate_config rejects review.iterations under build --dry-run" {
+    require_yq_or_skip
+    run_build_with_config 'review:\n  iterations: 2\n'
+    [[ "$status" -eq 1 ]]
+    [[ "$stderr" == *"Error: ralph.yaml: review.iterations is not allowed; review runs one pass."* ]]
+    [[ "$output" != *"[dry-run] Would run"* ]]
+}
+
+@test "validate_config rejects a top level that is not a map" {
+    require_yq_or_skip
+    run_build_with_config '- build\n'
+    [[ "$status" -eq 1 ]]
+    [[ "$stderr" == *"Error: ralph.yaml: the top level is not a map."* ]]
+}
+
+@test "validate_config rejects an unknown section and a section that is not a map" {
+    require_yq_or_skip
+    run_build_with_config 'builds:\n  model: opus\nplan: 3\n'
+    [[ "$status" -eq 1 ]]
+    [[ "$stderr" == *"Error: ralph.yaml: builds is not a known section."* ]]
+    [[ "$stderr" == *"Error: ralph.yaml: plan is not a map."* ]]
+}
+
+@test "validate_config rejects an unknown key in a section the run does not read" {
+    require_yq_or_skip
+    run_build_with_config 'fix:\n  noop_patiance: 3\n'
+    [[ "$status" -eq 1 ]]
+    [[ "$stderr" == *"Error: ralph.yaml: fix.noop_patiance is not a known key."* ]]
+}
+
+@test "validate_config rejects wrong types and out-of-range values" {
+    require_yq_or_skip
+    run_build_with_config 'build:\n  model: ""\n  metrics: 1\n  extra_args: [1]\n  noop_patience: 0\n  headroom_pct: -1\n  effort: 3\nplan:\n  iterations: 2.5\n'
+    [[ "$status" -eq 1 ]]
+    [[ "$stderr" == *"build.model must be a non-empty string; got \"\"."* ]]
+    [[ "$stderr" == *"build.metrics must be true or false; got 1."* ]]
+    [[ "$stderr" == *"build.extra_args must be a list of strings; got [1]."* ]]
+    [[ "$stderr" == *"build.noop_patience must be a positive integer; got 0."* ]]
+    [[ "$stderr" == *"build.headroom_pct must be a non-negative integer; got -1."* ]]
+    [[ "$stderr" == *"build.effort must be a string; got 3."* ]]
+    [[ "$stderr" == *"plan.iterations must be a positive integer; got 2.5."* ]]
+}
+
+@test "validate_config rejects a key outside its phases" {
+    require_yq_or_skip
+    run_build_with_config 'plan:\n  headroom_pct: 10\n'
+    [[ "$status" -eq 1 ]]
+    [[ "$stderr" == *"Error: ralph.yaml: plan.headroom_pct is not allowed in plan; set it under build or fix."* ]]
+}
+
+@test "validate_config rejects a phase-limited key in defaults" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_open_item
+    printf 'defaults:\n  skip_push: true\n  iterations: 3\n' > "$RALPH_CONFIG_DIR/config.yaml"
+    run --separate-stderr "$RALPH" build --dry-run -n 1
+    [[ "$status" -eq 1 ]]
+    [[ "$stderr" == *"Error: $RALPH_CONFIG_DIR/config.yaml: defaults.skip_push is not allowed in defaults; set it under build or fix."* ]]
+    [[ "$stderr" == *"defaults.iterations is not allowed in defaults; set it under plan, build or fix."* ]]
+}
+
+@test "validate_config rejects iterations beside headroom_pct or noop_patience" {
+    require_yq_or_skip
+    run_build_with_config 'build:\n  iterations: 3\n  headroom_pct: 10\nfix:\n  iterations: 3\n  noop_patience: 2\n'
+    [[ "$status" -eq 1 ]]
+    [[ "$stderr" == *"Error: ralph.yaml: build sets iterations with headroom_pct; iterations turns self-sizing off."* ]]
+    [[ "$stderr" == *"Error: ralph.yaml: fix sets iterations with noop_patience; iterations turns self-sizing off."* ]]
+}
+
+@test "validate_config rejects an unsupported backend" {
+    require_yq_or_skip
+    run_build_with_config 'review:\n  backend: gpt\n'
+    [[ "$status" -eq 1 ]]
+    [[ "$stderr" == *"Error: ralph.yaml: review.backend must be one of: claude codex copilot pi; got \"gpt\"."* ]]
+}
+
+@test "validate_config checks effort against the section's resolved backend" {
+    require_yq_or_skip
+    run_build_with_config 'defaults:\n  backend: pi\nplan:\n  effort: max\nreview:\n  backend: claude\n  effort: max\n'
+    [[ "$status" -eq 1 ]]
+    [[ "$stderr" == *"Error: ralph.yaml: plan.effort 'max' is not a pi level; use one of: off minimal low medium high xhigh."* ]]
+    [[ "$stderr" != *"review.effort"* ]]
+}
+
+@test "validate_config accepts an effort the backend change stops inheriting" {
+    require_yq_or_skip
+    run_build_with_config 'defaults:\n  effort: max\nbuild:\n  backend: pi\n'
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" != *"Error:"* ]]
+}
+
+@test "validate_config accepts an empty file" {
+    require_yq_or_skip
+    run_build_with_config ''
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"[dry-run] Would run"* ]]
+}
+
+@test "validate_config treats a null key and a null section as absent" {
+    require_yq_or_skip
+    run_build_with_config 'defaults:\nreview:\nbuild:\n  model:\n  iterations: 3\n  headroom_pct:\n'
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"[dry-run] Would run"* ]]
+}
