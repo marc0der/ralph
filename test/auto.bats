@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 
 # Auto lifecycle suite (specs/auto-lifecycle.md §11). auto runs the six phases
-# archive → init → plan → build → review → build as children of the same
+# archive → init → plan → build → review → fix as children of the same
 # script, guards each on the plan's disk state, and reports every phase. These
 # tests drive it with the phase-aware committing mock (test_helper.bash) so a
 # real lifecycle moves the plan and HEAD, and assert flag forwarding by child
@@ -34,7 +34,7 @@ seed_resume_state() {
     run "$RALPH" auto --help -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"ralph auto [options]"* ]]
-    [[ "$output" == *"archive, init, plan, build, review, build"* ]]
+    [[ "$output" == *"archive, init, plan, build, review, fix"* ]]
     [[ "$output" == *"Auto options:"* ]]
     [[ "$output" == *"--resume"* ]]
     [[ "$output" == *"--force"* ]]
@@ -119,7 +119,7 @@ seed_resume_state() {
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"4 build     ran"* ]]
     [[ "$output" == *"5 review    ran"* ]]
-    [[ "$output" == *"6 build     ran"* ]]
+    [[ "$output" == *"6 fix       ran"* ]]
 }
 
 @test "a lifecycle whose review files nothing skips phase 6 and exits 0" {
@@ -127,7 +127,7 @@ seed_resume_state() {
     MOCK_REVIEW_NOOP=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"5 review    ran"* ]]
-    [[ "$output" == *"6 build     skipped"* ]]
+    [[ "$output" == *"6 fix       skipped"* ]]
 }
 
 @test "the report prints the six numbered phase rows" {
@@ -190,7 +190,18 @@ seed_resume_state() {
     # Wrap the mock: after a build commit, drop PROGRESS.md so phase 6 guards out.
     sed -i 's#git commit -q -m "mock build commit" >/dev/null 2>&1#&; rm -f PROGRESS.md#' "$TEST_DIR/bin/claude"
     run_auto --skip-push --no-metrics
-    [[ "$output" == *"6 build     skipped — no plan artifacts"* ]]
+    [[ "$output" == *"6 fix       skipped — no plan artifacts"* ]]
+}
+
+@test "phase 6 runs ralph fix, which reads the fix section" {
+    require_yq_or_skip
+    create_committing_backend
+    printf 'build:\n  effort: high\nfix:\n  effort: low\n' > ralph.yaml
+    run_auto --skip-push --no-metrics
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"6 fix       ran"* ]]
+    [[ "$output" == *"Config: ./ralph.yaml (local) [build]"*"effort=high"* ]]
+    [[ "$output" == *"Config: ./ralph.yaml (local) [fix]"*"effort=low"* ]]
 }
 
 # --- Abort, not-reached, child exit in the report ---------------------------
@@ -407,8 +418,14 @@ seed_resume_state() {
     DEVCONTAINER=true run "$RALPH" auto --dry-run -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"1 archive"* ]]
-    [[ "$output" == *"6 build"* ]]
+    [[ "$output" == *"6 fix"* ]]
     [[ "$output" == *"guards are evaluated at run time"* ]]
+}
+
+@test "--dry-run shows phase 6 as ralph fix -y" {
+    DEVCONTAINER=true run "$RALPH" auto --dry-run -g "the goal"
+    [[ "$status" -eq 0 ]]
+    [[ "$(grep -E '^ +6 fix' <<< "$output")" == "  6 fix       "*"/ralph fix "*"-y" ]]
 }
 
 @test "--dry-run invokes nothing: no artifacts, no metrics, succeeds uninitialised" {
@@ -437,7 +454,7 @@ seed_resume_state() {
     [[ "$(grep -E '^ +3 plan' <<< "$output")" == *" -q "* ]]
     [[ "$(grep -E '^ +4 build' <<< "$output")" == *" -q "* ]]
     [[ "$(grep -E '^ +5 review' <<< "$output")" == *" -q "* ]]
-    [[ "$(grep -E '^ +6 build' <<< "$output")" == *" -q "* ]]
+    [[ "$(grep -E '^ +6 fix' <<< "$output")" == *" -q "* ]]
     [[ "$(grep -E '^ +1 archive' <<< "$output")" != *"-q"* ]]
     [[ "$(grep -E '^ +2 init' <<< "$output")" != *"-q"* ]]
 }
@@ -446,7 +463,7 @@ seed_resume_state() {
     DEVCONTAINER=true run "$RALPH" auto --dry-run -e high --verbose --metrics --push -g "the goal"
     [[ "$status" -eq 0 ]]
     local row
-    for row in '3 plan' '4 build' '5 review' '6 build'; do
+    for row in '3 plan' '4 build' '5 review' '6 fix'; do
         [[ "$(grep -E "^ +$row" <<< "$output")" == *" -e high --push --metrics --verbose -y"* ]]
     done
     [[ "$(grep -E '^ +1 archive' <<< "$output")" != *"-e"* ]]
@@ -481,7 +498,7 @@ seed_resume_state() {
     create_committing_backend
     run_auto -q --skip-push --no-metrics
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"6 build     ran"* ]]
+    [[ "$output" == *"6 fix       ran"* ]]
     [[ "$output" != *"Backend command:"* ]]
 }
 
@@ -489,5 +506,5 @@ seed_resume_state() {
     create_committing_backend
     run_auto --skip-push --no-metrics
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"6 build     ran"* ]]
+    [[ "$output" == *"6 fix       ran"* ]]
 }

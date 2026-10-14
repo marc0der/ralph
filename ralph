@@ -29,7 +29,7 @@ RALPH_SELF="$(cd -P "$(dirname "$RALPH_SELF")" && pwd)/$(basename "$RALPH_SELF")
 AUTO_STATE_FILE="$ARCHIVE_DIR/auto-state"
 # HEAD of every repository before the cycle's first build (specs/one-shot-review.md §3).
 CYCLE_BASE_FILE="$ARCHIVE_DIR/cycle-base"
-RALPH_PHASES=(archive init plan build review build)
+RALPH_PHASES=(archive init plan build review fix)
 RESUME_FLOOR=3
 
 # Path of the per-run raw stream temp file, or empty when there is none.
@@ -249,7 +249,7 @@ Modes:
   build          Pick the next item, implement, test, commit, push
   fix            Run build with the fix section of the config file
   review         Review the cycle's work in one pass and file findings as new plan items
-  auto           Run the whole lifecycle: archive, init, plan, build, review, build
+  auto           Run the whole lifecycle: archive, init, plan, build, review, fix
   init           Initialise workspace (PROGRESS.md, IMPLEMENTATION_PLAN.md, specs/)
   clean          Delete IMPLEMENTATION_PLAN.md and PROGRESS.md
   archive        Move IMPLEMENTATION_PLAN.md and PROGRESS.md to .ralph/<timestamp>/
@@ -2421,7 +2421,7 @@ cmd_auto() {
         [[ $phase_num -lt $start_phase ]] && continue
 
         # Guards read the plan as it stands on disk right now, never a decision
-        # made earlier in the run. build (4, 6) needs both artifacts and an
+        # made earlier in the run. build (4) and fix (6) need both artifacts and an
         # open item; review (5) needs both artifacts, a shipped item, no open
         # item, and a cycle base. The guards mirror the hard stops in
         # require_open_items and require_review_preconditions, so auto never
