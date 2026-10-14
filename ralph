@@ -754,6 +754,34 @@ warn_dropped_config_keys() {
     echo "Warning: -b $cli_backend overrides config backend '$config_backend' for $section; dropped ${joined%, }." >&2
 }
 
+# specs/phase-config.md §10. Printed under --quiet and --dry-run too, so every
+# run records the settings it resolved.
+print_config_block() {
+    local config_file="$1" section="$2" mode="$3" model="$4" effort="$5"
+    local iterations="$6" iterations_fixed="$7" skip_push="$8" metrics="$9" quiet="${10}"
+    local source_label
+
+    source_label=$(config_source_label "$config_file")
+    [[ "$source_label" == "(local)" ]] && source_label="./$config_file $source_label"
+    [[ "$source_label" == "(central)" ]] && source_label="$config_file $source_label"
+
+    [[ "$mode" == "build" ]] && ! $iterations_fixed && iterations="auto($iterations)"
+    local tuning="iterations=$iterations"
+    if [[ "$mode" == "build" ]]; then
+        local push=on
+        $skip_push && push=off
+        tuning+=" headroom=20% patience=2 push=$push"
+    fi
+    local quiet_label=off
+    $quiet && quiet_label=on
+
+    {
+        echo "Config: $source_label [$section]"
+        echo "  backend=$BACKEND_NAME model=$model effort=${effort:-default}"
+        echo "  $tuning metrics=$metrics quiet=$quiet_label"
+    } >&2
+}
+
 # specs/phase-config.md §8. Checks every section, not only the one the run
 # reads, so a typo in review fails a build. Prints every error, then exits 1.
 validate_config() {
@@ -1581,6 +1609,12 @@ cmd_loop() {
     [[ -n "$goal" ]] && truncate_line "Goal:    $goal" "$line_width"
     $metrics_enabled && truncate_line "Metrics: $metrics_file" "$line_width"
     echo "$bar"
+
+    local metrics_label=off
+    $metrics_enabled && metrics_label=on
+    $dry_run && metrics_label="off (dry-run)"
+    print_config_block "$config_file" "$mode" "$mode" "$model" "$effort" \
+        "$max_iterations" "$hard_override" "$skip_push" "$metrics_label" "$quiet"
 
     # Permission handling:
     #   Backends run non-interactively and cannot prompt for tool approval,
