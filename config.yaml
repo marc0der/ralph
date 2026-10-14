@@ -1,0 +1,80 @@
+# Ralph config: per-phase settings for plan, build, fix and review.
+#
+# Ralph reads ./ralph.yaml when it exists, otherwise this central copy. The
+# winning file is read whole: a key it leaves out takes the built-in default.
+# Precedence, highest first: CLI flag, then the file, then the built-in default.
+# Copy this file into a workspace with `ralph init --config`.
+#
+# The active values below equal the built-in defaults. install.sh overwrites
+# this file on every install; keep personal settings in ./ralph.yaml.
+#
+# Sections: defaults, plan, build, fix, review. Each phase section inherits
+# from defaults key by key. When a phase sets a backend other than the defaults
+# backend, it inherits no model, effort or extra_args from defaults.
+
+defaults:
+  # backend: one of claude, codex, copilot, pi. Phases: all. Flag: -b.
+  backend: claude
+
+  # model: non-empty string. Phases: all. Flag: -m.
+  # Unset: the backend's own default model applies.
+  # model: opus
+
+  # effort: a level the backend lists. Phases: all. Flag: -e.
+  # Unset: Ralph passes no effort flag, and the backend's own default applies.
+  #   claude:  low medium high xhigh max
+  #   codex:   minimal low medium high xhigh max ultra
+  #   copilot: none minimal low medium high xhigh max
+  #   pi:      off minimal low medium high xhigh
+  # effort: high
+
+  # extra_args: list of strings, added after Ralph's own backend arguments.
+  # Phases: all. Flag: none. Unset: the backend gets no extra arguments.
+  # extra_args: []
+
+  # metrics: boolean. Phases: all. Flags: --no-metrics / --metrics.
+  metrics: true
+
+  # quiet: boolean. Phases: all. Flags: -q / --verbose.
+  quiet: false
+
+plan:
+  # iterations: positive integer, the plan cap. Phases: plan, build, fix. Flag: -n.
+  # iterations: 6
+
+build:
+  # iterations: positive integer. Phases: plan, build, fix. Flag: -n.
+  # Unset: build sizes itself from the open items. Setting it turns off
+  # self-sizing and the noop exit, so it conflicts with headroom_pct and
+  # noop_patience.
+  # iterations: 10
+
+  # headroom_pct: non-negative integer, extra iterations over the open items.
+  # Phases: build, fix. Flag: none.
+  # headroom_pct: 20
+
+  # noop_patience: positive integer, consecutive no-change iterations before
+  # build stops. Phases: build, fix. Flag: none.
+  # noop_patience: 2
+
+  # skip_push: boolean. Phases: build, fix. Flags: --skip-push / --push.
+  skip_push: false
+
+fix:
+  # fix runs `ralph fix`, auto's phase 6. It does not inherit from build.
+
+  # iterations: positive integer. Phases: plan, build, fix. Flag: -n.
+  # iterations: 10
+
+  # headroom_pct: non-negative integer. Phases: build, fix. Flag: none.
+  # headroom_pct: 20
+
+  # noop_patience: positive integer. Phases: build, fix. Flag: none.
+  # noop_patience: 2
+
+  # skip_push: boolean. Phases: build, fix. Flags: --skip-push / --push.
+  skip_push: false
+
+review:
+  # review runs one pass and rejects iterations. It takes only the keys
+  # whose phases read "all"; set them here to override defaults for review.

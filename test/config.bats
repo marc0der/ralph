@@ -606,3 +606,36 @@ run_build_with_config() {
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"Error: no incomplete items in IMPLEMENTATION_PLAN.md. Run 'ralph plan' first."* ]]
 }
+
+@test "install.sh installs config.yaml over the old central copy" {
+    echo "stale: true" > "$RALPH_CONFIG_DIR/config.yaml"
+    RALPH_BIN_DIR="$TEST_DIR/install-bin" run "$BATS_TEST_DIRNAME/../install.sh"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Config:     $RALPH_CONFIG_DIR/config.yaml"* ]]
+    cmp "$BATS_TEST_DIRNAME/../config.yaml" "$RALPH_CONFIG_DIR/config.yaml"
+}
+
+@test "install.sh warns when mikefarah yq v4 is absent" {
+    create_fake_yq "yq 3.4.3"
+    PATH="$TEST_DIR/bin:$PATH" RALPH_BIN_DIR="$TEST_DIR/install-bin" run "$BATS_TEST_DIRNAME/../install.sh"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Warning: ralph needs mikefarah yq v4 to read config.yaml; install it or remove $RALPH_CONFIG_DIR/config.yaml."* ]]
+}
+
+@test "install.sh prints no yq warning with mikefarah yq v4" {
+    require_yq_or_skip
+    RALPH_BIN_DIR="$TEST_DIR/install-bin" run "$BATS_TEST_DIRNAME/../install.sh"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"needs mikefarah yq v4"* ]]
+}
+
+@test "the shipped config.yaml validates and sets no backend-tied key" {
+    require_yq_or_skip
+    cp "$BATS_TEST_DIRNAME/../config.yaml" "$RALPH_CONFIG_DIR/config.yaml"
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build -b codex --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"Config: $RALPH_CONFIG_DIR/config.yaml (central) [build]"* ]]
+    [[ "$stderr" != *"overrides config backend"* ]]
+}
