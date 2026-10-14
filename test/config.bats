@@ -321,3 +321,122 @@ run_build_with_config() {
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"[dry-run] Would run"* ]]
 }
+
+@test "build applies the file's backend, model, effort and extra_args" {
+    require_yq_or_skip
+    run_build_with_config 'build:\n  backend: codex\n  model: gpt-x\n  effort: ultra\n  extra_args: [--foo, bar]\n'
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Model:   gpt-x"* ]]
+    [[ "$output" == *"Would run: codex exec "*" --model gpt-x -c model_reasoning_effort=ultra --foo bar <prompt>"* ]]
+}
+
+@test "a local file omitting a key takes the built-in default, not the central value" {
+    require_yq_or_skip
+    printf 'defaults:\n  model: haiku\n' > "$RALPH_CONFIG_DIR/config.yaml"
+    run_build_with_config 'build:\n  effort: low\n'
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Model:   opus"* ]]
+    [[ "$output" != *"haiku"* ]]
+}
+
+@test "-m and -e beat the file's model and effort" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_open_item
+    printf 'defaults:\n  model: opus\n  effort: max\n' > ralph.yaml
+    run --separate-stderr "$RALPH" build --dry-run -n 1 -m haiku -e low
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"--model haiku "*"--effort low"* ]]
+    [[ "$output" != *"opus"* && "$output" != *"max"* ]]
+}
+
+@test "-b to another backend drops the file's tied keys and warns naming only those set" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_open_item
+    printf 'build:\n  model: opus\n  effort: max\n' > ralph.yaml
+    run --separate-stderr "$RALPH" build --dry-run -n 1 -b codex
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"Warning: -b codex overrides config backend 'claude' for build; dropped model 'opus', effort 'max'."* ]]
+    [[ "$stderr" != *"extra_args"* ]]
+    [[ "$output" == *"Would run: codex exec "*" --model gpt-5.2-codex <prompt>"* ]]
+    [[ "$output" != *"model_reasoning_effort"* ]]
+}
+
+@test "-b to another backend names dropped extra_args and keeps -m" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_open_item
+    printf 'defaults:\n  extra_args: [--foo, bar]\n' > ralph.yaml
+    run --separate-stderr "$RALPH" build --dry-run -n 1 -b pi -m my-model
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"for build; dropped extra_args '--foo bar'."* ]]
+    [[ "$output" == *"Model:   my-model"* ]]
+    [[ "$output" != *"--foo"* ]]
+}
+
+@test "-b prints no warning when the file sets no tied key or names the same backend" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_open_item
+    printf 'build:\n  quiet: false\n' > ralph.yaml
+    run --separate-stderr "$RALPH" build --dry-run -n 1 -b codex
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" != *"Warning: -b"* ]]
+    printf 'build:\n  backend: codex\n  model: gpt-x\n' > ralph.yaml
+    run --separate-stderr "$RALPH" build --dry-run -n 1 -b codex
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" != *"Warning: -b"* ]]
+    [[ "$output" == *"Model:   gpt-x"* ]]
+}
+
+@test "a section that changes backend uses no defaults tied key and prints no warning" {
+    require_yq_or_skip
+    run_build_with_config 'defaults:\n  model: opus\n  extra_args: [--foo]\nbuild:\n  backend: codex\n'
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" != *"Warning"* ]]
+    [[ "$output" == *"Would run: codex exec "*" --model gpt-5.2-codex <prompt>"* ]]
+    [[ "$output" != *"--foo"* ]]
+}
+
+@test "quiet from the file hides live lines, and --verbose overrides it" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_open_item
+    create_streaming_backend
+    printf 'build:\n  quiet: true\n' > ralph.yaml
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" != *"→ Bash ls -la"* ]]
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --verbose
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"→ Bash ls -la"* ]]
+}
+
+@test "metrics from the file disables capture, and --metrics overrides it" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_open_item
+    create_streaming_backend
+    printf 'defaults:\n  metrics: false\n' > ralph.yaml
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ ! -d .ralph/metrics ]]
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --metrics
+    [[ "$status" -eq 0 ]]
+    compgen -G '.ralph/metrics/*/metrics.jsonl' >/dev/null
+}
+
+@test "skip_push from the file skips the push, and --push overrides it" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_open_item
+    create_streaming_backend
+    printf 'build:\n  skip_push: true\n' > ralph.yaml
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --no-metrics
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"No 'origin' remote"* ]]
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --no-metrics --push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"No 'origin' remote — skipping push."* ]]
+}
