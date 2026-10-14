@@ -28,6 +28,16 @@ cp "$SCRIPT_DIR/container/Dockerfile" "$CONFIG_DIR/container/Dockerfile"
 cp "$SCRIPT_DIR/container/devcontainer.json" "$CONFIG_DIR/container/devcontainer.json"
 echo "  Container:  $CONFIG_DIR/container/"
 
+cp "$SCRIPT_DIR/config.yaml" "$CONFIG_DIR/config.yaml"
+echo "  Config:     $CONFIG_DIR/config.yaml"
+
+# Same check as ralph's require_yq: the Python yq wrapper shares the binary name.
+yq_version=$(yq --version 2>/dev/null | head -n 1) || true
+if [[ "$yq_version" != *mikefarah* || ! "$yq_version" =~ version\ v?4\. ]]; then
+    echo ""
+    echo "Warning: ralph needs mikefarah yq v4 to read config.yaml; install it or remove $CONFIG_DIR/config.yaml."
+fi
+
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     echo ""
     echo "Warning: $BIN_DIR is not in your PATH."
