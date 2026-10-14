@@ -715,6 +715,29 @@ config_json() {
     printf '%s\n' "$CONFIG_JSON"
 }
 
+# specs/phase-config.md §5. Prints the section's value, else the defaults
+# value, else nothing; a list prints one item per line. Backend-tied keys stop
+# inheriting when the section names a backend other than the defaults one.
+config_get() {
+    local section="$1" key="$2" config_file
+
+    config_file=$(resolve_config)
+    [[ -n "$config_file" ]] || return 0
+    config_json "$config_file" | jq -r --arg section "$section" --arg key "$key" '
+        def section_map($name):
+            (if type == "object" then .[$name] else null end)
+            | if type == "object" then . else {} end;
+        section_map("defaults") as $defaults
+        | section_map($section) as $own
+        | ($defaults.backend // "claude") as $defaults_backend
+        | ($own.backend // $defaults_backend) as $own_backend
+        | if $own[$key] != null then $own[$key]
+          elif (["model", "effort", "extra_args"] | index($key)) and $own_backend != $defaults_backend then null
+          else $defaults[$key]
+          end
+        | if . == null then empty elif type == "array" then .[] else tostring end'
+}
+
 # Review needs PROGRESS.md as well as the plan: it writes its review entry
 # there, so the second requirement is real and not symmetry.
 require_init_artifacts() {

@@ -127,3 +127,84 @@ path_without_yq() {
     [[ "$status" -eq 0 ]]
     [[ "$output" == "opus" ]]
 }
+
+@test "config_get prints nothing when no config file exists" {
+    run ralph_fn config_get build model
+    [[ "$status" -eq 0 ]]
+    [[ -z "$output" ]]
+}
+
+@test "config_get reads the section before defaults" {
+    require_yq_or_skip
+    printf 'defaults:\n  model: sonnet\nbuild:\n  model: opus\n' > ralph.yaml
+    run ralph_fn config_get build model
+    [[ "$output" == "opus" ]]
+    run ralph_fn config_get plan model
+    [[ "$output" == "sonnet" ]]
+}
+
+@test "config_get prints nothing for a key no section sets" {
+    require_yq_or_skip
+    printf 'defaults:\n  model: sonnet\nreview:\n' > ralph.yaml
+    run ralph_fn config_get review effort
+    [[ "$status" -eq 0 ]]
+    [[ -z "$output" ]]
+}
+
+@test "config_get inherits false booleans and prints lists one item per line" {
+    require_yq_or_skip
+    printf 'defaults:\n  metrics: false\n  extra_args: [--a, --b]\nbuild:\n  quiet: false\n' > ralph.yaml
+    run ralph_fn config_get build metrics
+    [[ "$output" == "false" ]]
+    run ralph_fn config_get build quiet
+    [[ "$output" == "false" ]]
+    run ralph_fn config_get build extra_args
+    [[ "$output" == $'--a\n--b' ]]
+}
+
+@test "config_get inherits the backend from defaults" {
+    require_yq_or_skip
+    printf 'defaults:\n  backend: codex\n' > ralph.yaml
+    run ralph_fn config_get fix backend
+    [[ "$output" == "codex" ]]
+}
+
+@test "config_get blocks backend-tied keys when the section changes backend" {
+    require_yq_or_skip
+    printf 'defaults:\n  model: opus\n  effort: max\n  extra_args: [--x]\n  quiet: true\nbuild:\n  backend: codex\n' > ralph.yaml
+    run --separate-stderr ralph_fn config_get build model
+    [[ "$status" -eq 0 ]]
+    [[ -z "$output" ]]
+    [[ -z "$stderr" ]]
+    run ralph_fn config_get build effort
+    [[ -z "$output" ]]
+    run ralph_fn config_get build extra_args
+    [[ -z "$output" ]]
+    run ralph_fn config_get build quiet
+    [[ "$output" == "true" ]]
+}
+
+@test "config_get keeps the section's own backend-tied keys after a backend change" {
+    require_yq_or_skip
+    printf 'defaults:\n  model: opus\nbuild:\n  backend: codex\n  effort: high\n' > ralph.yaml
+    run ralph_fn config_get build effort
+    [[ "$output" == "high" ]]
+}
+
+@test "config_get keeps inheritance when the section names the defaults backend" {
+    require_yq_or_skip
+    printf 'defaults:\n  backend: codex\n  model: gpt-5\nplan:\n  backend: codex\nbuild:\n  backend: claude\n' > ralph.yaml
+    run ralph_fn config_get plan model
+    [[ "$output" == "gpt-5" ]]
+    run ralph_fn config_get build model
+    [[ -z "$output" ]]
+}
+
+@test "config_get treats an unset defaults backend as claude" {
+    require_yq_or_skip
+    printf 'defaults:\n  model: opus\nreview:\n  backend: claude\nfix:\n  backend: pi\n' > ralph.yaml
+    run ralph_fn config_get review model
+    [[ "$output" == "opus" ]]
+    run ralph_fn config_get fix model
+    [[ -z "$output" ]]
+}
