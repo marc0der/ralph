@@ -738,6 +738,22 @@ config_get() {
         | if . == null then empty elif type == "array" then .[] else tostring end'
 }
 
+# specs/phase-config.md §5. A -b that changes the backend drops the file's
+# backend-tied keys; the warning names only the keys the file set.
+warn_dropped_config_keys() {
+    local cli_backend="$1" config_backend="$2" section="$3"
+    local key values dropped=()
+
+    for key in model effort extra_args; do
+        mapfile -t values < <(config_get "$section" "$key")
+        (( ${#values[@]} )) && dropped+=("$key '${values[*]}'")
+    done
+    (( ${#dropped[@]} )) || return 0
+    local joined
+    joined=$(printf '%s, ' "${dropped[@]}")
+    echo "Warning: -b $cli_backend overrides config backend '$config_backend' for $section; dropped ${joined%, }." >&2
+}
+
 # specs/phase-config.md §8. Checks every section, not only the one the run
 # reads, so a typo in review fails a build. Prints every error, then exits 1.
 validate_config() {
@@ -1421,9 +1437,6 @@ cmd_loop() {
             --)              shift; break ;;
         esac
     done
-    skip_push="${skip_push:-false}"
-    no_metrics="${no_metrics:-false}"
-    quiet="${quiet:-false}"
 
     # Validate explicit -n value before any state-dependent work, so syntax
     # errors fire regardless of workspace state.
@@ -1477,7 +1490,33 @@ cmd_loop() {
         validate_config "$config_file"
     fi
 
-    backend="${backend:-claude}"
+    local config_backend file_model="" file_effort="" file_extra_args=()
+    config_backend=$(config_get "$mode" backend)
+    config_backend="${config_backend:-claude}"
+    if [[ -z "$backend" || "$backend" == "$config_backend" ]]; then
+        backend="$config_backend"
+        file_model=$(config_get "$mode" model)
+        file_effort=$(config_get "$mode" effort)
+        mapfile -t file_extra_args < <(config_get "$mode" extra_args)
+    else
+        warn_dropped_config_keys "$backend" "$config_backend" "$mode"
+    fi
+    model="${model:-$file_model}"
+    effort="${effort:-$file_effort}"
+    BACKEND_EXTRA_ARGS=("${file_extra_args[@]}")
+
+    [[ -n "$skip_push" ]] || skip_push=$(config_get "$mode" skip_push)
+    [[ -n "$quiet" ]] || quiet=$(config_get "$mode" quiet)
+    if [[ -z "$no_metrics" ]]; then
+        case $(config_get "$mode" metrics) in
+            true)  no_metrics=false ;;
+            false) no_metrics=true ;;
+        esac
+    fi
+    skip_push="${skip_push:-false}"
+    no_metrics="${no_metrics:-false}"
+    quiet="${quiet:-false}"
+
     resolve_backend "$backend"
     [[ -n "$effort" ]] && require_effort_level "$effort"
 
