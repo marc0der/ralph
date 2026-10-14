@@ -125,3 +125,92 @@ load test_helper
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"Supported backends:"*"pi"* ]]
 }
+
+# Sources ralph without its main dispatch and prints the backend command,
+# one argument per line, for backend $1, effort $2 and extra args $3...
+backend_cmd() {
+    (
+        export RALPH_CONFIG_DIR
+        eval "$(sed '/^# Main dispatch/,$d' "$RALPH")"
+        local name="$1" effort="$2"
+        shift 2
+        # shellcheck disable=SC2034  # Read by build_backend_cmd
+        BACKEND_EXTRA_ARGS=("$@")
+        "backend_${name}"
+        build_backend_cmd model-x "$effort"
+        printf '%s\n' "${BACKEND_CMD[@]}"
+    )
+}
+
+backend_levels() {
+    (
+        export RALPH_CONFIG_DIR
+        eval "$(sed '/^# Main dispatch/,$d' "$RALPH")"
+        local b
+        for b in claude codex copilot pi; do
+            "backend_${b}"
+            echo "${b}: ${BACKEND_EFFORT_LEVELS[*]}"
+        done
+    )
+}
+
+@test "effort: claude appends --effort" {
+    run backend_cmd claude high
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *$'\n--effort\nhigh' ]]
+}
+
+@test "effort: codex appends -c model_reasoning_effort" {
+    run backend_cmd codex ultra
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *$'\n-c\nmodel_reasoning_effort=ultra' ]]
+}
+
+@test "effort: copilot puts --reasoning-effort before the trailing -p" {
+    run backend_cmd copilot none
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *$'\n--reasoning-effort\nnone\n-p' ]]
+}
+
+@test "effort: pi appends --thinking" {
+    run backend_cmd pi off
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *$'\n--thinking\noff' ]]
+}
+
+@test "effort: empty effort adds no effort flag to any backend" {
+    local b
+    for b in claude codex copilot pi; do
+        run backend_cmd "$b" ""
+        [[ "$status" -eq 0 ]]
+        [[ "$output" != *"effort"* ]]
+        [[ "$output" != *"--thinking"* ]]
+    done
+}
+
+@test "effort: each backend declares the levels of its CLI" {
+    run backend_levels
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"claude: low medium high xhigh max"* ]]
+    [[ "$output" == *"codex: minimal low medium high xhigh max ultra"* ]]
+    [[ "$output" == *"copilot: none minimal low medium high xhigh max"* ]]
+    [[ "$output" == *"pi: off minimal low medium high xhigh"* ]]
+}
+
+@test "extra args follow the effort flag" {
+    run backend_cmd claude low --foo bar
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *$'\n--effort\nlow\n--foo\nbar' ]]
+}
+
+@test "extra args go before copilot's trailing -p" {
+    run backend_cmd copilot "" --foo
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *$'\n--foo\n-p' ]]
+}
+
+@test "no extra args leaves the command unchanged" {
+    run backend_cmd pi ""
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == $'pi\n-p\n--mode\njson\n--model\nmodel-x\n--no-session' ]]
+}
