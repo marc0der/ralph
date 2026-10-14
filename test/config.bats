@@ -294,6 +294,13 @@ run_build_with_config() {
     [[ "$stderr" != *"review.effort"* ]]
 }
 
+@test "validate_config checks defaults effort against claude when no backend is set" {
+    require_yq_or_skip
+    run_build_with_config 'defaults:\n  effort: ultra\n'
+    [[ "$status" -eq 1 ]]
+    [[ "$stderr" == *"Error: ralph.yaml: defaults.effort 'ultra' is not a claude level"* ]]
+}
+
 @test "validate_config accepts an effort the backend change stops inheriting" {
     require_yq_or_skip
     run_build_with_config 'defaults:\n  effort: max\nbuild:\n  backend: pi\n'
@@ -617,6 +624,13 @@ run_build_with_config() {
 
 @test "install.sh warns when mikefarah yq v4 is absent" {
     create_fake_yq "yq 3.4.3"
+    PATH="$TEST_DIR/bin:$PATH" RALPH_BIN_DIR="$TEST_DIR/install-bin" run "$BATS_TEST_DIRNAME/../install.sh"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Warning: ralph needs mikefarah yq v4 to read config.yaml; install it or remove $RALPH_CONFIG_DIR/config.yaml."* ]]
+}
+
+@test "install.sh warns when mikefarah yq is version 3" {
+    create_fake_yq "yq version 3.4.1 (https://github.com/mikefarah/yq/)"
     PATH="$TEST_DIR/bin:$PATH" RALPH_BIN_DIR="$TEST_DIR/install-bin" run "$BATS_TEST_DIRNAME/../install.sh"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Warning: ralph needs mikefarah yq v4 to read config.yaml; install it or remove $RALPH_CONFIG_DIR/config.yaml."* ]]

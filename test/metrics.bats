@@ -394,3 +394,14 @@ MOCK
     [[ "$output" == *"1 iterations"* ]]
     [[ "$output" != *"Config:"* ]]
 }
+
+@test "ralph metrics shows the built-in source and default effort for null fields" {
+    mkdir -p .ralph/metrics/builtin
+    printf '%s\n' '{"iteration":1,"mode":"build","section":"build","backend":"claude","model":"opus","effort":null,"config":null,"wall_s":5,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false},"plan_items_completed":1}' \
+        > .ralph/metrics/builtin/metrics.jsonl
+
+    run "$RALPH" metrics .ralph/metrics/builtin/metrics.jsonl
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Config: built-in (no config file) [build]"* ]]
+    [[ "$output" == *"effort=default"* ]]
+}
