@@ -39,7 +39,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 | `init` | Initialize workspace artifacts and directories; `--config` copies the central `config.yaml` to `./ralph.yaml` |
 | `archive` | Move artifacts to `.ralph/<timestamp>/` |
 | `clean` | Delete artifacts |
-| `auto` | Run `archive`, `init`, `plan`, `build`, `review`, `build` as child processes — requires `-g`, rejects `-n`, skips a phase whose guard fails, refuses phase 3 over a stale cycle base or an uncommitted `specs/` or a spec repository on a detached `HEAD`, refuses to run outside a container without `--force`, records a failure or interrupt in `.ralph/auto-state` for `--resume` |
+| `auto` | Run `archive`, `init`, `plan`, `build`, `review`, `fix` as child processes — requires `-g`, rejects `-n`, skips a phase whose guard fails, refuses phase 3 over a stale cycle base or an uncommitted `specs/` or a spec repository on a detached `HEAD`, refuses to run outside a container without `--force`, records a failure or interrupt in `.ralph/auto-state` for `--resume` |
 | `metrics` | Summarise a run's `metrics.jsonl`, the latest run by default |
 | `version` | Print the version |
 

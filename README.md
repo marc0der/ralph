@@ -174,7 +174,7 @@ The file holds up to five sections: `defaults`, `plan`, `build`, `fix` and `revi
 | `build`             | Implement, test, commit and push the next open item (default: open items plus 20% headroom) |
 | `fix`               | Run `build` with the `fix` section of the config file. `auto` runs it last |
 | `review`            | Review the cycle's work against its specs, rules and catalogue, and add findings as new items. One pass |
-| `auto`              | Run the whole lifecycle unattended: archive, init, plan, build, review, build. Requires `-g`; refuses to run outside a container |
+| `auto`              | Run the whole lifecycle unattended: archive, init, plan, build, review, fix. Requires `-g`; refuses to run outside a container |
 | `sandbox`           | Enter this project's devcontainer. `--rebuild` rebuilds the image |
 | `sandbox clean`     | Remove this project's devcontainer |
 | `init`              | Create `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and `specs/`. `--prompts` also copies the prompts, `--config` copies the config file to `ralph.yaml` |
