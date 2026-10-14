@@ -383,10 +383,12 @@ cmd_archive() {
 
 cmd_init() {
     local with_prompts=false
+    local with_config=false
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -p|--prompts) with_prompts=true; shift ;;
+            --config)     with_config=true; shift ;;
             *) echo "Error: unknown init option '$1'" >&2; exit 1 ;;
         esac
     done
@@ -436,6 +438,16 @@ cmd_init() {
         for file in plan.md build.md review.md; do
             scaffold "PROMPT_${file}" "$prompts_dir/$file"
         done
+    fi
+
+    if $with_config; then
+        local central_config="$CONFIG_DIR/config.yaml"
+        if [[ ! -f "$central_config" ]]; then
+            echo "Error: ralph config not found at $central_config"
+            echo "Run the installer first: ./install.sh"
+            exit 1
+        fi
+        scaffold "ralph.yaml" "$central_config"
     fi
 }
 

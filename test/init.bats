@@ -91,3 +91,45 @@ load test_helper
     [[ "$status" -eq 0 ]]
     grep -qxF "ralph.yaml" .gitignore
 }
+
+@test "init without --config does not create ralph.yaml" {
+    echo "defaults: {}" > "$RALPH_CONFIG_DIR/config.yaml"
+    run "$RALPH" init
+    [[ "$status" -eq 0 ]]
+    [[ ! -f "ralph.yaml" ]]
+}
+
+@test "init --config copies the central config.yaml to ralph.yaml" {
+    echo "build: {backend: codex}" > "$RALPH_CONFIG_DIR/config.yaml"
+    run "$RALPH" init --config
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Created: ralph.yaml"* ]]
+    cmp "$RALPH_CONFIG_DIR/config.yaml" ralph.yaml
+}
+
+@test "init --config skips an existing ralph.yaml" {
+    echo "build: {backend: codex}" > "$RALPH_CONFIG_DIR/config.yaml"
+    echo "plan: {backend: pi}" > ralph.yaml
+    run "$RALPH" init --config
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Skipped: ralph.yaml already exists"* ]]
+    [[ "$(cat ralph.yaml)" == "plan: {backend: pi}" ]]
+}
+
+@test "init --config fails when the central config.yaml is missing" {
+    run "$RALPH" init --config
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: ralph config not found at $RALPH_CONFIG_DIR/config.yaml"* ]]
+    [[ "$output" == *"Run the installer first: ./install.sh"* ]]
+    [[ ! -f "ralph.yaml" ]]
+}
+
+@test "init --config --prompts creates ralph.yaml and the prompts in one run" {
+    echo "defaults: {}" > "$RALPH_CONFIG_DIR/config.yaml"
+    run "$RALPH" init --config --prompts
+    [[ "$status" -eq 0 ]]
+    [[ -f "ralph.yaml" ]]
+    [[ -f "PROMPT_plan.md" ]]
+    [[ -f "PROMPT_build.md" ]]
+    [[ -f "PROMPT_review.md" ]]
+}
