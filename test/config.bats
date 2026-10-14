@@ -440,3 +440,58 @@ run_build_with_config() {
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"No 'origin' remote — skipping push."* ]]
 }
+
+@test "the Config block names the built-in source and prints under --quiet and --dry-run" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run -q
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"Config: built-in (no config file) [build]
+  backend=claude model=opus effort=default
+  iterations=auto(2) headroom=20% patience=2 push=on metrics=off (dry-run) quiet=on"* ]]
+    [[ "$output" != *"Config:"* ]]
+}
+
+@test "the Config block names the local and central sources" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_open_item
+    printf 'build:\n  effort: high\n' > "$RALPH_CONFIG_DIR/config.yaml"
+    run --separate-stderr "$RALPH" build --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"Config: $RALPH_CONFIG_DIR/config.yaml (central) [build]"* ]]
+    [[ "$stderr" == *"effort=high"* ]]
+    printf 'build:\n  skip_push: true\n  quiet: true\n' > ralph.yaml
+    run --separate-stderr "$RALPH" build --dry-run -n 3 -b codex -m gpt-x
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"Config: ./ralph.yaml (local) [build]
+  backend=codex model=gpt-x effort=default
+  iterations=3 headroom=20% patience=2 push=off metrics=off (dry-run) quiet=on"* ]]
+}
+
+@test "the Config block prints the plan cap and review's single pass without build tuning" {
+    "$RALPH" init
+    run --separate-stderr "$RALPH" plan --dry-run -g goal --verbose -e low
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"Config: built-in (no config file) [plan]
+  backend=claude model=opus effort=low
+  iterations=6 metrics=off (dry-run) quiet=off"* ]]
+    seed_shipped_item
+    seed_cycle_base
+    run --separate-stderr "$RALPH" review --dry-run -q
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"[review]"*"iterations=1 metrics=off (dry-run) quiet=on"* ]]
+    [[ "$stderr" != *"headroom="* && "$stderr" != *"push="* ]]
+}
+
+@test "the Config block prints metrics on and off for a real run" {
+    "$RALPH" init
+    seed_open_item
+    create_streaming_backend
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"iterations=1 headroom=20% patience=2 push=off metrics=on quiet=off"* ]]
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"push=off metrics=off quiet=off"* ]]
+}
