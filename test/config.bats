@@ -495,3 +495,76 @@ run_build_with_config() {
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *"push=off metrics=off quiet=off"* ]]
 }
+
+@test "plan.iterations replaces the plan cap" {
+    require_yq_or_skip
+    "$RALPH" init
+    printf 'plan:\n  iterations: 2\n' > ralph.yaml
+    run --separate-stderr "$RALPH" plan --dry-run -g goal
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Max:     2 iterations"* ]]
+    [[ "$stderr" == *"iterations=2 metrics="* ]]
+}
+
+@test "build.iterations replaces the calculated count and turns off the noop exit" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_open_item
+    create_streaming_backend
+    printf 'build:\n  iterations: 3\n' > ralph.yaml
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build --skip-push --no-metrics
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Max:     3 iterations"* ]]
+    [[ "$output" == *"ITERATION 3 / 3"* ]]
+    [[ "$output" != *"No changes detected"* ]]
+    [[ "$stderr" == *"iterations=3 headroom=20% patience=2"* ]]
+}
+
+@test "-n beats build.iterations" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_open_item
+    printf 'build:\n  iterations: 3\n' > ralph.yaml
+    run "$RALPH" build --dry-run -n 5
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Max:     5 iterations"* ]]
+}
+
+@test "headroom_pct sizes the build count" {
+    require_yq_or_skip
+    "$RALPH" init
+    for _ in 1 2 3 4; do seed_open_item; done
+    printf 'build:\n  headroom_pct: 50\n' > ralph.yaml
+    run --separate-stderr "$RALPH" build --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Max:     6 iterations"* ]]
+    [[ "$stderr" == *"iterations=auto(6) headroom=50% patience=2"* ]]
+    printf 'build:\n  headroom_pct: 0\n' > ralph.yaml
+    run "$RALPH" build --dry-run
+    [[ "$output" == *"Max:     4 iterations"* ]]
+}
+
+@test "calculate_build_iterations rounds the headroom up" {
+    "$RALPH" init
+    for _ in 1 2 3; do seed_open_item; done
+    run ralph_fn calculate_build_iterations 20
+    [[ "$output" == "4" ]]
+    run ralph_fn calculate_build_iterations 10
+    [[ "$output" == "4" ]]
+    run ralph_fn calculate_build_iterations 0
+    [[ "$output" == "3" ]]
+}
+
+@test "noop_patience sets the consecutive noops before the early exit" {
+    require_yq_or_skip
+    "$RALPH" init
+    for _ in 1 2 3 4 5; do seed_open_item; done
+    create_streaming_backend
+    printf 'build:\n  noop_patience: 3\n' > ralph.yaml
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build --skip-push --no-metrics
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"No changes detected for 3 consecutive iterations — exiting early."* ]]
+    [[ "$output" == *"ITERATION 3 / 6"* ]]
+    [[ "$output" != *"ITERATION 4 / 6"* ]]
+    [[ "$stderr" == *"patience=3 push=off"* ]]
+}
