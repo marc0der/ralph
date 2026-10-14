@@ -56,12 +56,83 @@ load test_helper
     [[ "$status" -eq 0 ]]
 }
 
-@test "build rejects --verbose" {
+@test "build accepts --verbose under --dry-run" {
     "$RALPH" init
     seed_open_item
-    run "$RALPH" build --verbose
+    run "$RALPH" build --dry-run --verbose
+    [[ "$status" -eq 0 ]]
+}
+
+@test "build rejects -q with --verbose in either order" {
+    "$RALPH" init
+    seed_open_item
+    run "$RALPH" build --dry-run -q --verbose
     [[ "$status" -eq 1 ]]
-    [[ "$output" == *"ralph: unrecognized option '--verbose'"* ]]
+    [[ "$output" == *"Error: --verbose cannot be combined with --quiet."* ]]
+    run "$RALPH" build --dry-run --verbose --quiet
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: --quiet cannot be combined with --verbose."* ]]
+}
+
+@test "build rejects --no-metrics with --metrics in either order" {
+    "$RALPH" init
+    seed_open_item
+    run "$RALPH" build --dry-run --no-metrics --metrics
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: --metrics cannot be combined with --no-metrics."* ]]
+    run "$RALPH" build --dry-run --metrics --no-metrics
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: --no-metrics cannot be combined with --metrics."* ]]
+}
+
+@test "build rejects --skip-push with --push in either order" {
+    "$RALPH" init
+    seed_open_item
+    run "$RALPH" build --dry-run --skip-push --push
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: --push cannot be combined with --skip-push."* ]]
+    run "$RALPH" build --dry-run --push --skip-push
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: --skip-push cannot be combined with --push."* ]]
+}
+
+@test "build accepts a repeated flag of one pair" {
+    "$RALPH" init
+    seed_open_item
+    run "$RALPH" build --dry-run -q --quiet --push --push --metrics --metrics
+    [[ "$status" -eq 0 ]]
+}
+
+@test "build rejects an effort outside the backend's levels" {
+    "$RALPH" init
+    seed_open_item
+    run "$RALPH" build --dry-run -e bogus
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: effort 'bogus' is not a claude level; use one of: low medium high xhigh max."* ]]
+}
+
+@test "build checks --effort against the resolved backend" {
+    "$RALPH" init
+    seed_open_item
+    run "$RALPH" build --dry-run -b pi --effort max
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: effort 'max' is not a pi level; use one of: off minimal low medium high xhigh."* ]]
+}
+
+@test "build passes the effort to the backend command" {
+    "$RALPH" init
+    seed_open_item
+    run "$RALPH" build --dry-run -e high
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"--effort high"* ]]
+}
+
+@test "build adds no effort flag when -e is absent" {
+    "$RALPH" init
+    seed_open_item
+    run "$RALPH" build --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"--effort"* ]]
 }
 
 @test "build rejects -v" {

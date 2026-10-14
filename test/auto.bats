@@ -78,10 +78,16 @@ seed_resume_state() {
     [[ "$output" == *"iteration"* ]]
 }
 
-@test "auto --verbose exits 1 with the getopt message" {
-    DEVCONTAINER=true run "$RALPH" auto --verbose -g "the goal"
+@test "auto rejects each opposed flag pair" {
+    DEVCONTAINER=true run "$RALPH" auto --dry-run -q --verbose -g "the goal"
     [[ "$status" -eq 1 ]]
-    [[ "$output" == *"ralph auto: unrecognized option '--verbose'"* ]]
+    [[ "$output" == *"Error: --verbose cannot be combined with --quiet."* ]]
+    DEVCONTAINER=true run "$RALPH" auto --dry-run --no-metrics --metrics -g "the goal"
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: --metrics cannot be combined with --no-metrics."* ]]
+    DEVCONTAINER=true run "$RALPH" auto --dry-run --skip-push --push -g "the goal"
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: --push cannot be combined with --skip-push."* ]]
 }
 
 @test "auto -v exits 1 with the getopt message" {
@@ -434,6 +440,26 @@ seed_resume_state() {
     [[ "$(grep -E '^ +6 build' <<< "$output")" == *" -q "* ]]
     [[ "$(grep -E '^ +1 archive' <<< "$output")" != *"-q"* ]]
     [[ "$(grep -E '^ +2 init' <<< "$output")" != *"-q"* ]]
+}
+
+@test "--dry-run forwards -e, --verbose, --metrics and --push to the loop rows" {
+    DEVCONTAINER=true run "$RALPH" auto --dry-run -e high --verbose --metrics --push -g "the goal"
+    [[ "$status" -eq 0 ]]
+    local row
+    for row in '3 plan' '4 build' '5 review' '6 build'; do
+        [[ "$(grep -E "^ +$row" <<< "$output")" == *" -e high --push --metrics --verbose -y"* ]]
+    done
+    [[ "$(grep -E '^ +1 archive' <<< "$output")" != *"-e"* ]]
+    [[ "$(grep -E '^ +2 init' <<< "$output")" != *"--verbose"* ]]
+}
+
+@test "--dry-run forwards no opposed flag when none is given" {
+    DEVCONTAINER=true run "$RALPH" auto --dry-run -g "the goal"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"--verbose"* ]]
+    [[ "$output" != *"--metrics"* ]]
+    [[ "$output" != *"--push"* ]]
+    [[ "$output" != *" -e "* ]]
 }
 
 # --- Flag forwarding by behaviour (§11) -------------------------------------
