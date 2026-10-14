@@ -46,7 +46,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 
 1. Validate CLI dependencies (selected backend's CLI binary, git)
 2. Resolve the config file via `resolve_config` — `./ralph.yaml`, else `$CONFIG_DIR/config.yaml`, else the built-in defaults — and check it whole with `validate_config`, which needs mikefarah `yq` v4. `config_get` reads a key from the run's section (`plan`, `build`, `fix` or `review`), then `defaults`. Each setting takes the CLI flag, then the file, then the built-in default, and `print_config_block` prints the result to stderr before the first iteration
-3. Resolve backend via `-b` flag (default: `claude`), which loads the backend's command builder, default model, and jq filter
+3. Resolve the backend from `-b`, then the section's `backend`, then `claude`, which loads the backend's command builder, default model, and jq filter. A `-b` that differs from the file's backend drops the file's `model`, `effort` and `extra_args` with a warning
 4. Resolve prompt template: project-local `PROMPT_<mode>.md` → installed default (`~/.config/ralph/prompts/`)
 5. Substitute `{{GOAL}}` and then `{{WORKSPACE}}` into the prompt via bash parameter expansion. `{{GOAL}}` expands first, so a goal may itself carry `{{WORKSPACE}}`, and it reaches `plan` alone — `plan` and `auto` require `-g`, and `build` and `review` refuse it. `{{WORKSPACE}}` expands to `$PWD`, the workspace root, which anchors `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` in every prompt
 6. Pipe the prompt to the backend command in a loop (e.g., `claude -p` or `codex exec`), writing the raw backend stream to a file — `iter-NNN.stream.jsonl` in the run's directory under `.ralph/metrics/` when metrics are enabled, a per-run temp file otherwise
