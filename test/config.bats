@@ -11,16 +11,20 @@ ralph_fn() {
     )
 }
 
-# Helper: a PATH without yq, or a skip when yq shares a directory with a tool ralph needs.
+# Helper: print PATH with each yq directory replaced by a copy of it, as symlinks, minus yq.
 path_without_yq() {
-    local yq_dir tool
-    yq_dir=$(dirname "$(command -v yq)")
-    for tool in bash git jq getopt; do
-        [[ ! -x "$yq_dir/$tool" ]] || skip "cannot isolate yq from $tool in PATH"
+    local dir entry shadow dirs=()
+    IFS=: read -ra dirs <<< "$PATH"
+    for dir in "${dirs[@]}"; do
+        if [[ -x "$dir/yq" ]]; then
+            shadow=$(mktemp -d "$TEST_DIR/no-yq.XXXXXX")
+            for entry in "$dir"/*; do
+                [[ "${entry##*/}" == yq ]] || ln -s "$entry" "$shadow/"
+            done
+            dir="$shadow"
+        fi
+        printf "%s:" "$dir"
     done
-    local filtered_path
-    filtered_path=$(path_without yq)
-    echo "${filtered_path%:}"
 }
 
 @test "resolve_config prints nothing when no config file exists" {
@@ -68,7 +72,7 @@ path_without_yq() {
     "$RALPH" init
     seed_open_item
     echo "defaults: {}" > ralph.yaml
-    PATH="$no_yq_path" run "$RALPH" build
+    PATH="${no_yq_path%:}" run "$RALPH" build
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"Error: ralph.yaml needs mikefarah yq v4 (https://github.com/mikefarah/yq); found: none."* ]]
 }
