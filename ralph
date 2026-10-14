@@ -234,7 +234,7 @@ ralph — autonomous AI coding agent loop runner
 Usage:
   ralph sandbox [--rebuild]
   ralph sandbox clean
-  ralph <plan|build|review> [options]
+  ralph <plan|build|fix|review> [options]
   ralph auto [options]
   ralph init
   ralph clean
@@ -247,6 +247,7 @@ Modes:
   sandbox clean  Remove the devcontainer for the current project
   plan           Analyse specs and source, create/update IMPLEMENTATION_PLAN.md
   build          Pick the next item, implement, test, commit, push
+  fix            Run build with the fix section of the config file
   review         Review the cycle's work in one pass and file findings as new plan items
   auto           Run the whole lifecycle: archive, init, plan, build, review, build
   init           Initialise workspace (PROGRESS.md, IMPLEMENTATION_PLAN.md, specs/)
@@ -268,14 +269,14 @@ Auto options:
   auto does not accept -n/--iterations; each phase resolves its own count
 
 Options:
-  -n, --iterations N   Max iterations (plan default: 6, build: calculated
-                       from the plan). In build mode this also disables the
+  -n, --iterations N   Max iterations (plan default: 6, build and fix: calculated
+                       from the plan). In build and fix this also disables the
                        noop exit; in plan mode it caps the run but
                        never disables the convergence exit. review rejects -n
   -g, --goal TEXT      Goal to inject into the prompt template (plan and auto only; required)
   -m, --model MODEL    Model to use (default depends on backend)
   -b, --backend NAME   Backend to use: claude, codex, copilot, pi (default: claude)
-      --skip-push      Don't push after each build iteration (plan and review
+      --skip-push      Don't push after each build or fix iteration (plan and review
                        never push)
       --dry-run        Print what would be executed without running
       --no-metrics     Don't record per-iteration metrics under .ralph/metrics/
@@ -1408,8 +1409,9 @@ cmd_metrics() {
 }
 
 cmd_loop() {
-    local mode="$1"
+    local section="$1" mode="$1"
     shift
+    [[ "$mode" == "fix" ]] && mode=build
 
     local max_iterations=""
     local goal=""
@@ -1520,24 +1522,24 @@ cmd_loop() {
     fi
 
     local config_backend file_model="" file_effort="" file_extra_args=()
-    config_backend=$(config_get "$mode" backend)
+    config_backend=$(config_get "$section" backend)
     config_backend="${config_backend:-claude}"
     if [[ -z "$backend" || "$backend" == "$config_backend" ]]; then
         backend="$config_backend"
-        file_model=$(config_get "$mode" model)
-        file_effort=$(config_get "$mode" effort)
-        mapfile -t file_extra_args < <(config_get "$mode" extra_args)
+        file_model=$(config_get "$section" model)
+        file_effort=$(config_get "$section" effort)
+        mapfile -t file_extra_args < <(config_get "$section" extra_args)
     else
-        warn_dropped_config_keys "$backend" "$config_backend" "$mode"
+        warn_dropped_config_keys "$backend" "$config_backend" "$section"
     fi
     model="${model:-$file_model}"
     effort="${effort:-$file_effort}"
     BACKEND_EXTRA_ARGS=("${file_extra_args[@]}")
 
-    [[ -n "$skip_push" ]] || skip_push=$(config_get "$mode" skip_push)
-    [[ -n "$quiet" ]] || quiet=$(config_get "$mode" quiet)
+    [[ -n "$skip_push" ]] || skip_push=$(config_get "$section" skip_push)
+    [[ -n "$quiet" ]] || quiet=$(config_get "$section" quiet)
     if [[ -z "$no_metrics" ]]; then
-        case $(config_get "$mode" metrics) in
+        case $(config_get "$section" metrics) in
             true)  no_metrics=false ;;
             false) no_metrics=true ;;
         esac
@@ -1554,13 +1556,13 @@ cmd_loop() {
     fi
 
     if ! $hard_override; then
-        max_iterations=$(config_get "$mode" iterations)
+        max_iterations=$(config_get "$section" iterations)
         [[ -n "$max_iterations" ]] && hard_override=true
     fi
     local headroom_pct noop_patience
-    headroom_pct=$(config_get "$mode" headroom_pct)
+    headroom_pct=$(config_get "$section" headroom_pct)
     headroom_pct="${headroom_pct:-20}"
-    noop_patience=$(config_get "$mode" noop_patience)
+    noop_patience=$(config_get "$section" noop_patience)
     noop_patience="${noop_patience:-2}"
 
     if ! $hard_override; then
@@ -1624,7 +1626,7 @@ cmd_loop() {
     local metrics_label=off
     $metrics_enabled && metrics_label=on
     $dry_run && metrics_label="off (dry-run)"
-    print_config_block "$config_file" "$mode" "$mode" "$model" "$effort" \
+    print_config_block "$config_file" "$section" "$mode" "$model" "$effort" \
         "$max_iterations" "$hard_override" "$headroom_pct" "$noop_patience" \
         "$skip_push" "$metrics_label" "$quiet"
 
@@ -2512,7 +2514,7 @@ cmd_auto() {
 # Main dispatch — test/resolve_prompt.bats sources everything above this line
 case "${1:-}" in
     sandbox)    shift; cmd_sandbox "$@" ;;
-    plan|build|review) cmd_loop "$@" ;;
+    plan|build|fix|review) cmd_loop "$@" ;;
     auto)       shift; cmd_auto "$@" ;;
     metrics)    shift; cmd_metrics "$@" ;;
     init)       shift; cmd_init "$@" ;;
