@@ -156,3 +156,12 @@ path_without() {
         [[ -x "$dir/$cmd" ]] || printf "%s:" "$dir"
     done
 }
+
+# Helper: skip a test that parses a config file when mikefarah yq v4 is absent
+# (specs/phase-config.md §13).
+require_yq_or_skip() {
+    local version_line
+    version_line=$(yq --version 2>/dev/null) || skip "yq is not on PATH"
+    [[ "$version_line" == *mikefarah* && "$version_line" =~ version\ v?4\. ]] \
+        || skip "yq on PATH is not mikefarah yq v4: $version_line"
+}

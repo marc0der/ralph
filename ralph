@@ -3,6 +3,8 @@ set -euo pipefail
 
 VERSION="0.1.0"
 CONFIG_DIR="${RALPH_CONFIG_DIR:-$HOME/.config/ralph}"
+LOCAL_CONFIG_FILE="ralph.yaml"
+CONFIG_JSON=""
 
 # Safety-net cap for plan mode; a plan run normally ends on convergence,
 # well before this (build mode calculates its own count from the plan)
@@ -657,6 +659,62 @@ resolve_prompt() {
     fi
 }
 
+# specs/phase-config.md §2. A whole-file override: the central copy never fills
+# a gap in the local one. Prints nothing when neither exists.
+resolve_config() {
+    local central_file="$CONFIG_DIR/config.yaml"
+
+    if [[ -f "$LOCAL_CONFIG_FILE" ]]; then
+        echo "$LOCAL_CONFIG_FILE"
+    elif [[ -f "$central_file" ]]; then
+        echo "$central_file"
+    fi
+}
+
+config_source_label() {
+    local config_file="$1"
+
+    if [[ -z "$config_file" ]]; then
+        echo "built-in (no config file)"
+    elif [[ "$config_file" == "$LOCAL_CONFIG_FILE" ]]; then
+        echo "(local)"
+    else
+        echo "(central)"
+    fi
+}
+
+# specs/phase-config.md §3. The Python yq wrapper shares the binary name but
+# not the syntax, so the version line must name mikefarah.
+require_yq() {
+    local config_file="$1"
+    local version_line="none"
+
+    if command -v yq >/dev/null 2>&1; then
+        version_line=$(yq --version 2>&1 | head -n 1) || true
+        if [[ "$version_line" == *mikefarah* && "$version_line" =~ version\ v?4\. ]]; then
+            return 0
+        fi
+        [[ -n "$version_line" ]] || version_line="none"
+    fi
+
+    echo "Error: $config_file needs mikefarah yq v4 (https://github.com/mikefarah/yq); found: $version_line." >&2
+    exit 1
+}
+
+# Parses the file once; later calls read the cache. Call it outside a command
+# substitution first, or the cache dies with the subshell.
+config_json() {
+    local config_file="$1"
+
+    if [[ -z "$CONFIG_JSON" ]]; then
+        if ! CONFIG_JSON=$(yq -o=json '.' "$config_file" 2>&1); then
+            echo "Error: $config_file is not valid YAML: $CONFIG_JSON" >&2
+            exit 1
+        fi
+    fi
+    printf '%s\n' "$CONFIG_JSON"
+}
+
 # Review needs PROGRESS.md as well as the plan: it writes its review entry
 # there, so the second requirement is real and not symmetry.
 require_init_artifacts() {
@@ -1296,6 +1354,13 @@ cmd_loop() {
         require_open_items
     elif [[ "$mode" == "review" ]]; then
         require_review_preconditions
+    fi
+
+    local config_file
+    config_file=$(resolve_config)
+    if [[ -n "$config_file" ]]; then
+        require_yq "$config_file"
+        config_json "$config_file" >/dev/null
     fi
 
     backend="${backend:-claude}"
