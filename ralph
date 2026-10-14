@@ -43,11 +43,13 @@ RALPH_PLAN_STATE_BEFORE=""
 RALPH_PLAN_PROMPT_FILE=""
 
 # --- Backend definitions ---
-# Each backend_<name> function sets well-known variables and defines
-# build_backend_cmd(model) which populates the BACKEND_CMD array.
+# Each backend_<name> function sets well-known variables, among them
+# BACKEND_EFFORT_LEVELS, and defines build_backend_cmd(model, effort), which
+# populates the BACKEND_CMD array with BACKEND_EXTRA_ARGS after Ralph's own.
 # Adding a new backend only requires a new function and a SUPPORTED_BACKENDS entry.
 
 SUPPORTED_BACKENDS=(claude codex copilot pi)
+BACKEND_EXTRA_ARGS=()
 
 # Prepended by cmd_loop to every BACKEND_JQ_LIVE filter, so each backend's
 # live renderer stays a single expression instead of repeating these helpers.
@@ -61,6 +63,7 @@ def oneline: gsub("\\s+"; " ");
 backend_claude() {
     BACKEND_NAME="claude"
     BACKEND_CLI="claude"
+    BACKEND_EFFORT_LEVELS=(low medium high xhigh max)
     BACKEND_DEFAULT_MODEL="opus"
     BACKEND_PERMISSION_FLAG="--dangerously-skip-permissions"
     BACKEND_PERMISSION_WARNING="Claude will have unrestricted access to tools (file writes, shell commands, etc)."
@@ -90,8 +93,10 @@ else empty end'
     BACKEND_STDIN_PROMPT=true
     # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
     build_backend_cmd() {
-        local model="$1"
+        local model="$1" effort="${2:-}"
         BACKEND_CMD=(claude -p "$BACKEND_PERMISSION_FLAG" --output-format=stream-json --model "$model" --verbose)
+        [[ -n "$effort" ]] && BACKEND_CMD+=(--effort "$effort")
+        BACKEND_CMD+=("${BACKEND_EXTRA_ARGS[@]}")
     }
 }
 
@@ -99,6 +104,7 @@ else empty end'
 backend_codex() {
     BACKEND_NAME="codex"
     BACKEND_CLI="codex"
+    BACKEND_EFFORT_LEVELS=(minimal low medium high xhigh max ultra)
     BACKEND_DEFAULT_MODEL="gpt-5.2-codex"
     BACKEND_PERMISSION_FLAG="--dangerously-bypass-approvals-and-sandbox"
     BACKEND_PERMISSION_WARNING="Codex will have unrestricted access to tools (file writes, shell commands, etc)."
@@ -111,8 +117,10 @@ backend_codex() {
     BACKEND_STDIN_PROMPT=false
     # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
     build_backend_cmd() {
-        local model="$1"
+        local model="$1" effort="${2:-}"
         BACKEND_CMD=(codex exec "$BACKEND_PERMISSION_FLAG" --json --model "$model")
+        [[ -n "$effort" ]] && BACKEND_CMD+=(-c "model_reasoning_effort=$effort")
+        BACKEND_CMD+=("${BACKEND_EXTRA_ARGS[@]}")
     }
 }
 
@@ -120,6 +128,7 @@ backend_codex() {
 backend_copilot() {
     BACKEND_NAME="copilot"
     BACKEND_CLI="copilot"
+    BACKEND_EFFORT_LEVELS=(none minimal low medium high xhigh max)
     BACKEND_DEFAULT_MODEL="claude-sonnet-4.6"
     BACKEND_PERMISSION_FLAG="--yolo"
     BACKEND_PERMISSION_WARNING="Copilot will have unrestricted access to tools (file writes, shell commands, etc)."
@@ -130,8 +139,10 @@ backend_copilot() {
     BACKEND_STDIN_PROMPT=false
     # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
     build_backend_cmd() {
-        local model="$1"
-        BACKEND_CMD=(copilot --output-format=json "$BACKEND_PERMISSION_FLAG" --model "$model" -p)
+        local model="$1" effort="${2:-}"
+        BACKEND_CMD=(copilot --output-format=json "$BACKEND_PERMISSION_FLAG" --model "$model")
+        [[ -n "$effort" ]] && BACKEND_CMD+=(--reasoning-effort "$effort")
+        BACKEND_CMD+=("${BACKEND_EXTRA_ARGS[@]}" -p)
     }
 }
 
@@ -139,6 +150,7 @@ backend_copilot() {
 backend_pi() {
     BACKEND_NAME="pi"
     BACKEND_CLI="pi"
+    BACKEND_EFFORT_LEVELS=(off minimal low medium high xhigh)
     # Pi's default provider is google, so a bare 'opus' would resolve there;
     # pin the fully-qualified provider/id to land on Anthropic.
     BACKEND_DEFAULT_MODEL="anthropic/claude-opus-4-8"
@@ -175,8 +187,10 @@ else empty end'
     BACKEND_STDIN_PROMPT=true
     # shellcheck disable=SC2317,SC2329  # Invoked indirectly via resolve_backend
     build_backend_cmd() {
-        local model="$1"
+        local model="$1" effort="${2:-}"
         BACKEND_CMD=(pi -p --mode json --model "$model" --no-session)
+        [[ -n "$effort" ]] && BACKEND_CMD+=(--thinking "$effort")
+        BACKEND_CMD+=("${BACKEND_EXTRA_ARGS[@]}")
     }
 }
 
