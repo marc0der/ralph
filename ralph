@@ -910,7 +910,7 @@ require_init_artifacts() {
 
     case "$mode" in
         plan)  required=(IMPLEMENTATION_PLAN.md) ;;
-        build) required=(IMPLEMENTATION_PLAN.md PROGRESS.md) ;;
+        build|fix) required=(IMPLEMENTATION_PLAN.md PROGRESS.md) ;;
         review) required=(IMPLEMENTATION_PLAN.md PROGRESS.md) ;;
     esac
 
@@ -1471,7 +1471,7 @@ cmd_loop() {
                 # 'g:' from the getopt spec per mode would yield a bare
                 # `invalid option -- 'g'` and state none.
                 if [[ "$mode" == "build" || "$mode" == "review" ]]; then
-                    echo "Error: '$mode' does not accept -g/--goal; the work comes from IMPLEMENTATION_PLAN.md." >&2
+                    echo "Error: '$section' does not accept -g/--goal; the work comes from IMPLEMENTATION_PLAN.md." >&2
                     exit 1
                 fi
                 goal="$2";           shift 2 ;;
@@ -1522,7 +1522,7 @@ cmd_loop() {
 
     # Fail fast if 'ralph init' hasn't been run — checked before any backend
     # resolution, CLI lookup, or git work so the user gets immediate feedback.
-    require_init_artifacts "$mode"
+    require_init_artifacts "$section"
 
     # Hard stops, checked unconditionally: a plan with no goal has nothing to
     # plan against, a plan over a stale cycle base would widen the next
@@ -2200,7 +2200,8 @@ cmd_loop() {
         fi
 
         # Early exit. Build mode watches every git repository beneath the
-        # workspace and tolerates one noop; -n overrides it.
+        # workspace and stops after noop_patience noops; -n or the section's
+        # iterations disables the exit.
         # Plan commits nothing, and Ralph commits its specs only when the run
         # ends, so it watches the plan artifacts instead. A pass that changes nothing has
         # converged, and there is no second-chance iteration to wait for: -n caps
