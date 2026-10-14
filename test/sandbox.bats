@@ -2,14 +2,6 @@
 
 load test_helper
 
-# Helper: build a PATH that hides a specific command
-path_without() {
-    local cmd="$1"
-    echo "$PATH" | tr ':' '\n' | while read -r dir; do
-        [[ -x "$dir/$cmd" ]] || printf "%s:" "$dir"
-    done
-}
-
 @test "sandbox fails when devcontainer CLI is not found" {
     local filtered_path
     filtered_path=$(path_without devcontainer)
