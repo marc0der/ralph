@@ -38,3 +38,12 @@ load test_helper
     [[ "$status" -eq 0 ]]
     [[ -d "specs" ]]
 }
+
+@test "clean leaves ralph.yaml in place" {
+    "$RALPH" init
+    echo "defaults: {}" > ralph.yaml
+    run "$RALPH" clean
+    [[ "$status" -eq 0 ]]
+    [[ "$(cat ralph.yaml)" == "defaults: {}" ]]
+    [[ "$output" != *"ralph.yaml"* ]]
+}

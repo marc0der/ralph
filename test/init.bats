@@ -85,3 +85,9 @@ load test_helper
     [[ ! -f "PROMPT_plan.md" ]]
     [[ ! -f "PROMPT_build.md" ]]
 }
+
+@test "init adds ralph.yaml to .gitignore" {
+    run "$RALPH" init
+    [[ "$status" -eq 0 ]]
+    grep -qxF "ralph.yaml" .gitignore
+}
