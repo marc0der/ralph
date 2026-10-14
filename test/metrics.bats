@@ -341,3 +341,56 @@ MOCK
     [[ $(jq -r '.git.noop' <<<"$line") == "false" ]]
     [[ $(jq -r '.git.commits' <<<"$line") == "0" ]]
 }
+
+@test "fix records effort, config and section beside mode" {
+    require_yq_or_skip
+    "$RALPH" init
+    printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
+    printf 'fix:\n  effort: high\n' > ralph.yaml
+    create_committing_backend
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" fix -n 1 --skip-push -y
+    [[ "$status" -eq 0 ]]
+
+    local line
+    line=$(tail -1 "$(latest_metrics_file)")
+    [[ $(jq -c '{mode, section, effort, config}' <<<"$line") == '{"mode":"build","section":"fix","effort":"high","config":"ralph.yaml"}' ]]
+}
+
+@test "metrics record null effort and config without a config file" {
+    "$RALPH" init
+    printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
+    create_committing_backend
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
+    [[ "$status" -eq 0 ]]
+
+    local line
+    line=$(tail -1 "$(latest_metrics_file)")
+    [[ $(jq -c '{section, effort, config}' <<<"$line") == '{"section":"build","effort":null,"config":null}' ]]
+}
+
+@test "ralph metrics shows effort, config and section in the run summary" {
+    require_yq_or_skip
+    "$RALPH" init
+    printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
+    printf 'fix:\n  effort: low\n' > ralph.yaml
+    create_committing_backend
+
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" fix -n 1 --skip-push -y
+
+    run "$RALPH" metrics
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Config: ralph.yaml [fix] backend=claude model=opus effort=low"* ]]
+}
+
+@test "ralph metrics reads records that lack effort, config and section" {
+    mkdir -p .ralph/metrics/old
+    printf '%s\n' '{"iteration":1,"mode":"build","backend":"claude","model":"opus","wall_s":5,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false},"plan_items_completed":1}' \
+        > .ralph/metrics/old/metrics.jsonl
+
+    run "$RALPH" metrics .ralph/metrics/old/metrics.jsonl
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"1 iterations"* ]]
+    [[ "$output" != *"Config:"* ]]
+}
