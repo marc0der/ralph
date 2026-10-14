@@ -758,7 +758,8 @@ warn_dropped_config_keys() {
 # run records the settings it resolved.
 print_config_block() {
     local config_file="$1" section="$2" mode="$3" model="$4" effort="$5"
-    local iterations="$6" iterations_fixed="$7" skip_push="$8" metrics="$9" quiet="${10}"
+    local iterations="$6" iterations_fixed="$7" headroom_pct="$8" noop_patience="$9"
+    local skip_push="${10}" metrics="${11}" quiet="${12}"
     local source_label
 
     source_label=$(config_source_label "$config_file")
@@ -770,7 +771,7 @@ print_config_block() {
     if [[ "$mode" == "build" ]]; then
         local push=on
         $skip_push && push=off
-        tuning+=" headroom=20% patience=2 push=$push"
+        tuning+=" headroom=$headroom_pct% patience=$noop_patience push=$push"
     fi
     local quiet_label=off
     $quiet && quiet_label=on
@@ -1047,11 +1048,11 @@ require_review_preconditions() {
 
 # Caller must ensure at least one open item exists (see require_open_items).
 calculate_build_iterations() {
-    local count
+    local headroom_pct="$1" count
     count=$(count_plan_items '^- \[ \]')
 
-    # 20% headroom, rounded up: ceil(count * 1.2)
-    echo $(( (count * 6 + 4) / 5 ))
+    # ceil(count * (100 + headroom_pct) / 100) in integer arithmetic
+    echo $(( (count * (100 + headroom_pct) + 99) / 100 ))
 }
 
 # Modes whose commits cannot measure their progress — plan commits nothing and
@@ -1553,9 +1554,19 @@ cmd_loop() {
     fi
 
     if ! $hard_override; then
+        max_iterations=$(config_get "$mode" iterations)
+        [[ -n "$max_iterations" ]] && hard_override=true
+    fi
+    local headroom_pct noop_patience
+    headroom_pct=$(config_get "$mode" headroom_pct)
+    headroom_pct="${headroom_pct:-20}"
+    noop_patience=$(config_get "$mode" noop_patience)
+    noop_patience="${noop_patience:-2}"
+
+    if ! $hard_override; then
         case "$mode" in
             plan)   max_iterations=$PLAN_DEFAULT_CAP ;;
-            build)  max_iterations=$(calculate_build_iterations) ;;
+            build)  max_iterations=$(calculate_build_iterations "$headroom_pct") ;;
             review) max_iterations=1 ;;
         esac
     fi
@@ -1614,7 +1625,8 @@ cmd_loop() {
     $metrics_enabled && metrics_label=on
     $dry_run && metrics_label="off (dry-run)"
     print_config_block "$config_file" "$mode" "$mode" "$model" "$effort" \
-        "$max_iterations" "$hard_override" "$skip_push" "$metrics_label" "$quiet"
+        "$max_iterations" "$hard_override" "$headroom_pct" "$noop_patience" \
+        "$skip_push" "$metrics_label" "$quiet"
 
     # Permission handling:
     #   Backends run non-interactively and cannot prompt for tool approval,
@@ -2170,8 +2182,8 @@ cmd_loop() {
             elif ! $hard_override; then
                 if [[ "$state_before" == "$state_after" ]]; then
                     consecutive_noops=$((consecutive_noops + 1))
-                    if [[ $consecutive_noops -ge 2 ]]; then
-                        echo -e "\nNo changes detected for 2 consecutive iterations — exiting early."
+                    if [[ $consecutive_noops -ge $noop_patience ]]; then
+                        echo -e "\nNo changes detected for $noop_patience consecutive iterations — exiting early."
                         break
                     fi
                 else
