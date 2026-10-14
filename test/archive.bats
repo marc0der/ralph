@@ -48,3 +48,14 @@ load test_helper
     [[ -f "PROMPT_plan.md" ]]
     [[ -f "PROMPT_build.md" ]]
 }
+
+@test "archive leaves ralph.yaml in place" {
+    "$RALPH" init
+    echo "defaults: {}" > ralph.yaml
+    run "$RALPH" archive
+    [[ "$status" -eq 0 ]]
+    [[ "$(cat ralph.yaml)" == "defaults: {}" ]]
+    [[ "$output" != *"ralph.yaml"* ]]
+    run find .ralph -name ralph.yaml
+    [[ -z "$output" ]]
+}
