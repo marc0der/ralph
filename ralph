@@ -310,6 +310,24 @@ reject_quiet() {
     done
 }
 
+# Opposed flags share one tri-state variable: empty, true or false.
+reject_opposed_flag() {
+    local state="$1" value="$2" flag="$3" opposite="$4"
+    if [[ -n "$state" && "$state" != "$value" ]]; then
+        echo "Error: $flag cannot be combined with $opposite." >&2
+        exit 1
+    fi
+}
+
+require_effort_level() {
+    local effort="$1" level
+    for level in "${BACKEND_EFFORT_LEVELS[@]}"; do
+        [[ "$effort" == "$level" ]] && return 0
+    done
+    echo "Error: effort '$effort' is not a $BACKEND_NAME level; use one of: ${BACKEND_EFFORT_LEVELS[*]}." >&2
+    exit 1
+}
+
 cmd_version() {
     reject_quiet version "$@"
     echo "ralph $VERSION"
@@ -1181,13 +1199,14 @@ cmd_loop() {
     local goal=""
     local model=""
     local backend=""
-    local skip_push=false
+    local effort=""
+    local skip_push=""
     local dry_run=false
-    local quiet=false
+    local quiet=""
     local assume_yes=false
-    local no_metrics=false
+    local no_metrics=""
 
-    ARGS=$(getopt -o n:g:m:b:qyh --long iterations:,goal:,model:,backend:,skip-push,dry-run,no-metrics,quiet,yes,help -n 'ralph' -- "$@")
+    ARGS=$(getopt -o n:g:m:b:e:qyh --long iterations:,goal:,model:,backend:,effort:,skip-push,push,dry-run,no-metrics,metrics,quiet,verbose,yes,help -n 'ralph' -- "$@")
     eval set -- "$ARGS"
 
     while true; do
@@ -1206,15 +1225,34 @@ cmd_loop() {
                 goal="$2";           shift 2 ;;
             -m|--model)      model="$2";          shift 2 ;;
             -b|--backend)    backend="$2";        shift 2 ;;
-            --skip-push)     skip_push=true;      shift ;;
+            -e|--effort)     effort="$2";         shift 2 ;;
+            --skip-push)
+                reject_opposed_flag "$skip_push" true --skip-push --push
+                skip_push=true;      shift ;;
+            --push)
+                reject_opposed_flag "$skip_push" false --push --skip-push
+                skip_push=false;     shift ;;
             --dry-run)       dry_run=true;        shift ;;
-            --no-metrics)    no_metrics=true;     shift ;;
-            -q|--quiet)      quiet=true;          shift ;;
+            --no-metrics)
+                reject_opposed_flag "$no_metrics" true --no-metrics --metrics
+                no_metrics=true;     shift ;;
+            --metrics)
+                reject_opposed_flag "$no_metrics" false --metrics --no-metrics
+                no_metrics=false;    shift ;;
+            -q|--quiet)
+                reject_opposed_flag "$quiet" true --quiet --verbose
+                quiet=true;          shift ;;
+            --verbose)
+                reject_opposed_flag "$quiet" false --verbose --quiet
+                quiet=false;         shift ;;
             -y|--yes)        assume_yes=true;     shift ;;
             -h|--help)       usage ;;
             --)              shift; break ;;
         esac
     done
+    skip_push="${skip_push:-false}"
+    no_metrics="${no_metrics:-false}"
+    quiet="${quiet:-false}"
 
     # Validate explicit -n value before any state-dependent work, so syntax
     # errors fire regardless of workspace state.
@@ -1262,6 +1300,7 @@ cmd_loop() {
 
     backend="${backend:-claude}"
     resolve_backend "$backend"
+    [[ -n "$effort" ]] && require_effort_level "$effort"
 
     if [[ -z "$model" ]]; then
         model="$BACKEND_DEFAULT_MODEL"
@@ -1295,7 +1334,7 @@ cmd_loop() {
     local current_branch
     current_branch=$(git branch --show-current)
 
-    build_backend_cmd "$model"
+    build_backend_cmd "$model" "$effort"
 
     local metrics_enabled=true
     ($dry_run || $no_metrics) && metrics_enabled=false
@@ -1924,15 +1963,16 @@ cmd_auto() {
     local goal=""
     local model=""
     local backend=""
-    local skip_push=false
+    local effort=""
+    local skip_push=""
     local dry_run=false
-    local no_metrics=false
-    local quiet=false
+    local no_metrics=""
+    local quiet=""
     local resume=false
     local force=false
 
     local args
-    args=$(getopt -o n:g:m:b:qyh --long iterations:,goal:,model:,backend:,skip-push,dry-run,no-metrics,quiet,yes,help,resume,force -n 'ralph auto' -- "$@")
+    args=$(getopt -o n:g:m:b:e:qyh --long iterations:,goal:,model:,backend:,effort:,skip-push,push,dry-run,no-metrics,metrics,quiet,verbose,yes,help,resume,force -n 'ralph auto' -- "$@")
     eval set -- "$args"
 
     while true; do
@@ -1943,10 +1983,26 @@ cmd_auto() {
             -g|--goal)     goal="$2";       shift 2 ;;
             -m|--model)    model="$2";      shift 2 ;;
             -b|--backend)  backend="$2";    shift 2 ;;
-            --skip-push)   skip_push=true;  shift ;;
+            -e|--effort)   effort="$2";     shift 2 ;;
+            --skip-push)
+                reject_opposed_flag "$skip_push" true --skip-push --push
+                skip_push=true;  shift ;;
+            --push)
+                reject_opposed_flag "$skip_push" false --push --skip-push
+                skip_push=false; shift ;;
             --dry-run)     dry_run=true;    shift ;;
-            --no-metrics)  no_metrics=true; shift ;;
-            -q|--quiet)    quiet=true;      shift ;;
+            --no-metrics)
+                reject_opposed_flag "$no_metrics" true --no-metrics --metrics
+                no_metrics=true; shift ;;
+            --metrics)
+                reject_opposed_flag "$no_metrics" false --metrics --no-metrics
+                no_metrics=false; shift ;;
+            -q|--quiet)
+                reject_opposed_flag "$quiet" true --quiet --verbose
+                quiet=true;      shift ;;
+            --verbose)
+                reject_opposed_flag "$quiet" false --verbose --quiet
+                quiet=false;     shift ;;
             -y|--yes)      shift ;;
             --resume)      resume=true;     shift ;;
             --force)       force=true;      shift ;;
@@ -2055,9 +2111,19 @@ cmd_auto() {
     local child_flags=()
     [[ -n $model ]]   && child_flags+=(-m "$model")
     [[ -n $backend ]] && child_flags+=(-b "$backend")
-    $skip_push        && child_flags+=(--skip-push)
-    $no_metrics       && child_flags+=(--no-metrics)
-    $quiet            && child_flags+=(-q)
+    [[ -n $effort ]]  && child_flags+=(-e "$effort")
+    case $skip_push in
+        true)  child_flags+=(--skip-push) ;;
+        false) child_flags+=(--push) ;;
+    esac
+    case $no_metrics in
+        true)  child_flags+=(--no-metrics) ;;
+        false) child_flags+=(--metrics) ;;
+    esac
+    case $quiet in
+        true)  child_flags+=(-q) ;;
+        false) child_flags+=(--verbose) ;;
+    esac
 
     # Dry run (§8). Print the six phases and, for each loop phase, the exact
     # child command line auto would invoke with the resolved goal/model/backend.
