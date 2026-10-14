@@ -568,3 +568,48 @@ run_build_with_config() {
     [[ "$output" != *"ITERATION 4 / 6"* ]]
     [[ "$stderr" == *"patience=3 push=off"* ]]
 }
+
+@test "fix --dry-run runs build mode under the fix section" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" fix --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Mode:    build"* ]]
+    [[ "$stderr" == *"Config: built-in (no config file) [fix]"* ]]
+    [[ "$stderr" == *"iterations=auto(2) headroom=20% patience=2 push=on"* ]]
+}
+
+@test "fix reads the fix section and not the build section" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_open_item
+    printf 'build:\n  iterations: 3\nfix:\n  iterations: 5\n  effort: low\n' > ralph.yaml
+    run --separate-stderr "$RALPH" fix --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Max:     5 iterations"* ]]
+    [[ "$stderr" == *"effort=low"* ]]
+    run "$RALPH" build --dry-run
+    [[ "$output" == *"Max:     3 iterations"* ]]
+}
+
+@test "fix uses the build prompt, writes .ralph/cycle-base and pushes" {
+    "$RALPH" init
+    seed_open_item
+    create_committing_backend
+    git init --bare --quiet "$TEST_DIR/remote.git"
+    git remote add origin "$TEST_DIR/remote.git"
+    local head
+    head=$(git rev-parse HEAD)
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" fix -n 1 --no-metrics
+    [[ "$status" -eq 0 ]]
+    [[ "$(cat .ralph/cycle-base)" == ". $head" ]]
+    [[ "$(git rev-parse HEAD)" != "$head" ]]
+    [[ "$(git --git-dir="$TEST_DIR/remote.git" rev-parse "$(git branch --show-current)")" == "$(git rev-parse HEAD)" ]]
+}
+
+@test "fix stops on a plan with no open item" {
+    "$RALPH" init
+    run "$RALPH" fix --dry-run
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: no incomplete items in IMPLEMENTATION_PLAN.md. Run 'ralph plan' first."* ]]
+}

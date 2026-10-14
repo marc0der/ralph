@@ -34,7 +34,8 @@ load test_helper
     # Spec (review-phase.md section 8): review is a third mode beside plan and
     # build, so the synopsis must offer all three. A synopsis that still reads
     # 'plan|build' leaves the mode undiscoverable from --help alone.
-    [[ "$output" == *"ralph <plan|build|review> [options]"* ]]
+    [[ "$output" == *"ralph <plan|build|fix|review> [options]"* ]]
+    [[ "$output" == *"fix            Run build with the fix section of the config file"* ]]
 }
 
 @test "ralph --help lists review in the Modes block" {
@@ -62,7 +63,7 @@ load test_helper
     [[ "$status" -eq 0 ]]
     # Spec (plan-commits-specs.md "No push"): only build pushes, so
     # --skip-push stays inert for plan and review.
-    [[ "$output" == *"--skip-push"*"build iteration (plan and review"*"never push)"* ]]
+    [[ "$output" == *"--skip-push"*"build or fix iteration (plan and review"*"never push)"* ]]
 }
 
 @test "ralph --help marks the goal as plan-and-auto only and required" {
