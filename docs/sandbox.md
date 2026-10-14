@@ -11,7 +11,7 @@ Each project gets its own container, reused between sessions. Shell history live
 
 ## What's installed
 
-Claude Code, the Codex CLI, the Copilot CLI, pi, Node.js 20, Bun, uv, SDKMAN, the Docker CLI, gh, git, zsh, jq and ripgrep.
+Claude Code, the Codex CLI, the Copilot CLI, pi, Node.js 20, Bun, uv, SDKMAN, the Docker CLI, gh, git, zsh, jq, mikefarah yq v4 and ripgrep.
 
 SDKMAN comes without a JDK. If your project has a `.sdkmanrc`, run `sdk env install` inside the sandbox.
 

@@ -45,6 +45,12 @@ RUN ARCH=$(dpkg --print-architecture) \
   && dpkg -i "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb" \
   && rm "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb"
 
+# yq (mikefarah v4; parses ralph.yaml)
+ARG YQ_VERSION=4.47.2
+RUN ARCH=$(dpkg --print-architecture) \
+  && wget -q -O /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_${ARCH}" \
+  && chmod 0755 /usr/local/bin/yq
+
 # Passwordless sudo for node user
 RUN echo "node ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/node \
   && chmod 0440 /etc/sudoers.d/node
