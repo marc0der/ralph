@@ -88,7 +88,7 @@ Uses the `devcontainer` CLI to manage container lifecycle. Key details:
 - `~/.local/bin/ralph` — CLI binary
 - `~/.config/ralph/prompts/` — default plan/build prompt templates
 - `~/.config/ralph/templates/` — artifact templates (PROGRESS.md)
-- `~/.config/ralph/config.yaml` — central config file, overwritten on every install; a workspace `./ralph.yaml` replaces it whole
+- `~/.config/ralph/config.yaml` — central config file, overwritten on every install; a workspace `./ralph.yaml` replaces it whole, copied from templates/config.yaml
 - `~/.config/ralph/container/` — devcontainer config + Dockerfile
 
 Override with `RALPH_BIN_DIR` and `RALPH_CONFIG_DIR`.
