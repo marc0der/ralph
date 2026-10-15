@@ -93,6 +93,13 @@ Uses the `devcontainer` CLI to manage container lifecycle. Key details:
 
 Override with `RALPH_BIN_DIR` and `RALPH_CONFIG_DIR`.
 
+## Spec conventions
+
+- Name each spec `specs/NNN-kebab-name.md`, where `NNN` is the next free three-digit number. Numbers follow creation order.
+- Start a new spec from `specs/000-spec-template.md`. The template defines the frontmatter: `id`, `created`, `area`, and the relation keys `supersedes`, `amends`, `extends` and `related`.
+- A later spec can override part or all of an earlier one. Record that relation in the later spec's frontmatter and intro, and never edit the earlier spec to record it.
+- The frontmatter is for people and agents to read. No part of Ralph parses it.
+
 ## Testing conventions
 
 - Tests use **BATS** v1.5.0+ (Bash Automated Testing System)
