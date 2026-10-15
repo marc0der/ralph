@@ -39,10 +39,44 @@ defaults:
   quiet: false
 
 plan:
+  # backend: one of claude, codex, copilot, pi. Phases: all. Flag: -b.
+  # Unset: the defaults backend applies. A different backend inherits no
+  # model, effort or extra_args from defaults.
+  # backend: claude
+
+  # model: non-empty string. Phases: all. Flag: -m.
+  # Unset: the defaults model applies.
+  # model: opus
+
+  # effort: a level the backend lists. Phases: all. Flag: -e.
+  # Unset: the defaults effort applies.
+  # effort: max
+
+  # extra_args: list of strings. Phases: all. Flag: none.
+  # Unset: the defaults extra_args apply.
+  # extra_args: []
+
   # iterations: positive integer, the plan cap. Phases: plan, build, fix. Flag: -n.
   # iterations: 6
 
 build:
+  # backend: one of claude, codex, copilot, pi. Phases: all. Flag: -b.
+  # Unset: the defaults backend applies. A different backend inherits no
+  # model, effort or extra_args from defaults.
+  # backend: claude
+
+  # model: non-empty string. Phases: all. Flag: -m.
+  # Unset: the defaults model applies.
+  # model: sonnet
+
+  # effort: a level the backend lists. Phases: all. Flag: -e.
+  # Unset: the defaults effort applies.
+  # effort: medium
+
+  # extra_args: list of strings. Phases: all. Flag: none.
+  # Unset: the defaults extra_args apply.
+  # extra_args: []
+
   # iterations: positive integer. Phases: plan, build, fix. Flag: -n.
   # Unset: build sizes itself from the open items. Setting it turns off
   # self-sizing and the noop exit, so it conflicts with headroom_pct and
@@ -63,6 +97,23 @@ build:
 fix:
   # fix runs `ralph fix`, auto's phase 6. It does not inherit from build.
 
+  # backend: one of claude, codex, copilot, pi. Phases: all. Flag: -b.
+  # Unset: the defaults backend applies. A different backend inherits no
+  # model, effort or extra_args from defaults.
+  # backend: claude
+
+  # model: non-empty string. Phases: all. Flag: -m.
+  # Unset: the defaults model applies.
+  # model: sonnet
+
+  # effort: a level the backend lists. Phases: all. Flag: -e.
+  # Unset: the defaults effort applies.
+  # effort: high
+
+  # extra_args: list of strings. Phases: all. Flag: none.
+  # Unset: the defaults extra_args apply.
+  # extra_args: []
+
   # iterations: positive integer. Phases: plan, build, fix. Flag: -n.
   # iterations: 10
 
@@ -78,3 +129,20 @@ fix:
 review:
   # review runs one pass and rejects iterations. It takes only the keys
   # whose phases read "all"; set them here to override defaults for review.
+
+  # backend: one of claude, codex, copilot, pi. Phases: all. Flag: -b.
+  # Unset: the defaults backend applies. A different backend inherits no
+  # model, effort or extra_args from defaults.
+  # backend: codex
+
+  # model: non-empty string. Phases: all. Flag: -m.
+  # Unset: the defaults model applies.
+  # model: gpt-5-codex
+
+  # effort: a level the backend lists. Phases: all. Flag: -e.
+  # Unset: the defaults effort applies.
+  # effort: xhigh
+
+  # extra_args: list of strings. Phases: all. Flag: none.
+  # Unset: the defaults extra_args apply.
+  # extra_args: []
