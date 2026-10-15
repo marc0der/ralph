@@ -28,7 +28,7 @@ cp "$SCRIPT_DIR/container/Dockerfile" "$CONFIG_DIR/container/Dockerfile"
 cp "$SCRIPT_DIR/container/devcontainer.json" "$CONFIG_DIR/container/devcontainer.json"
 echo "  Container:  $CONFIG_DIR/container/"
 
-cp "$SCRIPT_DIR/config.yaml" "$CONFIG_DIR/config.yaml"
+cp "$SCRIPT_DIR/templates/config.yaml" "$CONFIG_DIR/config.yaml"
 echo "  Config:     $CONFIG_DIR/config.yaml"
 
 # Same check as ralph's require_yq: the Python yq wrapper shares the binary name.

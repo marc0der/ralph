@@ -641,7 +641,19 @@ run_build_with_config() {
     RALPH_BIN_DIR="$TEST_DIR/install-bin" run "$BATS_TEST_DIRNAME/../install.sh"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Config:     $RALPH_CONFIG_DIR/config.yaml"* ]]
-    cmp "$BATS_TEST_DIRNAME/../config.yaml" "$RALPH_CONFIG_DIR/config.yaml"
+    cmp "$BATS_TEST_DIRNAME/../templates/config.yaml" "$RALPH_CONFIG_DIR/config.yaml"
+}
+
+@test "the repository root holds no config.yaml" {
+    [[ ! -e "$BATS_TEST_DIRNAME/../config.yaml" ]]
+    [[ -f "$BATS_TEST_DIRNAME/../templates/config.yaml" ]]
+}
+
+@test "install.sh writes no config.yaml under templates" {
+    RALPH_BIN_DIR="$TEST_DIR/install-bin" run "$BATS_TEST_DIRNAME/../install.sh"
+    [[ "$status" -eq 0 ]]
+    [[ -f "$RALPH_CONFIG_DIR/config.yaml" ]]
+    [[ ! -e "$RALPH_CONFIG_DIR/templates/config.yaml" ]]
 }
 
 @test "install.sh warns when mikefarah yq v4 is absent" {
@@ -667,7 +679,7 @@ run_build_with_config() {
 
 @test "the shipped config.yaml validates and sets no backend-tied key" {
     require_yq_or_skip
-    cp "$BATS_TEST_DIRNAME/../config.yaml" "$RALPH_CONFIG_DIR/config.yaml"
+    cp "$BATS_TEST_DIRNAME/../templates/config.yaml" "$RALPH_CONFIG_DIR/config.yaml"
     "$RALPH" init
     seed_open_item
     run --separate-stderr "$RALPH" build -b codex --dry-run
@@ -695,7 +707,7 @@ dry_run_config_blocks() {
     "$RALPH" init
     seed_shipped_item
     seed_cycle_base
-    cp "$BATS_TEST_DIRNAME/../config.yaml" "$RALPH_CONFIG_DIR/config.yaml"
+    cp "$BATS_TEST_DIRNAME/../templates/config.yaml" "$RALPH_CONFIG_DIR/config.yaml"
     local shipped builtin
     shipped=$(dry_run_config_blocks)
     rm "$RALPH_CONFIG_DIR/config.yaml"
