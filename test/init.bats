@@ -133,3 +133,11 @@ load test_helper
     [[ -f "PROMPT_build.md" ]]
     [[ -f "PROMPT_review.md" ]]
 }
+
+@test "the repository .gitignore holds every entry init adds" {
+    cp "$BATS_TEST_DIRNAME/../.gitignore" .gitignore
+    run "$RALPH" init
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"Added to .gitignore:"* ]]
+    cmp .gitignore "$BATS_TEST_DIRNAME/../.gitignore"
+}
