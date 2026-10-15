@@ -1,3 +1,11 @@
+---
+id: "019"
+created: 2026-10-14
+area: [config, auto]
+amends: ["012"]
+related: ["018"]
+---
+
 # Phase Config
 
 Ralph takes its per-run settings from CLI flags only. This spec adds a YAML file that sets the

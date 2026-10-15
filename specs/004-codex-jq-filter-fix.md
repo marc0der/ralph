@@ -1,3 +1,10 @@
+---
+id: "004"
+created: 2026-04-01
+area: [backend]
+amends: ["001"]
+---
+
 # Codex Backend jq Filter Fix
 
 ## Problem

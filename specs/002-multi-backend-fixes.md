@@ -1,3 +1,10 @@
+---
+id: "002"
+created: 2026-03-31
+area: [backend, sandbox]
+amends: ["001"]
+---
+
 # Multi-Backend Fixes
 
 Corrective follow-up to the multi-backend spec. The codex backend was wired into the ralph script but the devcontainer sandbox doesn't have codex installed or its credentials mounted, the `RALPH_BACKEND` env var should be removed, and the README and CLAUDE.md are out of date.

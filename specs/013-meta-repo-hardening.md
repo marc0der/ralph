@@ -1,3 +1,11 @@
+---
+id: "013"
+created: 2026-09-15
+area: [git, plan, build, review, auto]
+amends: ["010", "012"]
+extends: ["011"]
+---
+
 # Meta Repository Hardening
 
 Ralph serves two workspace shapes. The first is a standalone service repository: one `.git`, one

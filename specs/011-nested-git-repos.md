@@ -1,3 +1,9 @@
+---
+id: "011"
+created: 2026-09-14
+area: [build, git]
+---
+
 # Nested Git Repositories
 
 Ralph measures a build iteration by watching `HEAD`. `cmd_loop` snapshots `git rev-parse HEAD`

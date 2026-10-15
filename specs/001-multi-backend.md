@@ -1,3 +1,9 @@
+---
+id: "001"
+created: 2026-03-31
+area: [backend]
+---
+
 # Multi-Backend Support
 
 Ralph currently only works with Claude Code. This spec describes support for multiple AI coding agent backends, starting with Claude and OpenAI Codex.

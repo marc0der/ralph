@@ -1,3 +1,10 @@
+---
+id: "006"
+created: 2026-05-28
+area: [backend, sandbox]
+extends: ["001"]
+---
+
 # Copilot Backend
 
 Ralph supports `claude` and `codex` backends (see `001-multi-backend.md`). This spec adds GitHub Copilot CLI (`@github/copilot`) as a third backend, selectable via `-b copilot` / `--backend copilot`.

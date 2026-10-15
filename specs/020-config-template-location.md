@@ -1,3 +1,10 @@
+---
+id: "020"
+created: 2026-10-15
+area: [config]
+amends: ["019"]
+---
+
 # Config Template Location
 
 The shipped config file lives at the repository root as `config.yaml`. In a checkout of Ralph

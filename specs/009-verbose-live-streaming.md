@@ -1,3 +1,11 @@
+---
+id: "009"
+created: 2026-09-08
+area: [output]
+extends: ["003"]
+related: ["004", "007"]
+---
+
 # Live Backend Streaming in Verbose Mode
 
 The `plan` and `build` loops report no backend activity while an iteration runs. A real iteration lasts tens of minutes, so the user sees the iteration banner, then silence, then a single block of summary text when the iteration ends. The backends are not at fault: `claude` and `pi` both emit line-buffered JSON events in real time. Ralph discards that timing by capturing the whole stream before it parses anything.

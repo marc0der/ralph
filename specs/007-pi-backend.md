@@ -1,3 +1,11 @@
+---
+id: "007"
+created: 2026-06-04
+area: [backend, sandbox]
+extends: ["001"]
+related: ["006"]
+---
+
 # Pi Backend
 
 Ralph supports `claude`, `codex`, and `copilot` backends (see `001-multi-backend.md`, `006-copilot-backend.md`). This spec adds pi (`@earendil-works/pi-coding-agent`) as a fourth backend, selectable via `-b pi` / `--backend pi`.

@@ -1,3 +1,11 @@
+---
+id: "014"
+created: 2026-09-21
+area: [review]
+amends: ["010"]
+related: ["012"]
+---
+
 # Spec-Anchored Review
 
 Corrective follow-up to `specs/010-review-phase.md`. That spec anchored the review phase on

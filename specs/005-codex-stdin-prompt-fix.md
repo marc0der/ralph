@@ -1,3 +1,10 @@
+---
+id: "005"
+created: 2026-04-02
+area: [backend]
+amends: ["001"]
+---
+
 # Codex Backend Prompt Delivery Fix
 
 The codex backend fails at runtime with `write_stdin failed: Unknown process id 0` because ralph pipes the prompt via stdin, but `codex exec` expects the prompt as a positional CLI argument. The claude backend is unaffected because `claude -p` explicitly reads from stdin.

@@ -1,3 +1,10 @@
+---
+id: "017"
+created: 2026-09-30
+area: [plan, git, auto]
+related: ["013", "016"]
+---
+
 # Plan Commits Specs
 
 `plan` records decisions in `specs/`. This spec makes Ralph commit those changes at the end of

@@ -1,3 +1,9 @@
+---
+id: "010"
+created: 2026-09-10
+area: [review]
+---
+
 # Adversarial Review Phase
 
 Ralph has two phases. `plan` reads `specs/` and writes work items. `build` implements them one

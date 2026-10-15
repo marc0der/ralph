@@ -1,3 +1,10 @@
+---
+id: "012"
+created: 2026-09-14
+area: [auto]
+related: ["010"]
+---
+
 # Unattended Lifecycle (`auto`)
 
 Ralph has four commands that a human strings together by hand. A full cycle is `ralph archive` to

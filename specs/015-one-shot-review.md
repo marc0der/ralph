@@ -1,3 +1,11 @@
+---
+id: "015"
+created: 2026-09-29
+area: [review]
+amends: ["014"]
+related: ["010"]
+---
+
 # One-Shot Review
 
 Corrective follow-up to `specs/014-spec-anchored-review.md`. That spec made review a spec-fidelity

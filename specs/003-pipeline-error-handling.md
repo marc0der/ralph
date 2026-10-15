@@ -1,3 +1,9 @@
+---
+id: "003"
+created: 2026-04-01
+area: [output]
+---
+
 # Pipeline Error Handling & Verbose Mode
 
 The backend execution pipeline in `cmd_loop` silently exits on failure. Because the script uses `set -euo pipefail`, any error in the backend command or the jq post-processing kills the script with no ralph-level diagnostic. The user sees the loop banner, then nothing.

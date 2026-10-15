@@ -1,3 +1,10 @@
+---
+id: "018"
+created: 2026-10-01
+area: [output]
+amends: ["009"]
+---
+
 # Verbose by Default
 
 Follow-up to `specs/009-verbose-live-streaming.md`. That spec gave `plan` and `build` live per-event

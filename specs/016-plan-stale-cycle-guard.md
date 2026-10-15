@@ -1,3 +1,10 @@
+---
+id: "016"
+created: 2026-09-30
+area: [plan, auto]
+extends: ["015"]
+---
+
 # Plan Stale Cycle Guard
 
 Follow-up to `specs/015-one-shot-review.md` §3. That spec made `.ralph/cycle-base` a cycle artifact that

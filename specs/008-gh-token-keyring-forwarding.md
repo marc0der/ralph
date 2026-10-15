@@ -1,3 +1,9 @@
+---
+id: "008"
+created: 2026-06-06
+area: [sandbox]
+---
+
 # GitHub Token Keyring Forwarding
 
 The `gh` CLI fails inside the sandbox with a stale/invalid token error, even though `gh auth status` on the host reports a healthy login (e.g. `Logged in to github.com account marc0der (keyring)`). The regression was introduced by `gh`'s migration to OS-keyring token storage: ralph propagates GitHub auth into the container by bind-mounting `~/.config/gh`, but the token no longer lives in that directory — it lives in the host keyring, which is not reachable from inside the container.
