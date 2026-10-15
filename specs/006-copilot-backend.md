@@ -1,10 +1,10 @@
 # Copilot Backend
 
-Ralph supports `claude` and `codex` backends (see `multi-backend.md`). This spec adds GitHub Copilot CLI (`@github/copilot`) as a third backend, selectable via `-b copilot` / `--backend copilot`.
+Ralph supports `claude` and `codex` backends (see `001-multi-backend.md`). This spec adds GitHub Copilot CLI (`@github/copilot`) as a third backend, selectable via `-b copilot` / `--backend copilot`.
 
 ## Supported Backends
 
-Extends the list in `multi-backend.md`:
+Extends the list in `001-multi-backend.md`:
 
 ### Copilot
 

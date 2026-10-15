@@ -1,6 +1,6 @@
 # Verbose by Default
 
-Follow-up to `specs/verbose-live-streaming.md`. That spec gave `plan` and `build` live per-event
+Follow-up to `specs/009-verbose-live-streaming.md`. That spec gave `plan` and `build` live per-event
 rendering, gated on `-v` / `--verbose`. This spec makes that output the default and adds
 `-q` / `--quiet` to turn it off.
 
@@ -113,7 +113,7 @@ no arguments and ignore it, and `metrics` reads it as a file path. Those four ga
 - **Comments.** Code comments in `ralph` and the tests that name `--verbose` as Ralph's flag name
   `--quiet` or the default instead, so no comment describes a flag that no longer exists.
 
-`specs/verbose-live-streaming.md` is a chronological record and does not change.
+`specs/009-verbose-live-streaming.md` is a chronological record and does not change.
 
 ## 10. Tests
 

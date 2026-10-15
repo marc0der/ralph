@@ -355,7 +355,7 @@ ralph auto [options]
 
 | Flag | Behaviour |
 |------|-----------|
-| `-g, --goal TEXT` | Required, and forwarded to the `plan` phase alone; `prompts/plan.md` substitutes `{{GOAL}}`. `specs/meta-repo-hardening.md` §12 supersedes the original rule, which passed the flag to all three loop phases. |
+| `-g, --goal TEXT` | Required, and forwarded to the `plan` phase alone; `prompts/plan.md` substitutes `{{GOAL}}`. `specs/013-meta-repo-hardening.md` §12 supersedes the original rule, which passed the flag to all three loop phases. |
 | `-m, --model MODEL` | Passed through. One model for the lifecycle. |
 | `-b, --backend NAME` | Passed through. One backend for the lifecycle. |
 | `--skip-push` | Passed through. Inert for `plan` and `review`, as it already is (`ralph:1532`). |
@@ -480,7 +480,7 @@ Cases:
 - `--dry-run` invokes nothing: no archive, no artifacts created in an uninitialised workspace, no
   metrics directory, and it succeeds where a real run would have needed `init`.
 - `--dry-run` states that guards are evaluated at run time.
-- `-m` and `-b` reach the children, asserted from the dry-run command line. `specs/meta-repo-hardening.md` §12 moves `-g` to the plan phase alone and replaces its case.
+- `-m` and `-b` reach the children, asserted from the dry-run command line. `specs/013-meta-repo-hardening.md` §12 moves `-g` to the plan phase alone and replaces its case.
 - `-v`, `--skip-push`, `--no-metrics` reach the children, asserted by behaviour as described above.
 - `-y` is accepted and changes nothing.
 - The report prints on success, on skip, on abort and on a resume.
@@ -504,7 +504,7 @@ Cases:
 
 **Close the lifecycle over its own output.** §2 accepts that review's findings are built and never
 audited — the one place the lifecycle is not self-checking, and the same gap
-`specs/review-phase.md` opened the review phase to close, one level up. The fix is the fixpoint:
+`specs/010-review-phase.md` opened the review phase to close, one level up. The fix is the fixpoint:
 repeat `build` until the queue is empty, then `review`, stopping when a pass files nothing. Both
 halves exist — `review` converges on `plan_state_hash`, and §3's guards are the loop conditions. What
 is missing is a cost bound an operator can reason about beforehand, and the right unit is agent runs

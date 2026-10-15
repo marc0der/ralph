@@ -36,7 +36,7 @@ config any other workspace gets.
 
 - `CLAUDE.md` and `AGENTS.md`: the `~/.config/ralph/config.yaml` entry in the installation layout
   ends with `, copied from templates/config.yaml`.
-- `specs/phase-config.md` is a chronological record and does not change.
+- `specs/019-phase-config.md` is a chronological record and does not change.
 
 ## Testing
 

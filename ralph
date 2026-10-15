@@ -25,9 +25,9 @@ while [[ -L $RALPH_SELF ]]; do
 done
 RALPH_SELF="$(cd -P "$(dirname "$RALPH_SELF")" && pwd)/$(basename "$RALPH_SELF")"
 
-# `auto` lifecycle state (specs/auto-lifecycle.md §5, §2).
+# `auto` lifecycle state (specs/012-auto-lifecycle.md §5, §2).
 AUTO_STATE_FILE="$ARCHIVE_DIR/auto-state"
-# HEAD of every repository before the cycle's first build (specs/one-shot-review.md §3).
+# HEAD of every repository before the cycle's first build (specs/015-one-shot-review.md §3).
 CYCLE_BASE_FILE="$ARCHIVE_DIR/cycle-base"
 RALPH_PHASES=(archive init plan build review fix)
 RESUME_FLOOR=3
@@ -38,7 +38,7 @@ RESUME_FLOOR=3
 RALPH_TEMP_STREAM=""
 
 # The plan pass in flight, script-scoped so the EXIT trap can guard and commit
-# it after a backend failure or an interrupt; see specs/plan-commits-specs.md.
+# it after a backend failure or an interrupt; see specs/017-plan-commits-specs.md.
 RALPH_PLAN_ARMED=false
 RALPH_PLAN_PASS=0
 RALPH_PLAN_STATE_BEFORE=""
@@ -679,7 +679,7 @@ resolve_prompt() {
     fi
 }
 
-# specs/phase-config.md §2. A whole-file override: the central copy never fills
+# specs/019-phase-config.md §2. A whole-file override: the central copy never fills
 # a gap in the local one. Prints nothing when neither exists.
 resolve_config() {
     local central_file="$CONFIG_DIR/config.yaml"
@@ -703,7 +703,7 @@ config_source_label() {
     fi
 }
 
-# specs/phase-config.md §3. The Python yq wrapper shares the binary name but
+# specs/019-phase-config.md §3. The Python yq wrapper shares the binary name but
 # not the syntax, so the version line must name mikefarah.
 require_yq() {
     local config_file="$1"
@@ -744,7 +744,7 @@ require_valid_config() {
     validate_config "$config_file"
 }
 
-# specs/phase-config.md §5. Prints the section's value, else the defaults
+# specs/019-phase-config.md §5. Prints the section's value, else the defaults
 # value, else nothing; a list prints one item per line. Backend-tied keys stop
 # inheriting when the section names a backend other than the defaults one.
 config_get() {
@@ -767,7 +767,7 @@ config_get() {
         | if . == null then empty elif type == "array" then .[] else tostring end'
 }
 
-# specs/phase-config.md §5. A -b that changes the backend drops the file's
+# specs/019-phase-config.md §5. A -b that changes the backend drops the file's
 # backend-tied keys; the warning names only the keys the file set.
 warn_dropped_config_keys() {
     local cli_backend="$1" config_backend="$2" section="$3"
@@ -783,7 +783,7 @@ warn_dropped_config_keys() {
     echo "Warning: -b $cli_backend overrides config backend '$config_backend' for $section; dropped ${joined%, }." >&2
 }
 
-# specs/phase-config.md §10. Printed under --quiet and --dry-run too, so every
+# specs/019-phase-config.md §10. Printed under --quiet and --dry-run too, so every
 # run records the settings it resolved.
 print_config_block() {
     local config_file="$1" section="$2" mode="$3" model="$4" effort="$5"
@@ -812,7 +812,7 @@ print_config_block() {
     } >&2
 }
 
-# specs/phase-config.md §8. Checks every section, not only the one the run
+# specs/019-phase-config.md §8. Checks every section, not only the one the run
 # reads, so a typo in review fails a build. Prints every error, then exits 1.
 validate_config() {
     local config_file="$1" levels_json errors backend_name
@@ -1019,7 +1019,7 @@ require_open_items() {
 }
 
 # Refuse to plan a new cycle on top of a built one; see
-# specs/plan-stale-cycle-guard.md.
+# specs/016-plan-stale-cycle-guard.md.
 require_fresh_cycle() {
     if have_stale_cycle_base; then
         echo "Error: .ralph/cycle-base is left from a cycle that was built but not archived." >&2
@@ -1029,7 +1029,7 @@ require_fresh_cycle() {
 }
 
 # Refuse to plan over the operator's spec edits, because Ralph commits the
-# planner's spec changes when the run ends; see specs/plan-commits-specs.md.
+# planner's spec changes when the run ends; see specs/017-plan-commits-specs.md.
 require_clean_specs() {
     local repo
     if repo=$(have_dirty_specs); then
@@ -1039,7 +1039,7 @@ require_clean_specs() {
     fi
 }
 
-# Ralph never creates a branch for the operator; see specs/plan-commits-specs.md.
+# Ralph never creates a branch for the operator; see specs/017-plan-commits-specs.md.
 require_attached_spec_repos() {
     local repo
     if repo=$(have_detached_spec_repo); then
@@ -1172,7 +1172,7 @@ cycle_changed_files() {
 }
 
 # Fail a plan pass that moved a HEAD or deleted a spec; see
-# specs/plan-commits-specs.md.
+# specs/017-plan-commits-specs.md.
 check_plan_pass() {
     local iteration="$1" state_before="$2" state_after="$3" prompt_file="$4"
     local repo sha path
@@ -1195,7 +1195,7 @@ check_plan_pass() {
 }
 
 # Commit the planner's spec changes, one commit per repository, and bump the
-# workspace gitlink of a nested submodule; see specs/plan-commits-specs.md.
+# workspace gitlink of a nested submodule; see specs/017-plan-commits-specs.md.
 commit_plan_specs() {
     local repos repo changes count message output path gitlink short_sha
     repos=$(dirty_spec_repos)
@@ -1233,7 +1233,7 @@ commit_plan_specs() {
 }
 
 # Guard the last plan pass and commit the run's spec changes, once, on every
-# end of a started plan run; see specs/plan-commits-specs.md.
+# end of a started plan run; see specs/017-plan-commits-specs.md.
 finish_plan_run() {
     [[ "$RALPH_PLAN_ARMED" == "true" ]] || return 0
     RALPH_PLAN_ARMED=false
@@ -1465,7 +1465,7 @@ cmd_loop() {
         case "$1" in
             -n|--iterations) max_iterations="$2"; shift 2 ;;
             -g|--goal)
-                # specs/meta-repo-hardening.md §12. build and review derive
+                # specs/013-meta-repo-hardening.md §12. build and review derive
                 # their work from IMPLEMENTATION_PLAN.md, so a goal cannot
                 # change what they do. The refusal names the reason; dropping
                 # 'g:' from the getopt spec per mode would yield a bare
@@ -1514,7 +1514,7 @@ cmd_loop() {
         hard_override=true
     fi
 
-    # specs/one-shot-review.md §12. Review audits the cycle in a single pass.
+    # specs/015-one-shot-review.md §12. Review audits the cycle in a single pass.
     if $hard_override && [[ "$mode" == "review" ]]; then
         echo "Error: review runs one pass; -n does not apply." >&2
         exit 1
@@ -1531,7 +1531,7 @@ cmd_loop() {
     # with no shipped item has nothing to audit, and neither '-n' nor
     # '--dry-run' may turn any of them into a run of empty iterations.
     if [[ "$mode" == "plan" ]]; then
-        # specs/meta-repo-hardening.md §12. plan derives its work from the goal;
+        # specs/013-meta-repo-hardening.md §12. plan derives its work from the goal;
         # with none it plans against whatever specs/ it happens to resolve,
         # which in a meta repository is the wrong node's.
         if [[ -z "$goal" ]]; then
@@ -2146,7 +2146,7 @@ cmd_loop() {
                 fi
             fi
 
-            # Review must never alter a '- [x]' marker (specs/review-phase.md
+            # Review must never alter a '- [x]' marker (specs/010-review-phase.md
             # section 4). An un-tick erases the record that the work was
             # committed, hides that a defect escaped, and lets the item
             # oscillate between '[ ]' and '[x]' across review and build runs,
@@ -2257,7 +2257,7 @@ write_auto_state() {
 
 cmd_auto() {
     # '-n' is rejected because each phase resolves its own iteration count
-    # (see specs/auto-lifecycle.md §8).
+    # (see specs/012-auto-lifecycle.md §8).
     local goal=""
     local model=""
     local backend=""
@@ -2321,7 +2321,7 @@ cmd_auto() {
         echo "auto: running outside a container with --force." >&2
     fi
 
-    # Goal precondition (specs/meta-repo-hardening.md §12). auto's first loop
+    # Goal precondition (specs/013-meta-repo-hardening.md §12). auto's first loop
     # phase is plan, which derives its work from the goal; with none, plan
     # plans against whatever specs/ it happens to resolve. The check sits below
     # the container guard and above every state-changing step, so --dry-run and
@@ -2331,7 +2331,7 @@ cmd_auto() {
         exit 1
     fi
 
-    # specs/phase-config.md §7. Each child resolves its own section, but a bad
+    # specs/019-phase-config.md §7. Each child resolves its own section, but a bad
     # file must stop auto before phase 1 and under --dry-run.
     local config_file
     config_file=$(resolve_config)
@@ -2411,7 +2411,7 @@ cmd_auto() {
     # no such flags, so they are invoked bare. Every child gets -y: auto is the
     # unattended runner and answers its own prompts (§7). -g is not among them:
     # build and review refuse it, so it joins the plan phase's own command line
-    # (specs/meta-repo-hardening.md §12).
+    # (specs/013-meta-repo-hardening.md §12).
     local child_flags=()
     [[ -n $model ]]   && child_flags+=(-m "$model")
     [[ -n $backend ]] && child_flags+=(-b "$backend")

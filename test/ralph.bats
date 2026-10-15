@@ -17,7 +17,7 @@ load test_helper
 @test "ralph --help enumerates all supported backends on the -b/--backend line" {
     run "$RALPH" --help
     [[ "$status" -eq 0 ]]
-    # Spec (pi-backend.md): the -b/--backend description must list pi alongside
+    # Spec (007-pi-backend.md): the -b/--backend description must list pi alongside
     # the existing claude/codex/copilot backends. Assert all four names appear
     # on the backend-flag line so dropping any one trips this test.
     [[ "$output" == *"--backend NAME"*"claude"*"codex"*"copilot"*"pi"* ]]
@@ -31,7 +31,7 @@ load test_helper
 @test "ralph --help names review in the synopsis line" {
     run "$RALPH" --help
     [[ "$status" -eq 0 ]]
-    # Spec (review-phase.md section 8): review is a third mode beside plan and
+    # Spec (010-review-phase.md section 8): review is a third mode beside plan and
     # build, so the synopsis must offer all three. A synopsis that still reads
     # 'plan|build' leaves the mode undiscoverable from --help alone.
     [[ "$output" == *"ralph <plan|build|fix|review> [options]"* ]]
@@ -41,7 +41,7 @@ load test_helper
 @test "ralph --help lists review in the Modes block" {
     run "$RALPH" --help
     [[ "$status" -eq 0 ]]
-    # Spec (one-shot-review.md section 13) fixes this wording: review makes one
+    # Spec (015-one-shot-review.md section 13) fixes this wording: review makes one
     # pass over the cycle's work and files what it finds as new plan items.
     [[ "$output" == *"review"*"Review the cycle's work in one pass and file findings as new plan items"* ]]
 }
@@ -49,7 +49,7 @@ load test_helper
 @test "ralph --help states plan's iteration default and that review rejects -n" {
     run "$RALPH" --help
     [[ "$status" -eq 0 ]]
-    # Spec (one-shot-review.md section 13): review runs exactly one pass and
+    # Spec (015-one-shot-review.md section 13): review runs exactly one pass and
     # rejects -n, so the -n help names plan's default alone and never implies
     # review converges over several passes.
     [[ "$output" == *"--iterations N"*"plan default: 6"* ]]
@@ -61,7 +61,7 @@ load test_helper
 @test "ralph --help states that review never pushes" {
     run "$RALPH" --help
     [[ "$status" -eq 0 ]]
-    # Spec (plan-commits-specs.md "No push"): only build pushes, so
+    # Spec (017-plan-commits-specs.md "No push"): only build pushes, so
     # --skip-push stays inert for plan and review.
     [[ "$output" == *"--skip-push"*"build or fix iteration (plan and review"*"never push)"* ]]
 }
@@ -69,7 +69,7 @@ load test_helper
 @test "ralph --help marks the goal as plan-and-auto only and required" {
     run "$RALPH" --help
     [[ "$status" -eq 0 ]]
-    # Spec (meta-repo-hardening.md section 12, "The goal is required"): plan
+    # Spec (013-meta-repo-hardening.md section 12, "The goal is required"): plan
     # derives its work from the goal and refuses a run without one, and auto
     # forwards the goal to its plan phase. build and review reject -g because
     # their input is IMPLEMENTATION_PLAN.md. A bare "Goal to inject into the
@@ -79,7 +79,7 @@ load test_helper
 }
 
 @test "commands without verbose output refuse -q and --quiet" {
-    # Spec (verbose-by-default.md section 8): only plan, build, review and auto
+    # Spec (018-verbose-by-default.md section 8): only plan, build, review and auto
     # accept the flag; every other command exits 1 with an error on stderr.
     local command flag
     for command in sandbox init archive clean metrics version; do

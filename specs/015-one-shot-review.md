@@ -1,9 +1,9 @@
 # One-Shot Review
 
-Corrective follow-up to `specs/spec-anchored-review.md`. That spec made review a spec-fidelity
+Corrective follow-up to `specs/014-spec-anchored-review.md`. That spec made review a spec-fidelity
 auditor that repeats passes until one changes nothing. This spec makes review the cycle's
 gatekeeper: one pass, three standards of equal weight, and a closed catalogue of defects. It
-replaces sections 4 to 12 of `spec-anchored-review.md`, and keeps its section 3, the anchor set.
+replaces sections 4 to 12 of `014-spec-anchored-review.md`, and keeps its section 3, the anchor set.
 The decision to stop repeating passes is recorded in `docs/adr/0001-one-shot-review.md`. The terms
 used here are defined in `CONTEXT.md`.
 
@@ -48,7 +48,7 @@ as done.
 - **Consequence ranks findings.** Severity measures what the defect does, whatever standard it
   breaks.
 
-The ban on judging decomposition from `review-phase.md` §1 stands. "I would have split this item
+The ban on judging decomposition from `010-review-phase.md` §1 stands. "I would have split this item
 differently" is still unfileable. What is lifted is the reading that a faithful implementation of a
 flawed step is not a defect. **A defect in the cycle's work is a finding even when the code does
 exactly what its item said.**
@@ -78,7 +78,7 @@ Review reads the base and never writes it.
 
 ### Spec clauses
 
-Unchanged from `spec-anchored-review.md` §3. The anchor set is the distinct `specs/` paths in the
+Unchanged from `014-spec-anchored-review.md` §3. The anchor set is the distinct `specs/` paths in the
 plan's `Spec:` fields. Review reads each spec in the set whole, and reads no spec outside it. A
 clause is in range whether or not an item decomposed it. The range is the whole tree. Review never
 creates or edits anything under `specs/`.
@@ -191,7 +191,7 @@ sequence, in one context. Each lens returns candidate findings with their proof,
 The main context verifies each proof, merges duplicates across lenses, groups by kind, ranks, and
 writes. Never run build or test commands in more than one subagent at a time.
 
-`spec-anchored-review.md` forbade splitting the judgement because the cap forced relative ranking.
+`014-spec-anchored-review.md` forbade splitting the judgement because the cap forced relative ranking.
 Without a cap, and with severity defined by consequence, the lenses need not rank against each
 other. The merge stays in one context, because only it sees duplicates across lenses.
 
@@ -231,7 +231,7 @@ The findings count is the open items after the pass. The spec count is `cited_sp
 count is the distinct changed paths from the base to `HEAD`, across every repository the base lists,
 plus the tracked files of every repository created during the cycle. A clean review still prints
 counts, so it stays distinguishable from a backend that did nothing, which is the reason the exit
-line exists in `review-phase.md` §5.
+line exists in `010-review-phase.md` §5.
 
 The guard that stops a pass which reduces the shipped-item count stays.
 

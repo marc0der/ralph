@@ -1,6 +1,6 @@
 # Plan Stale Cycle Guard
 
-Follow-up to `specs/one-shot-review.md` §3. That spec made `.ralph/cycle-base` a cycle artifact that
+Follow-up to `specs/015-one-shot-review.md` §3. That spec made `.ralph/cycle-base` a cycle artifact that
 `archive` and `clean` remove. This spec stops `plan` from starting a new cycle on top of a built one
 that was never archived.
 
@@ -85,7 +85,7 @@ Re-run 'ralph auto -g <goal>' without --resume; phase 1 archives the old cycle.
 - Code comments: the hard-stop comment in `cmd_loop` and the phase-guard comment in `cmd_auto`
   name the new check.
 
-This spec narrows the risk `specs/one-shot-review.md` §18 lists as "Manual flows that never
+This spec narrows the risk `specs/015-one-shot-review.md` §18 lists as "Manual flows that never
 archive". §6 lists what remains. The older spec is a record and stays unedited.
 
 ## 5. Testing

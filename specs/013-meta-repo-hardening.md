@@ -3,7 +3,7 @@
 Ralph serves two workspace shapes. The first is a standalone service repository: one `.git`, one
 remote, the agent commits where it stands. The second is a meta repository: a workspace repository
 that holds a sync script and a manifest, clones each service into a gitignored directory such as
-`source/`, and carries no service code of its own. `specs/nested-git-repos.md` made the build noop
+`source/`, and carries no service code of its own. `specs/011-nested-git-repos.md` made the build noop
 exit correct for the second shape by watching every repository beneath the workspace. It changed the
 change verdict and nothing else, and its §7 lists what it left alone: the push block and the
 prompts.
@@ -49,7 +49,7 @@ Three rules, one per layer:
    shape the commits as Conventional Commits. Ralph itself pushes nothing nested; pushing a nested
    repository is the agent's step, and the prompt now states it.
 
-The over-detection bias of `specs/nested-git-repos.md` §3 stands: every rule here that could err
+The over-detection bias of `specs/011-nested-git-repos.md` §3 stands: every rule here that could err
 errs towards seeing a change, never towards missing one.
 
 ## 2. Discovery follows symlinks
@@ -130,7 +130,7 @@ and the metrics directory name are unaffected.
 
 ## 5. The agents commit where the file lives
 
-`specs/nested-git-repos.md` §9 kept the prompts out of scope. This spec brings two files in:
+`specs/011-nested-git-repos.md` §9 kept the prompts out of scope. This spec brings two files in:
 `prompts/build.md` and `prompts/review.md`. `prompts/plan.md` is unchanged except as §12 states:
 its `Files` field lists paths relative to the workspace root, and a path under `source/svc/` names
 its repository.
@@ -249,7 +249,7 @@ cost — `calculate_build_iterations` grants `ceil(open × 1.2)` — and only a 
 §7 documents the workaround.
 
 **Ralph does not warn about unpushed nested commits.** §5 tells the agent to push; nothing checks that
-it did. `specs/nested-git-repos.md` §7 accepted this and it stands.
+it did. `specs/011-nested-git-repos.md` §7 accepted this and it stands.
 
 **A directory of clones that is not itself a repository is refused.** `cmd_loop` requires
 `git rev-parse --is-inside-work-tree` and the meta repository is one by definition: it holds the

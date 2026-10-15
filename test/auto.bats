@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 
-# Auto lifecycle suite (specs/auto-lifecycle.md §11). auto runs the six phases
+# Auto lifecycle suite (specs/012-auto-lifecycle.md §11). auto runs the six phases
 # archive → init → plan → build → review → fix as children of the same
 # script, guards each on the plan's disk state, and reports every phase. These
 # tests drive it with the phase-aware committing mock (test_helper.bash) so a
@@ -30,7 +30,7 @@ seed_resume_state() {
 
 @test "auto --help lists the mode and its options" {
     # --help is the only place an operator learns that auto exists, what the
-    # six phases are, and that -n belongs to no phase of it (specs/auto-lifecycle.md 9).
+    # six phases are, and that -n belongs to no phase of it (specs/012-auto-lifecycle.md 9).
     run "$RALPH" auto --help -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"ralph auto [options]"* ]]
@@ -479,7 +479,7 @@ seed_resume_state() {
     [[ "$output" != *" -e "* ]]
 }
 
-# --- Config validation (specs/phase-config.md §7) ---------------------------
+# --- Config validation (specs/019-phase-config.md §7) ---------------------------
 
 @test "--dry-run fails on an invalid ralph.yaml before listing the phases" {
     require_yq_or_skip

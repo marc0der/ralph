@@ -158,7 +158,7 @@ path_without() {
 }
 
 # Helper: skip a test that parses a config file when mikefarah yq v4 is absent
-# (specs/phase-config.md §13).
+# (specs/019-phase-config.md §13).
 require_yq_or_skip() {
     local version_line
     version_line=$(yq --version 2>/dev/null) || skip "yq is not on PATH"

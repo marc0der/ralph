@@ -82,7 +82,7 @@ Replace the current filter with the fallback-chain filter above.
 
 ### 2. Spec correction
 
-The multi-backend spec (`specs/multi-backend.md`, line 25) incorrectly states:
+The multi-backend spec (`specs/001-multi-backend.md`, line 25) incorrectly states:
 
 > Output is JSONL; the final result is extracted from the last event's `message` field
 

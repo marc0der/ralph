@@ -213,7 +213,7 @@ else empty end'
 {"type":"tool_execution_start","toolCallId":"toolu_01Ca…","toolName":"bash","args":{"command":"ls -la"}}
 ```
 
-This does not contradict `specs/pi-backend.md:34`, which documents `name` and `arguments.command` — those are the fields of an assistant `toolCall` **content item** inside `agent_end.messages`, a different shape from the standalone execution event. `specs/pi-backend.md:44` speaks only of `tool_execution_end`, which indeed omits `args`; its `_start` sibling carries them, as above. `message_update` falls through to `empty`, which suppresses the usage-snapshot flood:
+This does not contradict `specs/007-pi-backend.md:34`, which documents `name` and `arguments.command` — those are the fields of an assistant `toolCall` **content item** inside `agent_end.messages`, a different shape from the standalone execution event. `specs/007-pi-backend.md:44` speaks only of `tool_execution_end`, which indeed omits `args`; its `_start` sibling carries them, as above. `message_update` falls through to `empty`, which suppresses the usage-snapshot flood:
 
 ```bash
 BACKEND_JQ_LIVE='
@@ -227,7 +227,7 @@ elif .type == "turn_start" then "  ---"
 else empty end'
 ```
 
-`backend_codex` and `backend_copilot` — **filters must be confirmed against a captured stream before they ship.** Neither CLI could be authenticated during this investigation, so their event shapes are known only from the existing summary filters, and `specs/codex-jq-filter-fix.md` records what happens when such a filter is written from assumption. A partial `codex exec --json` capture did confirm the wrapper vocabulary `thread.started`, `turn.started`, `error`, `turn.failed`, with per-item events nested under `.item`; the item wrapper's own `.type` is unconfirmed. Until a filter is confirmed, leave `BACKEND_JQ_LIVE` unset for that backend.
+`backend_codex` and `backend_copilot` — **filters must be confirmed against a captured stream before they ship.** Neither CLI could be authenticated during this investigation, so their event shapes are known only from the existing summary filters, and `specs/004-codex-jq-filter-fix.md` records what happens when such a filter is written from assumption. A partial `codex exec --json` capture did confirm the wrapper vocabulary `thread.started`, `turn.started`, `error`, `turn.failed`, with per-item events nested under `.item`; the item wrapper's own `.type` is unconfirmed. Until a filter is confirmed, leave `BACKEND_JQ_LIVE` unset for that backend.
 
 An unset or empty `BACKEND_JQ_LIVE` is legal and must degrade cleanly: the loop skips the tee pipeline and takes the plain redirect, so a backend without a live filter behaves exactly as it does today, even under `--verbose`. This keeps the backend-addition contract intact — a new backend needs no live filter to work.
 
@@ -473,7 +473,7 @@ All existing tests must pass unchanged. `test/pipeline.bats:36` ("pipeline failu
 
 - Live rendering by default, and any `--quiet` flag to suppress it. Changing the default is a one-line follow-up once the renderer has real mileage.
 - A heartbeat during a single long tool call. Nothing renders between `tool_execution_start` and `tool_execution_end`, so a five-minute test suite still looks idle. Rendering `pi`'s `tool_execution_update` partials, or emitting an elapsed-time tick, is a separate change.
-- Verbosity levels. One level stays sufficient, as decided in `specs/pipeline-error-handling.md`.
+- Verbosity levels. One level stays sufficient, as decided in `specs/003-pipeline-error-handling.md`.
 - Coloured output, spinners, or any cursor addressing. Plain lines only, so the output stays readable when redirected to a file.
 - Log-to-file or structured logging. The raw stream on disk already serves that need.
 - Changes to `BACKEND_JQ_FILTER`, the backend CLI flags, or the metrics schema.

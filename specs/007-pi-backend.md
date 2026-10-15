@@ -1,10 +1,10 @@
 # Pi Backend
 
-Ralph supports `claude`, `codex`, and `copilot` backends (see `multi-backend.md`, `copilot-backend.md`). This spec adds pi (`@earendil-works/pi-coding-agent`) as a fourth backend, selectable via `-b pi` / `--backend pi`.
+Ralph supports `claude`, `codex`, and `copilot` backends (see `001-multi-backend.md`, `006-copilot-backend.md`). This spec adds pi (`@earendil-works/pi-coding-agent`) as a fourth backend, selectable via `-b pi` / `--backend pi`.
 
 ## Supported Backends
 
-Extends the list in `multi-backend.md`:
+Extends the list in `001-multi-backend.md`:
 
 ### Pi
 

@@ -344,7 +344,7 @@ MOCK
 
 @test "build writes .ralph/cycle-base as the repo_state listing" {
     # Review bounds the cycle's work by this base, so it must be the HEAD of
-    # every repository before build's first commit (specs/one-shot-review.md §3).
+    # every repository before build's first commit (specs/015-one-shot-review.md §3).
     "$RALPH" init
     printf -- '- [ ] **Open task**\n  Spec: specs/mock.md item 1\n' >> IMPLEMENTATION_PLAN.md
     git init --quiet nested
@@ -378,7 +378,7 @@ MOCK
 }
 
 @test "archive moves .ralph/cycle-base into the timestamped directory" {
-    # The base belongs to the cycle whose plan is archived with it (specs/one-shot-review.md §3).
+    # The base belongs to the cycle whose plan is archived with it (specs/015-one-shot-review.md §3).
     "$RALPH" init
     mkdir -p .ralph
     echo ". abc123" > .ralph/cycle-base
