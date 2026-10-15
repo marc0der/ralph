@@ -23,5 +23,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Ralph needs mikefarah yq v4; the runner image may ship none or another yq,
+      # and the tests that need it skip silently when it is missing.
+      - name: Install yq
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/yq" \
+            https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          chmod +x "$HOME/.local/bin/yq"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/yq" --version
       - uses: bats-core/bats-action@main
       - run: bats test/
