@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Manual trigger, so CI can be re-run on demand without pushing a commit —
+  # useful for confirming the runner works after an Actions settings change.
+  workflow_dispatch:
 
 jobs:
   shellcheck:
