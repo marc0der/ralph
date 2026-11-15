@@ -371,6 +371,22 @@ write_committing_pass() {
     cmp .ralph/learnings.md "$TEST_DIR/old.md"
 }
 
+@test "a retro pass that edits a nested repository with a space in its path fails and names it" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    git init --quiet "my svc"
+    git -C "my svc" config user.email "nested@test.com"
+    git -C "my svc" config user.name "Nested"
+    git -C "my svc" commit --allow-empty -m "nested initial" --quiet
+    write_committing_pass 'echo new > "my svc/app.txt"'
+    run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: retro pass changed files in ./my svc; retro may write only .ralph/learnings.md."* ]]
+    cmp .ralph/learnings.md "$TEST_DIR/old.md"
+}
+
 @test "a retro pass that writes only the learnings file passes the tree check" {
     create_retro_backend
     seed_progress_entry
