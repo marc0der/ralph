@@ -225,3 +225,39 @@ last_retro_noop() {
     [[ "$status" -eq 0 ]]
     [[ "$(last_retro_noop)" == "false" ]]
 }
+
+# Helper: write a pass that rewrites the learnings file, then runs $1.
+write_committing_pass() {
+    {
+        printf 'echo "# Learnings" > .ralph/learnings.md\n'
+        printf '%s\n' "$1"
+    } > "$TEST_DIR/pass.sh"
+}
+
+@test "a retro pass that commits in the workspace fails and restores the file" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    write_committing_pass 'git commit -q --allow-empty -m "pass commit"'
+    run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: retro pass committed in .; retro may not commit."* ]]
+    cmp .ralph/learnings.md "$TEST_DIR/old.md"
+}
+
+@test "a retro pass that commits in a nested repository fails and restores the file" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    git init --quiet source/svc
+    git -C source/svc config user.email "nested@test.com"
+    git -C source/svc config user.name "Nested"
+    git -C source/svc commit --allow-empty -m "nested initial" --quiet
+    write_committing_pass 'git -C source/svc commit -q --allow-empty -m "pass commit"'
+    run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: retro pass committed in ./source/svc; retro may not commit."* ]]
+    cmp .ralph/learnings.md "$TEST_DIR/old.md"
+}
