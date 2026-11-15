@@ -1320,7 +1320,7 @@ retro_artifact_state() {
                     printf '%s ' "$path"
                     md5_hash < "$path"
                 fi
-            done < <(find "$ARCHIVE_DIR" -path "$ARCHIVE_DIR/metrics" -prune -o -type f -print0)
+            done < <(find -H "$ARCHIVE_DIR" -path "$ARCHIVE_DIR/metrics" -prune -o -type f -print0)
         fi
     } | LC_ALL=C sort
 }
