@@ -1356,8 +1356,8 @@ arm_retro_pass() {
     RALPH_RETRO_ARTIFACTS=$(retro_artifact_state) || exit 1
 }
 
-# Print "<heading>\t<text>\t<date>" per bullet of a §3-valid learnings file,
-# and nothing for a missing file.
+# Print "<heading>\t<date>\t<text>" per bullet of a §3-valid learnings file,
+# and nothing for a missing file. The text goes last because it may hold a tab.
 learnings_bullets() {
     [[ -f "$1" ]] || return 0
     awk '
@@ -1365,7 +1365,7 @@ learnings_bullets() {
         /^- / {
             text = substr($0, 3)
             sub(/ \(confirmed [0-9-]+\)$/, "", text)
-            printf "%s\t%s\t%s\n", heading, text, substr($0, length($0) - 10, 10)
+            printf "%s\t%s\t%s\n", heading, substr($0, length($0) - 10, 10), text
         }
     ' "$1"
 }
@@ -1379,12 +1379,13 @@ print_retro_summary() {
     printf '%s\n@@\n%s\n' "$old_bullets" "$new_bullets" | awk -F'\t' '
         $0 == "@@" { in_new = 1; next }
         NF == 0 { next }
-        !in_new { old[$1 FS $2] = $3; next }
+        { key = $1 FS substr($0, length($1) + length($2) + 3) }
+        !in_new { old[key] = $2; next }
         {
             kept++
-            new[$1 FS $2] = 1
-            if (!(($1 FS $2) in old)) added++
-            else if (old[$1 FS $2] != $3) refreshed++
+            new[key] = 1
+            if (!(key in old)) added++
+            else if (old[key] != $2) refreshed++
         }
         END {
             for (key in old) if (!(key in new)) dropped++
@@ -1398,7 +1399,7 @@ print_retro_summary() {
 print_promotion_banner() {
     learnings_bullets "$1" | awk -F'\t' '
         BEGIN { rule = sprintf("%64s", ""); gsub(/ /, "=", rule) }
-        $1 == "Promote to AGENTS.md" { lines[++count] = $2 }
+        $1 == "Promote to AGENTS.md" { lines[++count] = substr($0, length($1) + length($2) + 3) }
         END {
             if (count == 0) exit
             print rule
