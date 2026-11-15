@@ -638,6 +638,22 @@ PASS
     run_retro_expecting_format_failure 10
 }
 
+@test "a retro pass that targets a promotion at an absolute path fails the format check" {
+    setup_format_pass <<'PASS'
+printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n- /abs/AGENTS.md: fix it (confirmed 2026-11-14)\n' > .ralph/learnings.md
+PASS
+    run_retro_expecting_format_failure 10
+    [[ "$output" == *"relative to the workspace root"* ]]
+}
+
+@test "a retro pass that targets a promotion above the workspace root fails the format check" {
+    setup_format_pass <<'PASS'
+printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n- ../other/CLAUDE.md: fix it (confirmed 2026-11-14)\n' > .ralph/learnings.md
+PASS
+    run_retro_expecting_format_failure 10
+    [[ "$output" == *"may not leave the workspace root"* ]]
+}
+
 @test "a retro pass that writes targeted promotions passes the format check" {
     setup_format_pass <<'PASS'
 printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n- services/api/AGENTS.md: fix it (confirmed 2026-11-14)\n- CLAUDE.md: fix that (confirmed 2026-11-14)\n' > .ralph/learnings.md
