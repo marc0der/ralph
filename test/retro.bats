@@ -501,3 +501,67 @@ PASS
 PASS
     run_retro_expecting_format_failure 1
 }
+
+# Helper: print a pass script that writes a file whose Environment bullets are $1 lines of $2 words.
+bullets_pass() {
+    cat <<PASS
+words=\$(printf 'w %.0s' \$(seq 1 $2))
+{
+    printf '# Learnings\n\n## Environment\n'
+    for _ in \$(seq 1 $1); do printf -- '- %s(confirmed 2026-11-14)\n' "\$words"; done
+    printf '\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n'
+} > .ralph/learnings.md
+PASS
+}
+
+# Helper: seed a retro-ready workspace with a pass that writes $1 Environment bullets of $2 words.
+setup_bullets_pass() {
+    setup_format_pass < <(bullets_pass "$1" "$2")
+}
+
+@test "a retro pass that writes a 41-word bullet fails the format check at its line" {
+    setup_bullets_pass 1 41
+    run_retro_expecting_format_failure 4
+    [[ "$output" == *"more than 40 words"* ]]
+}
+
+@test "a retro pass that writes a 40-word bullet passes the format check" {
+    setup_bullets_pass 1 40
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+}
+
+@test "a retro pass that writes a 31st bullet fails the format check at its line" {
+    setup_bullets_pass 31 1
+    run_retro_expecting_format_failure 34
+    [[ "$output" == *"more than 30 bullets"* ]]
+}
+
+@test "a retro pass that writes 30 bullets passes the format check" {
+    setup_bullets_pass 30 1
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+}
+
+@test "a retro pass that writes an untargeted promotion fails the format check at its line" {
+    setup_format_pass <<'PASS'
+printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n- no target here (confirmed 2026-11-14)\n' > .ralph/learnings.md
+PASS
+    run_retro_expecting_format_failure 10
+    [[ "$output" == *"promotion bullet must start with"* ]]
+}
+
+@test "a retro pass that targets a promotion at a wrong file name fails the format check" {
+    setup_format_pass <<'PASS'
+printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n- services/api/README.md: fix it (confirmed 2026-11-14)\n' > .ralph/learnings.md
+PASS
+    run_retro_expecting_format_failure 10
+}
+
+@test "a retro pass that writes targeted promotions passes the format check" {
+    setup_format_pass <<'PASS'
+printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n- services/api/AGENTS.md: fix it (confirmed 2026-11-14)\n- CLAUDE.md: fix that (confirmed 2026-11-14)\n' > .ralph/learnings.md
+PASS
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+}
