@@ -1294,7 +1294,10 @@ retro_tree_state() {
             git -C "$repo" diff --binary HEAD -- ':(exclude).ralph' 2>/dev/null || true
             git -C "$repo" ls-files -z --others --exclude-standard -- ':(exclude).ralph' 2>/dev/null |
                 while IFS= read -r -d '' path; do
-                    if [[ -f "$repo/$path" ]]; then
+                    if [[ -L "$repo/$path" ]]; then
+                        printf '%s ' "$path"
+                        readlink "$repo/$path" | md5_hash
+                    elif [[ -f "$repo/$path" ]]; then
                         printf '%s ' "$path"
                         md5_hash < "$repo/$path"
                     fi
