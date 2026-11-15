@@ -1403,8 +1403,8 @@ print_promotion_banner() {
         END {
             if (count == 0) exit
             print rule
-            printf "!! %d learnings belong in a guardrails file. Move them by hand:\n", count
-            for (i = 1; i <= count; i++) printf "!!   - %s\n", lines[i]
+            printf "⚠️  %d learnings belong in a guardrails file. Move them by hand:\n", count
+            for (i = 1; i <= count; i++) printf "⚠️    - %s\n", lines[i]
             print rule
         }
     ' >&2

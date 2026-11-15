@@ -835,11 +835,11 @@ PASS
     run --separate-stderr "$RALPH" retro
     [[ "$status" -eq 0 ]]
     rule=$(printf '=%.0s' $(seq 1 64))
-    [[ "$stderr" == *"$rule"$'\n'"!! 2 learnings belong in a guardrails file. Move them by hand:"* ]]
-    [[ "$stderr" == *"!!   - AGENTS.md: state the JDK command"$'\n'* ]]
-    [[ "$stderr" == *"!!   - services/api/AGENTS.md: state the port"$'\n'"$rule"* ]]
+    [[ "$stderr" == *"$rule"$'\n'"⚠️  2 learnings belong in a guardrails file. Move them by hand:"* ]]
+    [[ "$stderr" == *"⚠️    - AGENTS.md: state the JDK command"$'\n'* ]]
+    [[ "$stderr" == *"⚠️    - services/api/AGENTS.md: state the port"$'\n'"$rule"* ]]
     [[ "$stderr" != *"(confirmed 2026-11-14)"$'\n'"$rule"* ]]
-    [[ "$output" != *"!!"* ]]
+    [[ "$output" != *"⚠️"* ]]
     [[ "$(grep -cx '================================================================' <<<"$stderr")" -eq 2 ]]
 }
 
@@ -864,7 +864,7 @@ printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote
 PASS
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"!!   - AGENTS.md: state"$'\t'"the port"$'\n'* ]]
+    [[ "$output" == *"⚠️    - AGENTS.md: state"$'\t'"the port"$'\n'* ]]
 }
 
 @test "a retro pass with an empty promotion section prints no banner" {
@@ -873,7 +873,7 @@ PASS
     write_learnings "steady"
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
-    [[ "$output" != *"!!"* ]]
+    [[ "$output" != *"Move them by hand"* ]]
     rule=$(printf '=%.0s' $(seq 1 64))
     [[ "$output" != *$'\n'"$rule"$'\n'* ]]
 }
