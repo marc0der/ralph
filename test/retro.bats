@@ -423,6 +423,14 @@ write_committing_pass() {
     run_retro_expecting_artifact_failure .ralph/cycle-base
 }
 
+@test "a retro pass that edits .ralph/cycle-base through a symlinked .ralph fails" {
+    setup_artifact_pass 'echo ". -" > .ralph/cycle-base'
+    seed_cycle_base
+    mv .ralph "$BATS_TEST_TMPDIR/state"
+    ln -s "$BATS_TEST_TMPDIR/state" .ralph
+    run_retro_expecting_artifact_failure .ralph/cycle-base
+}
+
 @test "a retro pass that edits .ralph/learnings.prev.md fails and restores the file" {
     setup_artifact_pass 'echo extra >> .ralph/learnings.prev.md'
     echo previous > .ralph/learnings.prev.md
