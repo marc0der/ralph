@@ -1285,8 +1285,9 @@ first_changed_line() {
 # Print "<repo> <md5>" per repository: the md5 covers its status, its diff
 # against HEAD and every untracked file, with .ralph left out.
 retro_tree_state() {
-    local repo sha path
-    while read -r repo sha; do
+    local line repo path
+    while IFS= read -r line; do
+        repo=${line% *}
         printf '%s ' "$repo"
         {
             git -C "$repo" status --porcelain --no-renames --untracked-files=all -- ':(exclude).ralph' 2>/dev/null || true
