@@ -125,3 +125,49 @@ PASS
     [[ "$output" == *"Error: cannot back up .ralph/learnings.md."* ]]
     [[ ! -e "$TEST_DIR/backend-ran" ]]
 }
+
+@test "a retro backend that rewrites the file and exits 1 leaves the old file" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    printf 'echo "# Learnings" > .ralph/learnings.md\n' > "$TEST_DIR/pass.sh"
+    MOCK_EXIT=1 run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    cmp .ralph/learnings.md "$TEST_DIR/old.md"
+}
+
+@test "a retro backend that writes a first file and exits 1 leaves no file" {
+    create_retro_backend
+    seed_progress_entry
+    [[ ! -e .ralph/learnings.md ]]
+    printf 'mkdir -p .ralph && echo "# Learnings" > .ralph/learnings.md\n' > "$TEST_DIR/pass.sh"
+    MOCK_EXIT=1 run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    [[ ! -e .ralph/learnings.md ]]
+}
+
+@test "an interrupted retro pass restores the old learnings file" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    cat > "$TEST_DIR/pass.sh" <<PASS
+echo "# Learnings" > .ralph/learnings.md
+touch "$TEST_DIR/edited"
+sleep 1
+PASS
+    local pid status_code=0 waited=0
+    "$RALPH" retro > "$TEST_DIR/out" 2>&1 &
+    pid=$!
+    while [[ ! -f "$TEST_DIR/edited" ]] && (( waited < 100 )); do
+        sleep 0.1
+        waited=$((waited + 1))
+    done
+    kill -TERM "$pid"
+    wait "$pid" || status_code=$?
+
+    [[ "$status_code" -eq 130 ]]
+    grep -q "Interrupted at iteration 1" "$TEST_DIR/out"
+    cmp .ralph/learnings.md "$TEST_DIR/old.md"
+}
