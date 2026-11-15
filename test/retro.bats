@@ -708,3 +708,17 @@ PASS
 @test "the repository .gitignore lists the retro prompt once" {
     [[ "$(grep -cxF 'PROMPT_retro.md' "$BATS_TEST_DIRNAME/../.gitignore")" -eq 1 ]]
 }
+
+@test "plan, build and review prompts point at the learnings file" {
+    local prompt
+    for prompt in plan build review; do
+        grep -qF '{{WORKSPACE}}/.ralph/learnings.md' "$BATS_TEST_DIRNAME/../prompts/$prompt.md"
+    done
+}
+
+@test "each learnings bullet follows the progress-log bullet" {
+    local prompt
+    for prompt in plan build review; do
+        grep -A1 '^- \*\*Progress log\*\*' "$BATS_TEST_DIRNAME/../prompts/$prompt.md" | grep -q '^- \*\*Learnings\*\*'
+    done
+}
