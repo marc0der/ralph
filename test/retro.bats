@@ -674,3 +674,37 @@ PASS
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Retro kept 4 learnings: 4 added, 0 dropped, 0 refreshed."* ]]
 }
+
+@test "archive and clean keep both learnings files" {
+    seed_progress_entry
+    write_learnings "kept learning"
+    echo "undo" > .ralph/learnings.prev.md
+    cp .ralph/learnings.md "$TEST_DIR/learnings.md"
+    run "$RALPH" archive
+    [[ "$status" -eq 0 ]]
+    cmp .ralph/learnings.md "$TEST_DIR/learnings.md"
+    [[ "$(cat .ralph/learnings.prev.md)" == "undo" ]]
+    [[ -z "$(find .ralph -mindepth 2 -name 'learnings*.md')" ]]
+    seed_progress_entry
+    run "$RALPH" clean
+    [[ "$status" -eq 0 ]]
+    cmp .ralph/learnings.md "$TEST_DIR/learnings.md"
+    [[ "$(cat .ralph/learnings.prev.md)" == "undo" ]]
+}
+
+@test "init creates neither learnings file" {
+    run "$RALPH" init --prompts
+    [[ "$status" -eq 0 ]]
+    [[ ! -e .ralph/learnings.md ]]
+    [[ ! -e .ralph/learnings.prev.md ]]
+}
+
+@test "install.sh installs the retro prompt" {
+    RALPH_BIN_DIR="$TEST_DIR/install-bin" run "$BATS_TEST_DIRNAME/../install.sh"
+    [[ "$status" -eq 0 ]]
+    cmp "$BATS_TEST_DIRNAME/../prompts/retro.md" "$RALPH_CONFIG_DIR/prompts/retro.md"
+}
+
+@test "the repository .gitignore lists the retro prompt once" {
+    [[ "$(grep -cxF 'PROMPT_retro.md' "$BATS_TEST_DIRNAME/../.gitignore")" -eq 1 ]]
+}
