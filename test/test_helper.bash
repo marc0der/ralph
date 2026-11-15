@@ -79,7 +79,7 @@ sleep "${MOCK_DELAY:-0}"
 # a result event without it renders a bare empty line on the --quiet path.
 echo '{"type":"result","subtype":"success","duration_ms":1234,"duration_api_ms":1000,"num_turns":3,"result":"done here","session_id":"s1","total_cost_usd":0.02,"usage":{"input_tokens":100,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":50}}'
 [[ -n "${MOCK_SENTINEL:-}" ]] && : > "$MOCK_SENTINEL"
-exit "${MOCK_EXIT:-0}"
+exit "${exit_code:-${MOCK_EXIT:-0}}"
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 }
@@ -120,11 +120,13 @@ seed_cycle_base() {
 # on stdin — the config dir gives each mode a distinct body (plan.md/build.md/
 # review.md above) — and acts by mode:
 #   plan   append one item on the first pass only, so the second pass converges
-#   build  tick one open item and commit, moving HEAD
+#   build  append a dated PROGRESS.md entry, tick one open item and commit, moving HEAD
 #   review append one finding on the first pass only, unless MOCK_REVIEW_NOOP
+#   retro  change nothing, so the pass is idle
 # Knobs (read at run time):
 #   MOCK_EXIT         exit code (default 0) — forces a phase to fail
 #   MOCK_REVIEW_NOOP  when set, review files nothing (phase 6 then skips)
+#   MOCK_RETRO_EXIT   exit code of the retro pass only, overriding MOCK_EXIT
 create_committing_backend() {
     mkdir -p "$TEST_DIR/bin"
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
@@ -135,6 +137,8 @@ if echo "$prompt" | grep -qi 'plan prompt'; then
     grep -q 'mock-planned-item' "$plan" 2>/dev/null || \
         printf -- '- [ ] **mock-planned-item**\n  Spec: specs/mock.md item 1\n' >> "$plan"
 elif echo "$prompt" | grep -qi 'build prompt'; then
+    # Retro hard-stops without a dated entry, which init's template never holds.
+    printf '### [2026-11-14 10:00] — Mock build\n\n**Summary:** Built.\n' >> PROGRESS.md
     # Tick the first open item, then commit so HEAD moves.
     if grep -q '^- \[ \]' "$plan" 2>/dev/null; then
         sed -i '0,/^- \[ \]/s//- [x]/' "$plan"
@@ -147,10 +151,12 @@ elif echo "$prompt" | grep -qi 'review prompt'; then
         grep -q 'mock-review-finding' "$plan" 2>/dev/null || \
             echo '- [ ] **mock-review-finding**' >> "$plan"
     fi
+elif echo "$prompt" | grep -qi 'retro prompt'; then
+    exit_code="${MOCK_RETRO_EXIT:-}"
 fi
 echo '{"type":"assistant","message":{"content":[{"type":"text","text":"done here"}]}}'
 echo '{"type":"result","subtype":"success","duration_ms":1,"duration_api_ms":1,"num_turns":1,"result":"done here","session_id":"s1","total_cost_usd":0.0,"usage":{"input_tokens":1,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":1}}'
-exit "${MOCK_EXIT:-0}"
+exit "${exit_code:-${MOCK_EXIT:-0}}"
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 }

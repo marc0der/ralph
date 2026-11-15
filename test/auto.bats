@@ -130,6 +130,38 @@ seed_resume_state() {
     [[ "$output" == *"6 fix       skipped"* ]]
 }
 
+@test "a lifecycle whose fix skips still runs phase 7 after it" {
+    create_committing_backend
+    MOCK_REVIEW_NOOP=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics -g "the goal"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"6 fix       skipped"* ]]
+    [[ "$output" == *"7 retro     ran"* ]]
+}
+
+@test "a failed retro writes phase 7 and its child exit to .ralph/auto-state" {
+    create_committing_backend
+    MOCK_RETRO_EXIT=4 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics -g "the goal"
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Re-run: "*" auto --resume"* ]]
+    grep -q '^phase=7$' .ralph/auto-state
+    grep -q '^child_exit=4$' .ralph/auto-state
+}
+
+@test "--resume after a failed retro re-runs only the retro" {
+    create_committing_backend
+    MOCK_RETRO_EXIT=4 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics -g "the goal"
+    [[ "$status" -eq 1 ]]
+    local head_before
+    head_before=$(git rev-parse HEAD)
+    run_auto --resume --skip-push --no-metrics
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Resumed from phase 7"* ]]
+    [[ "$output" == *"7 retro     ran"* ]]
+    [[ "$output" == *"4 build     skipped — resumed at phase 7"* ]]
+    [[ "$(git rev-parse HEAD)" == "$head_before" ]]
+    [[ ! -f .ralph/auto-state ]]
+}
+
 @test "the report prints the seven numbered phase rows" {
     create_committing_backend
     run_auto --skip-push --no-metrics
@@ -483,7 +515,7 @@ seed_resume_state() {
     DEVCONTAINER=true run "$RALPH" auto --dry-run -e high --verbose --metrics --push -g "the goal"
     [[ "$status" -eq 0 ]]
     local row
-    for row in '3 plan' '4 build' '5 review' '6 fix'; do
+    for row in '3 plan' '4 build' '5 review' '6 fix' '7 retro'; do
         [[ "$(grep -E "^ +$row" <<< "$output")" == *" -e high --push --metrics --verbose -y"* ]]
     done
     [[ "$(grep -E '^ +1 archive' <<< "$output")" != *"-e"* ]]
