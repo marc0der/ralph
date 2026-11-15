@@ -1294,6 +1294,20 @@ finish_retro_pass() {
     fi
 }
 
+# Put the old learnings file back, or remove a first file, when an armed pass
+# ends without reaching finish_retro_pass; see specs/021-retro-phase.md §4.
+restore_retro_learnings() {
+    [[ "$RALPH_RETRO_ARMED" == "true" ]] || return 0
+    RALPH_RETRO_ARMED=false
+    mkdir -p "$ARCHIVE_DIR"
+    if [[ -n "$RALPH_RETRO_BACKUP" ]]; then
+        mv -f -- "$RALPH_RETRO_BACKUP" "$LEARNINGS_FILE"
+        RALPH_RETRO_BACKUP=""
+    else
+        rm -f -- "$LEARNINGS_FILE"
+    fi
+}
+
 truncate_line() {
     local text="$1" max="$2"
     if [[ ${#text} -gt $max ]]; then
@@ -1813,7 +1827,7 @@ cmd_loop() {
     # substitution in it run. This sits alongside the interrupt trap below
     # rather than replacing it, because that trap must keep exiting 130.
     RALPH_TEMP_STREAM="$temp_stream"
-    trap 'if [[ -n "$RALPH_TEMP_STREAM" ]]; then rm -f -- "$RALPH_TEMP_STREAM"; fi; finish_plan_run' EXIT
+    trap 'if [[ -n "$RALPH_TEMP_STREAM" ]]; then rm -f -- "$RALPH_TEMP_STREAM"; fi; restore_retro_learnings; finish_plan_run' EXIT
 
     trap 'echo -e "\nInterrupted at iteration $iteration / $max_iterations" >&2; exit 130' SIGINT SIGTERM
 
