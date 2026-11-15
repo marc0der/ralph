@@ -171,3 +171,57 @@ PASS
     grep -q "Interrupted at iteration 1" "$TEST_DIR/out"
     cmp .ralph/learnings.md "$TEST_DIR/old.md"
 }
+
+# Helper: print git.noop of the last metrics record; each test makes one run.
+last_retro_noop() {
+    cat .ralph/metrics/*/metrics.jsonl | jq -r '.git.noop' | tail -1
+}
+
+@test "a retro pass that deletes the learnings file fails and restores it" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    printf 'rm .ralph/learnings.md\n' > "$TEST_DIR/pass.sh"
+    run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: retro pass deleted .ralph/learnings.md."* ]]
+    cmp .ralph/learnings.md "$TEST_DIR/old.md"
+    [[ "$(last_retro_noop)" == "false" ]]
+}
+
+@test "an idle retro pass records git.noop true" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$(last_retro_noop)" == "true" ]]
+}
+
+@test "an idle retro pass without a learnings file records git.noop true" {
+    create_retro_backend
+    seed_progress_entry
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$(last_retro_noop)" == "true" ]]
+}
+
+@test "a retro pass that rewrites the learnings file records git.noop false" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    printf 'echo "- extra" >> .ralph/learnings.md\n' > "$TEST_DIR/pass.sh"
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$(last_retro_noop)" == "false" ]]
+}
+
+@test "a retro pass that writes a first learnings file records git.noop false" {
+    create_retro_backend
+    seed_progress_entry
+    printf 'mkdir -p .ralph && echo "# Learnings" > .ralph/learnings.md\n' > "$TEST_DIR/pass.sh"
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$(last_retro_noop)" == "false" ]]
+}
