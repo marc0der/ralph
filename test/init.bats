@@ -30,6 +30,7 @@ load test_helper
     grep -qxF "PROMPT_plan.md" .gitignore
     grep -qxF "PROMPT_build.md" .gitignore
     grep -qxF "PROMPT_review.md" .gitignore
+    grep -qxF "PROMPT_retro.md" .gitignore
 }
 
 @test "init adds entries to existing .gitignore" {
@@ -77,6 +78,8 @@ load test_helper
     [[ -f "PROMPT_plan.md" ]]
     [[ -f "PROMPT_build.md" ]]
     [[ -f "PROMPT_review.md" ]]
+    [[ -f "PROMPT_retro.md" ]]
+    cmp "PROMPT_retro.md" "$RALPH_CONFIG_DIR/prompts/retro.md"
 }
 
 @test "init without --prompts does not create prompt files" {
