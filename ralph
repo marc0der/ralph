@@ -32,7 +32,7 @@ CYCLE_BASE_FILE="$ARCHIVE_DIR/cycle-base"
 # The cycle-spanning learnings file and its one-step undo (specs/021-retro-phase.md §3, §4).
 LEARNINGS_FILE="$ARCHIVE_DIR/learnings.md"
 LEARNINGS_PREV_FILE="$ARCHIVE_DIR/learnings.prev.md"
-RALPH_PHASES=(archive init plan build review fix)
+RALPH_PHASES=(archive init plan build review fix retro)
 RESUME_FLOOR=3
 
 # Path of the per-run raw stream temp file, or empty when there is none.
@@ -2626,17 +2626,17 @@ cmd_auto() {
     config_file=$(resolve_config)
     [[ -z "$config_file" ]] || require_valid_config "$config_file"
 
-    # Report state (§6). One row state per phase, indexed 1-6. The report is the
+    # Report state (§6). One row state per phase, indexed 1-7. The report is the
     # product of the command, so auto_report prints it on every exit path:
     # success, abort, rejected precondition, and interrupt. States seed to
     # 'not reached' so an abort leaves every later phase honestly unreached.
-    local -a phase_state=('' 'not reached' 'not reached' 'not reached' 'not reached' 'not reached' 'not reached')
+    local -a phase_state=('' 'not reached' 'not reached' 'not reached' 'not reached' 'not reached' 'not reached' 'not reached')
     local auto_resume_notice=""
     auto_report() {
         local i
         echo "" >&2
         echo "Lifecycle summary" >&2
-        for i in 1 2 3 4 5 6; do
+        for ((i = 1; i <= ${#RALPH_PHASES[@]}; i++)); do
             printf '  %d %-9s %s\n' "$i" "${RALPH_PHASES[$((i - 1))]}" "${phase_state[$i]}" >&2
         done
         echo "" >&2
@@ -2664,8 +2664,8 @@ cmd_auto() {
         fi
         local recorded_phase
         recorded_phase=$(sed -n 's/^phase=//p' "$AUTO_STATE_FILE" | head -n1)
-        if [[ ! $recorded_phase =~ ^[1-6]$ ]]; then
-            echo "Error: '$AUTO_STATE_FILE' has no valid 'phase' (1-6) to resume." >&2
+        if [[ ! $recorded_phase =~ ^[1-7]$ ]]; then
+            echo "Error: '$AUTO_STATE_FILE' has no valid 'phase' (1-7) to resume." >&2
             auto_report
             exit 1
         fi
@@ -2689,7 +2689,7 @@ cmd_auto() {
         # Phases below the entry point were passed over by --resume, not skipped
         # for a plan reason; mark them distinctly so the report is unambiguous.
         local _p
-        for _p in 1 2 3 4 5 6; do
+        for ((_p = 1; _p <= ${#RALPH_PHASES[@]}; _p++)); do
             [[ $_p -lt $start_phase ]] && phase_state[_p]="skipped — resumed at phase $start_phase"
         done
     else
@@ -2718,12 +2718,12 @@ cmd_auto() {
         false) child_flags+=(--verbose) ;;
     esac
 
-    # Dry run (§8). Print the six phases and, for each loop phase, the exact
+    # Dry run (§8). Print the seven phases and, for each loop phase, the exact
     # child command line auto would invoke with the resolved goal/model/backend.
     # Evaluate no guard and invoke no phase: a dry run that moved the plan is the
     # one destructive thing about it, so it must not run archive/init.
     if $dry_run; then
-        echo "auto: dry run — the six phases in order (guards are evaluated at run time):" >&2
+        echo "auto: dry run — the seven phases in order (guards are evaluated at run time):" >&2
         local dn=0 dphase
         for dphase in "${RALPH_PHASES[@]}"; do
             dn=$((dn + 1))
@@ -2799,6 +2799,10 @@ cmd_auto() {
                     phase_state[phase_num]="skipped — $(count_plan_items '^- \[ \]') open items remain"; continue
                 elif [[ ! -f "$CYCLE_BASE_FILE" ]]; then
                     phase_state[phase_num]="skipped — no cycle base"; continue
+                fi ;;
+            7)
+                if ! have_progress_entries; then
+                    phase_state[phase_num]="skipped — no progress entries"; continue
                 fi ;;
         esac
 
