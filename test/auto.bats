@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 
-# Auto lifecycle suite (specs/012-auto-lifecycle.md §11). auto runs the six phases
-# archive → init → plan → build → review → fix as children of the same
+# Auto lifecycle suite (specs/012-auto-lifecycle.md §11). auto runs the seven phases
+# archive → init → plan → build → review → fix → retro as children of the same
 # script, guards each on the plan's disk state, and reports every phase. These
 # tests drive it with the phase-aware committing mock (test_helper.bash) so a
 # real lifecycle moves the plan and HEAD, and assert flag forwarding by child
@@ -30,7 +30,7 @@ seed_resume_state() {
 
 @test "auto --help lists the mode and its options" {
     # --help is the only place an operator learns that auto exists, what the
-    # six phases are, and that -n belongs to no phase of it (specs/012-auto-lifecycle.md 9).
+    # phases are, and that -n belongs to no phase of it (specs/012-auto-lifecycle.md 9).
     run "$RALPH" auto --help -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"ralph auto [options]"* ]]
@@ -130,12 +130,13 @@ seed_resume_state() {
     [[ "$output" == *"6 fix       skipped"* ]]
 }
 
-@test "the report prints the six numbered phase rows" {
+@test "the report prints the seven numbered phase rows" {
     create_committing_backend
     run_auto --skip-push --no-metrics
     [[ "$output" == *"1 archive"* ]]
     [[ "$output" == *"2 init"* ]]
     [[ "$output" == *"3 plan"* ]]
+    [[ "$output" == *"7 retro"* ]]
     [[ "$output" == *"Artifacts: IMPLEMENTATION_PLAN.md and PROGRESS.md"* ]]
 }
 
@@ -311,6 +312,23 @@ seed_resume_state() {
     [[ "$output" == *"3 plan      ran"* ]]
 }
 
+@test "--resume at phase 7 skips the retro over a progress file without entries" {
+    create_committing_backend
+    seed_resume_state 7
+    git add -A -- .; git commit -q -m seed
+    run_auto --resume --skip-push --no-metrics
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"7 retro     skipped — no progress entries"* ]]
+}
+
+@test "--resume rejects a recorded phase above 7" {
+    create_committing_backend
+    seed_resume_state 8
+    run_auto --resume --skip-push --no-metrics
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"has no valid 'phase' (1-7) to resume."* ]]
+}
+
 @test "--resume from phase 1 still enters at phase 3" {
     create_committing_backend
     seed_resume_state 1
@@ -414,11 +432,13 @@ seed_resume_state() {
 
 # --- Dry run ----------------------------------------------------------------
 
-@test "--dry-run names all six phases and states guards run at run time" {
+@test "--dry-run names all seven phases and states guards run at run time" {
     DEVCONTAINER=true run "$RALPH" auto --dry-run -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"1 archive"* ]]
     [[ "$output" == *"6 fix"* ]]
+    [[ "$output" == *"7 retro"* ]]
+    [[ "$output" == *"the seven phases in order"* ]]
     [[ "$output" == *"guards are evaluated at run time"* ]]
 }
 
