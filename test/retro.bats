@@ -646,3 +646,31 @@ PASS
     rule=$(printf '=%.0s' $(seq 1 64))
     [[ "$output" != *$'\n'"$rule"$'\n'* ]]
 }
+
+@test "the retro prompt names the four headings and the dated bullet form" {
+    prompt="$BATS_TEST_DIRNAME/../prompts/retro.md"
+    for heading in "## Environment" "## Tooling" "## Codebase" "## Promote to AGENTS.md"; do
+        grep -qxF "$heading" "$prompt"
+    done
+    grep -qF "(confirmed YYYY-MM-DD)" "$prompt"
+}
+
+@test "the retro prompt writes only the learnings file and never reads the metrics" {
+    prompt="$BATS_TEST_DIRNAME/../prompts/retro.md"
+    grep -qF '{{WORKSPACE}}/.ralph/learnings.md' "$prompt"
+    grep -qF "Never read \`{{WORKSPACE}}/.ralph/metrics/\`" "$prompt"
+}
+
+@test "the retro prompt exemplar passes the format check" {
+    create_retro_backend
+    seed_progress_entry
+    awk '/^```$/ { n++; next } n == 1' "$BATS_TEST_DIRNAME/../prompts/retro.md" > "$TEST_DIR/exemplar.md"
+    [[ -s "$TEST_DIR/exemplar.md" ]]
+    cat > "$TEST_DIR/pass.sh" <<'PASS'
+mkdir -p .ralph
+cp "$TEST_DIR/exemplar.md" .ralph/learnings.md
+PASS
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Retro kept 4 learnings: 4 added, 0 dropped, 0 refreshed."* ]]
+}
