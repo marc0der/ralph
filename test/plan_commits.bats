@@ -114,6 +114,19 @@ git -C source/svc add -- specs/x.md && git -C source/svc commit -q -m "docs(spec
     [[ "$output" == *"Error: plan pass 1 committed in ./source/svc; plan may not commit, Ralph commits its spec changes."* ]]
 }
 
+@test "a pass that removes a nested repository fails with the commit error" {
+    "$RALPH" init
+    init_repo source/svc
+    git -c advice.addEmbeddedRepo=false add -- source/svc
+    git commit -q -m "chore: add source/svc"
+    create_scripted_backend
+    on_iteration 1 'rm -rf -- source/svc'
+
+    run_plan --skip-push
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Error: plan pass 1 committed in ./source/svc; plan may not commit, Ralph commits its spec changes."* ]]
+}
+
 @test "a pass that makes the first commit in a nested repository fails" {
     "$RALPH" init
     mkdir -p source/empty

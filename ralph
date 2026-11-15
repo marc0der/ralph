@@ -1203,15 +1203,15 @@ cycle_changed_files() {
 # specs/017-plan-commits-specs.md.
 check_plan_pass() {
     local iteration="$1" state_before="$2" state_after="$3" prompt_file="$4"
-    local repo sha path
-    while read -r repo sha; do
-        grep -qxF -- "$repo $sha" <<< "$state_before" && continue
-        echo "Error: plan pass $iteration committed in $repo; plan may not commit, Ralph commits its spec changes." >&2
+    local repo sha path changed
+    changed=$(first_changed_line "$state_before" "$state_after")
+    if [[ -n "$changed" ]]; then
+        echo "Error: plan pass $iteration committed in ${changed% *}; plan may not commit, Ralph commits its spec changes." >&2
         if [[ "$prompt_file" == "PROMPT_plan.md" ]]; then
             echo "This project has its own PROMPT_plan.md; remove its commit step, or delete it and run 'ralph init --prompts'." >&2
         fi
         return 1
-    done <<< "$state_after"
+    fi
     while read -r repo sha; do
         path=$(git -C "$repo" status --porcelain --no-renames -- specs 2>/dev/null \
             | awk 'substr($0, 1, 1) == "D" || substr($0, 2, 1) == "D" { print substr($0, 4); exit }')
