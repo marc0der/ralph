@@ -433,6 +433,37 @@ write_learnings_pass() {
     run_retro_expecting_tree_failure
 }
 
+@test "a retro pass that replaces an untracked file with a new file fails and restores the file" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    echo one > "a b.txt"
+    write_learnings_pass 'echo one > new.txt; mv -f new.txt "a b.txt"'
+    run_retro_expecting_tree_failure
+}
+
+@test "a retro pass that deletes an untracked file fails and restores the file" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    echo one > "a b.txt"
+    write_learnings_pass 'rm "a b.txt"'
+    run_retro_expecting_tree_failure
+}
+
+@test "a retro pass that replaces an untracked file with a symlink fails and restores the file" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    echo one > "a b.txt"
+    echo notes > notes.md
+    write_learnings_pass 'ln -sfn notes.md "a b.txt"'
+    run_retro_expecting_tree_failure
+}
+
 @test "a retro pass that appends to an untracked file passes the tree check" {
     create_retro_backend
     seed_progress_entry
