@@ -105,7 +105,7 @@ Check the file against every rule before you stop.
 
 ## Constraints
 
-- **Write `{{WORKSPACE}}/.ralph/learnings.md` and no other file.** A pass that changes a tracked file, an untracked file that git does not ignore, or another Ralph artifact fails.
+- **Write `{{WORKSPACE}}/.ralph/learnings.md` and no other file.** A pass that changes a tracked file or another Ralph artifact fails. A pass that adds, deletes or replaces an untracked file that git does not ignore also fails.
 - Commit nothing and push nothing.
 - Run no command that changes the working tree, and run no command that installs anything.
 - Never edit `AGENTS.md`, `CLAUDE.md`, anything under `specs/`, `PROGRESS.md` or `IMPLEMENTATION_PLAN.md`.
