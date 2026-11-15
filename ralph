@@ -1283,7 +1283,8 @@ first_changed_line() {
 }
 
 # Print "<repo> <md5>" per repository: the md5 covers its status, its diff
-# against HEAD and the inode of every untracked file, with .ralph left out.
+# against HEAD, the inode of each untracked regular file and the target of
+# each untracked symlink, with .ralph left out.
 retro_tree_state() {
     local line repo path inode
     while IFS= read -r line; do
