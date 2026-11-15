@@ -245,7 +245,7 @@ ralph — autonomous AI coding agent loop runner
 Usage:
   ralph sandbox [--rebuild]
   ralph sandbox clean
-  ralph <plan|build|fix|review> [options]
+  ralph <plan|build|fix|review|retro> [options]
   ralph auto [options]
   ralph init [--prompts] [--config]
   ralph clean
@@ -260,7 +260,8 @@ Modes:
   build          Pick the next item, implement, test, commit, push
   fix            Run build with the fix section of the config file
   review         Review the cycle's work in one pass and file findings as new plan items
-  auto           Run the whole lifecycle: archive, init, plan, build, review, fix
+  retro          Distil the cycle's learnings into .ralph/learnings.md
+  auto           Run the whole lifecycle: archive, init, plan, build, review, fix, retro
   init           Initialise workspace (PROGRESS.md, IMPLEMENTATION_PLAN.md, specs/)
   clean          Delete IMPLEMENTATION_PLAN.md and PROGRESS.md
   archive        Move IMPLEMENTATION_PLAN.md and PROGRESS.md to .ralph/<timestamp>/
@@ -284,12 +285,12 @@ Options:
   -n, --iterations N   Max iterations (plan default: 6, build and fix: calculated
                        from the plan). In build and fix this also disables the
                        noop exit; in plan mode it caps the run but
-                       never disables the convergence exit. review rejects -n
+                       never disables the convergence exit. review and retro reject -n
   -g, --goal TEXT      Goal to inject into the prompt template (plan and auto only; required)
   -m, --model MODEL    Model to use (default depends on backend)
   -b, --backend NAME   Backend to use: claude, codex, copilot, pi (default: claude)
   -e, --effort LEVEL   Effort level for the run (levels depend on backend)
-      --skip-push      Don't push after each build or fix iteration (plan and review
+      --skip-push      Don't push after each build or fix iteration (plan, review and retro
                        never push)
       --push           Push after each build or fix iteration; overrides skip_push: true
       --dry-run        Print what would be executed without running
@@ -311,6 +312,7 @@ Examples:
   ralph build --iterations 5
   ralph build && ralph review && ralph build
   ralph review -b codex
+  ralph retro
   ralph auto -g specs/checkout-flow.md
   ralph sandbox
   ralph sandbox --rebuild
