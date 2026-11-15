@@ -51,6 +51,7 @@ RALPH_PLAN_PROMPT_FILE=""
 # for the same reason; see specs/021-retro-phase.md §4.
 RALPH_RETRO_ARMED=false
 RALPH_RETRO_BACKUP=""
+RALPH_RETRO_HEADS=""
 
 # --- Backend definitions ---
 # Each backend_<name> function sets well-known variables, among them
@@ -1263,6 +1264,19 @@ finish_plan_run() {
     commit_plan_specs || exit 1
 }
 
+# Print the first line that only one of two listings holds, or nothing.
+first_changed_line() {
+    local before="$1" after="$2" line
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        grep -qxF -- "$line" <<< "$before" || { echo "$line"; return 0; }
+    done <<< "$after"
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        grep -qxF -- "$line" <<< "$after" || { echo "$line"; return 0; }
+    done <<< "$before"
+}
+
 # Copy the learnings file out of the tree, then arm the retro pass. No pass
 # runs without a copy to restore from; see specs/021-retro-phase.md §4.
 arm_retro_pass() {
@@ -1277,6 +1291,7 @@ arm_retro_pass() {
         fi
         RALPH_RETRO_BACKUP=$backup
     fi
+    RALPH_RETRO_HEADS=$(repo_state)
     RALPH_RETRO_ARMED=true
 }
 
@@ -1320,6 +1335,12 @@ retro_learnings_unchanged() {
 # Fail a retro pass that broke a rule of specs/021-retro-phase.md §4. The
 # caller exits 1, so the EXIT trap restores the learnings file.
 check_retro_pass() {
+    local changed
+    changed=$(first_changed_line "$RALPH_RETRO_HEADS" "$(repo_state)")
+    if [[ -n "$changed" ]]; then
+        echo "Error: retro pass committed in ${changed% *}; retro may not commit." >&2
+        return 1
+    fi
     if [[ -n "$RALPH_RETRO_BACKUP" && ! -e "$LEARNINGS_FILE" ]]; then
         echo "Error: retro pass deleted .ralph/learnings.md." >&2
         return 1
