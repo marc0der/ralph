@@ -222,6 +222,38 @@ run_build_with_config() {
     [[ "$output" != *"[dry-run] Would run"* ]]
 }
 
+# Helper: run retro --dry-run over a ralph.yaml holding the given text.
+run_retro_with_config() {
+    "$RALPH" init
+    seed_progress_entry
+    printf '%b' "$1" > ralph.yaml
+    run --separate-stderr "$RALPH" retro --dry-run
+}
+
+@test "a retro section model reaches the retro backend command" {
+    require_yq_or_skip
+    run_retro_with_config 'defaults:\n  model: opus\nretro:\n  model: haiku\n'
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"--model haiku "* ]]
+    [[ "$output" != *"--model opus "* ]]
+    [[ "$stderr" == *"[retro]"* ]]
+}
+
+@test "validate_config rejects retro.iterations under retro --dry-run" {
+    require_yq_or_skip
+    run_retro_with_config 'retro:\n  iterations: 2\n'
+    [[ "$status" -eq 1 ]]
+    [[ "$stderr" == *"Error: ralph.yaml: retro.iterations is not allowed; retro runs one pass."* ]]
+    [[ "$output" != *"[dry-run] Would run"* ]]
+}
+
+@test "validate_config rejects a retro key that review rejects" {
+    require_yq_or_skip
+    run_retro_with_config 'retro:\n  skip_push: true\n'
+    [[ "$status" -eq 1 ]]
+    [[ "$stderr" == *"retro.skip_push is not allowed in retro; set it under build or fix."* ]]
+}
+
 @test "validate_config rejects a top level that is not a map" {
     require_yq_or_skip
     run_build_with_config '- build\n'
@@ -689,11 +721,12 @@ run_build_with_config() {
 }
 
 # Helper: the Config block of a --dry-run in each phase, with the source label cut.
-# Review runs first, while the plan holds no open item; plan, build and fix follow one.
+# Review and retro run first, while the plan holds no open item; plan, build and fix follow one.
 dry_run_config_blocks() {
     local phase config_stderr
+    seed_progress_entry
     grep -v '^- \[ \]' IMPLEMENTATION_PLAN.md > plan.tmp && mv plan.tmp IMPLEMENTATION_PLAN.md
-    for phase in review plan build fix; do
+    for phase in review retro plan build fix; do
         [[ "$phase" == plan ]] && seed_open_item
         local args=()
         [[ "$phase" == plan ]] && args=(-g goal)
@@ -702,7 +735,7 @@ dry_run_config_blocks() {
     done
 }
 
-@test "the shipped config.yaml drifts from no built-in in plan, build, fix and review" {
+@test "the shipped config.yaml drifts from no built-in in plan, build, fix, review and retro" {
     require_yq_or_skip
     "$RALPH" init
     seed_shipped_item
@@ -712,7 +745,7 @@ dry_run_config_blocks() {
     shipped=$(dry_run_config_blocks)
     rm "$RALPH_CONFIG_DIR/config.yaml"
     builtin=$(dry_run_config_blocks)
-    [[ "$(grep -c '^\[' <<< "$shipped")" -eq 4 ]]
-    [[ "$shipped" == "[review]"*"[plan]"*"[build]"*"[fix]"* ]]
+    [[ "$(grep -c '^\[' <<< "$shipped")" -eq 5 ]]
+    [[ "$shipped" == "[review]"*"[retro]"*"[plan]"*"[build]"*"[fix]"* ]]
     [[ "$shipped" == "$builtin" ]]
 }
