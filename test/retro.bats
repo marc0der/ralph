@@ -62,3 +62,66 @@ MOCK
     run "$RALPH" retro --dry-run --push
     [[ "$status" -eq 0 ]]
 }
+
+# Helper: write a §3-valid learnings file holding one bullet tagged with $1.
+write_learnings() {
+    mkdir -p .ralph
+    printf '# Learnings\n\n## Environment\n- %s (confirmed 2026-11-14)\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' "$1" > .ralph/learnings.md
+}
+
+@test "a successful retro pass leaves learnings.prev.md equal to the old file" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    cat > "$TEST_DIR/pass.sh" <<'PASS'
+printf '# Learnings\n\n## Environment\n- new learning (confirmed 2026-11-15)\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+PASS
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    cmp .ralph/learnings.prev.md "$TEST_DIR/old.md"
+    grep -q 'new learning' .ralph/learnings.md
+}
+
+@test "a first retro pass deletes a stale learnings.prev.md" {
+    create_retro_backend
+    seed_progress_entry
+    mkdir -p .ralph
+    echo stale > .ralph/learnings.prev.md
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ ! -e .ralph/learnings.prev.md ]]
+}
+
+@test "retro --dry-run leaves both learnings files and runs no backup" {
+    seed_progress_entry
+    write_learnings "old learning"
+    echo undo > .ralph/learnings.prev.md
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    TMPDIR="$TEST_DIR/no-such-dir" run "$RALPH" retro --dry-run
+    [[ "$status" -eq 0 ]]
+    cmp .ralph/learnings.md "$TEST_DIR/old.md"
+    [[ "$(cat .ralph/learnings.prev.md)" == "undo" ]]
+}
+
+@test "retro backs up through /tmp when TMPDIR is unset" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    unset TMPDIR
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    cmp .ralph/learnings.prev.md "$TEST_DIR/old.md"
+}
+
+@test "retro fails before the backend when the backup cannot be made" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    printf 'touch "%s/backend-ran"\n' "$TEST_DIR" > "$TEST_DIR/pass.sh"
+    TMPDIR="$TEST_DIR/no-such-dir" run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: cannot back up .ralph/learnings.md."* ]]
+    [[ ! -e "$TEST_DIR/backend-ran" ]]
+}
