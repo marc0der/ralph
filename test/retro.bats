@@ -180,10 +180,16 @@ PASS
     seed_progress_entry
     write_learnings "old learning"
     cp .ralph/learnings.md "$TEST_DIR/old.md"
+    export BATS_TEST_TMPDIR
+    cat > "$TEST_DIR/pass.sh" <<'PASS'
+ls -d /tmp/ralph-learnings.* > "$BATS_TEST_TMPDIR/backups" 2>/dev/null
+PASS
     unset TMPDIR
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
     cmp .ralph/learnings.prev.md "$TEST_DIR/old.md"
+    [[ -s "$BATS_TEST_TMPDIR/backups" ]]
+    [[ -z "$(find . -name 'ralph-learnings.*')" ]]
 }
 
 @test "retro fails before the backend when the backup cannot be made" {
@@ -850,7 +856,7 @@ PASS
 
 @test "the retro prompt writes only the learnings file and never reads the metrics" {
     prompt="$BATS_TEST_DIRNAME/../prompts/retro.md"
-    grep -qF '{{WORKSPACE}}/.ralph/learnings.md' "$prompt"
+    grep -qF "Write \`{{WORKSPACE}}/.ralph/learnings.md\` and no other file" "$prompt"
     grep -qF "Never read \`{{WORKSPACE}}/.ralph/metrics/\`" "$prompt"
 }
 
