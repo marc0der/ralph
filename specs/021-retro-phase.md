@@ -150,8 +150,11 @@ Error: PROGRESS.md holds no entries; there is nothing to learn from.
 ### The pass
 
 1. Ralph records `repo_state` and, for every repository it lists,
-   `git status --porcelain --no-renames --untracked-files=all`, `git diff HEAD`, and a hash of each
-   untracked file, with paths under `.ralph/` removed.
+   `git status --porcelain --no-renames --untracked-files=all`, `git diff HEAD`, and the untracked files,
+   with paths under `.ralph/` removed. The record of an untracked file shows when another file
+   replaces it at the same path, but not when its content changes in place. An operator's log that
+   grows during the pass, such as the output of `ralph auto | tee run.log`, leaves the record as it
+   was.
 2. When `.ralph/learnings.md` exists, Ralph copies it to a `mktemp` file outside the workspace.
    Ralph records a checksum of `PROGRESS.md`, `IMPLEMENTATION_PLAN.md`, every `PROMPT_*.md`,
    `ralph.yaml`, and every file under `.ralph/` except `learnings.md` and `metrics/`. These files
@@ -159,7 +162,9 @@ Error: PROGRESS.md holds no entries; there is nothing to learn from.
 3. Ralph pipes the prompt to the backend once.
 4. `check_retro_pass` runs. It fails the pass when:
    - any repository's `HEAD` moved;
-   - any repository's record differs from step 1;
+   - any repository's `git status` or `git diff HEAD` differs from step 1;
+   - an untracked file appeared, disappeared, or was replaced by another file or a symbolic link
+     at the same path;
    - any checksum recorded in step 2 changed, or a file it covers appeared or disappeared;
    - `.ralph/learnings.md` is absent and the pass started with one;
    - `.ralph/learnings.md` breaks a rule of §3 Format. The error names the first line that breaks it.
@@ -298,6 +303,12 @@ work.
 - A pass that edits a tracked file fails. The learnings file returns to its old content, and the
   edited file stays as the pass left it.
 - A pass that edits a file the operator had already modified fails.
+- A pass that creates an untracked file fails.
+- A pass that deletes an untracked file fails.
+- A pass that replaces an untracked file with a new file at the same path fails.
+- A pass that replaces an untracked file with a symbolic link, or repoints an untracked symbolic
+  link, fails.
+- A pass that appends to an untracked file that existed before the pass succeeds.
 - A pass that deletes the learnings file fails, and restores it.
 - A pass that writes a fifth heading, a 31st bullet, a bullet without a date or a 41-word bullet
   fails. The error names the line.
@@ -339,6 +350,10 @@ work.
   cycle contradicts. A wrong bullet that no cycle contradicts lasts until it is the oldest at the cap.
 - **A second retro on the same cycle may reword or merge bullets.** Ralph guarantees only the §3
   format and the one-step backup.
+- **An in-place edit of an untracked file passes the check.** The record of §4 step 1 does not show a
+  change to an untracked file's content, so a pass that rewrites an existing untracked file in
+  place goes unnoticed. Accepted: an operator's log in the workspace must not fail a
+  correct pass, and the prompt forbids the edit.
 - **Dates are self-reported.** Ralph checks their format, not that the cycle saw the learning again.
 - **A project that does not ignore `.ralph/`** can commit the learnings file through build's
   commits. This is the same exposure `.ralph/cycle-base` has today.
