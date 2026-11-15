@@ -433,14 +433,15 @@ write_learnings_pass() {
     run_retro_expecting_tree_failure
 }
 
-@test "a retro pass that edits an untracked file fails and restores the file" {
+@test "a retro pass that appends to an untracked file passes the tree check" {
     create_retro_backend
     seed_progress_entry
     write_learnings "old learning"
-    cp .ralph/learnings.md "$TEST_DIR/old.md"
     echo one > "a b.txt"
-    write_learnings_pass 'echo two > "a b.txt"'
-    run_retro_expecting_tree_failure
+    write_learnings_pass 'echo two >> "a b.txt"'
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$(cat "a b.txt")" == $'one\ntwo' ]]
 }
 
 @test "a retro pass that rewrites the target of an untracked symlink passes the tree check" {

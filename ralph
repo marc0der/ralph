@@ -1283,9 +1283,9 @@ first_changed_line() {
 }
 
 # Print "<repo> <md5>" per repository: the md5 covers its status, its diff
-# against HEAD and every untracked file, with .ralph left out.
+# against HEAD and the inode of every untracked file, with .ralph left out.
 retro_tree_state() {
-    local line repo path
+    local line repo path inode
     while IFS= read -r line; do
         repo=${line% *}
         printf '%s ' "$repo"
@@ -1298,8 +1298,8 @@ retro_tree_state() {
                         printf '%s ' "$path"
                         readlink "$repo/$path" | md5_hash
                     elif [[ -f "$repo/$path" ]]; then
-                        printf '%s ' "$path"
-                        md5_hash < "$repo/$path"
+                        read -r inode _ < <(ls -di -- "$repo/$path")
+                        printf '%s file %s\n' "$path" "$inode"
                     fi
                 done || true
         } | md5_hash
