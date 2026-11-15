@@ -28,6 +28,7 @@ setup() {
     echo "# Plan prompt" > "$RALPH_CONFIG_DIR/prompts/plan.md"
     echo "# Build prompt" > "$RALPH_CONFIG_DIR/prompts/build.md"
     echo "# Review prompt" > "$RALPH_CONFIG_DIR/prompts/review.md"
+    echo "# Retro prompt" > "$RALPH_CONFIG_DIR/prompts/retro.md"
 
     # A backend reached without a test mock is a test bug, not a real API call.
     # Built once per run, not per test: 4 files x 308 tests is measurable.
@@ -98,6 +99,12 @@ seed_open_item() {
 seed_shipped_item() {
     echo "- [x] **Shipped task**" >> IMPLEMENTATION_PLAN.md
     echo "  Spec: specs/mock.md item 1" >> IMPLEMENTATION_PLAN.md
+}
+
+# Helper: append one real entry to PROGRESS.md. Retro hard-stops unless the file
+# holds a dated entry heading, and the template's exemplar heading never counts.
+seed_progress_entry() {
+    printf '### [2026-11-14 10:00] — Task\n\n**Summary:** Did a thing.\n' >> PROGRESS.md
 }
 
 # Helper: write a cycle base in repo_state format. Review hard-stops without
