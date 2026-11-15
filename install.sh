@@ -16,6 +16,7 @@ mkdir -p "$CONFIG_DIR/prompts"
 cp "$SCRIPT_DIR/prompts/plan.md" "$CONFIG_DIR/prompts/plan.md"
 cp "$SCRIPT_DIR/prompts/build.md" "$CONFIG_DIR/prompts/build.md"
 cp "$SCRIPT_DIR/prompts/review.md" "$CONFIG_DIR/prompts/review.md"
+cp "$SCRIPT_DIR/prompts/retro.md" "$CONFIG_DIR/prompts/retro.md"
 echo "  Prompts:    $CONFIG_DIR/prompts/"
 
 mkdir -p "$CONFIG_DIR/templates"

@@ -90,7 +90,7 @@ Once tests pass:
 
    - **Atomic commits**: if the working tree contains separable concerns **within this item** (e.g. a refactor *and* the feature it enables, or test additions that stand on their own), produce **one commit per concern**, in dependency order, instead of a single grab-bag commit.
    - **Selective staging**: stage explicit paths with `git -C <toplevel> add -- <paths>`.
-   - **Exclude loop artifacts**: do NOT stage or commit `IMPLEMENTATION_PLAN.md`, `PROGRESS.md`, `PROMPT_plan.md`, `PROMPT_build.md`, `PROMPT_review.md`, or the `.ralph/` directory — these are local-only.
+   - **Exclude loop artifacts**: do NOT stage or commit `IMPLEMENTATION_PLAN.md`, `PROGRESS.md`, `PROMPT_plan.md`, `PROMPT_build.md`, `PROMPT_review.md`, `PROMPT_retro.md`, or the `.ralph/` directory — these are local-only.
    - **Message format**: follow [Conventional Commits](https://www.conventionalcommits.org/) — `<type>(<scope>): <subject>`. Types are `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`. Mark a breaking change with `!` after the type or scope.
    - **Subject**: imperative mood, lowercase, at most 50 characters, no trailing period. Scope is optional, lowercase, and names the affected area.
    - **Body**: optional, at most 3 bulleted lines, only when the subject alone does not explain the change.
