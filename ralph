@@ -1480,9 +1480,12 @@ check_learnings_format() {
             if (seen == 0) fail(NR, "a bullet may not sit above \"## Environment\"")
             if (++bullets > 30) fail(NR, "the file holds more than 30 bullets")
             if (NF - 3 > 40) fail(NR, "a bullet holds more than 40 words")
+            if (seen < 4) next
             target = $2
+            if (target ~ /^\//) fail(NR, "a promotion target must be relative to the workspace root")
+            if (("/" target "/") ~ /\/\.\.\//) fail(NR, "a promotion target may not leave the workspace root")
             sub(/.*\//, "", target)
-            if (seen == 4 && target != "AGENTS.md:" && target != "CLAUDE.md:")
+            if (target != "AGENTS.md:" && target != "CLAUDE.md:")
                 fail(NR, "a promotion bullet must start with \"<path>AGENTS.md:\" or \"<path>CLAUDE.md:\"")
             next
         }
