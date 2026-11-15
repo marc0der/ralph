@@ -1313,19 +1313,27 @@ retro_artifact_state() {
     {
         for path in IMPLEMENTATION_PLAN.md PROGRESS.md ralph.yaml PROMPT_*.md; do
             if [[ -f "$path" ]]; then
-                printf '%s ' "$path"
-                md5_hash < "$path"
+                hash_readable_artifact "$path" || return 1
             fi
         done
         if [[ -d "$ARCHIVE_DIR" ]]; then
             while IFS= read -r -d '' path; do
                 if [[ "$path" != "$LEARNINGS_FILE" ]]; then
-                    printf '%s ' "$path"
-                    md5_hash < "$path"
+                    hash_readable_artifact "$path" || return 1
                 fi
             done < <(find -H "$ARCHIVE_DIR" -path "$ARCHIVE_DIR/metrics" -prune -o -type f -print0)
         fi
     } | LC_ALL=C sort
+}
+
+# Print "<path> <md5>", or name the file on stderr and fail when it is unreadable.
+hash_readable_artifact() {
+    if [[ ! -r "$1" ]]; then
+        echo "Error: cannot read $1." >&2
+        return 1
+    fi
+    printf '%s ' "$1"
+    md5_hash < "$1"
 }
 
 # Copy the learnings file out of the tree, then arm the retro pass. No pass
@@ -1342,10 +1350,10 @@ arm_retro_pass() {
         fi
         RALPH_RETRO_BACKUP=$backup
     fi
+    RALPH_RETRO_ARMED=true
     RALPH_RETRO_HEADS=$(repo_state)
     RALPH_RETRO_TREE=$(retro_tree_state)
-    RALPH_RETRO_ARTIFACTS=$(retro_artifact_state)
-    RALPH_RETRO_ARMED=true
+    RALPH_RETRO_ARTIFACTS=$(retro_artifact_state) || exit 1
 }
 
 # Print "<heading>\t<text>\t<date>" per bullet of a §3-valid learnings file,
