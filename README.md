@@ -101,7 +101,7 @@ Use `ralph clean` instead of `archive` if you don't need the history. `plan` enf
 
 `ralph retro` reads `PROGRESS.md` and rewrites `.ralph/learnings.md`, the only file it may touch. Plan, build and review read that file as advice, and the project's `AGENTS.md` or `CLAUDE.md` wins wherever they disagree. A learning earns a place only when it saves an iteration, no prose in the repository states it, and it stays true for the next goal.
 
-The file holds at most 30 one-line bullets under four headings: `Environment`, `Tooling`, `Codebase` and `Promote to AGENTS.md`. Ralph checks the format after the pass. A pass that commits, edits any other file or breaks the format fails, and the old file comes back.
+The file holds at most 30 one-line bullets under four headings: `Environment`, `Tooling`, `Codebase` and `Promote to AGENTS.md`. Ralph checks the format after the pass. A pass that commits, edits any other file or breaks the format fails, and the old file comes back. The check skips a file that git ignores, unless it is one of Ralph's artifacts.
 
 - **The undo file.** A successful pass keeps the old file as `.ralph/learnings.prev.md`. A second retro overwrites it.
 - **The banner.** Ralph never edits your guardrails file. A bullet under `Promote to AGENTS.md` prints in a banner at the end of the run, so you can move it by hand.
