@@ -1335,7 +1335,7 @@ arm_retro_pass() {
     if [[ -f "$LEARNINGS_FILE" ]]; then
         local backup
         if ! backup=$(mktemp "${TMPDIR:-/tmp}/ralph-learnings.XXXXXXXXXX" 2>/dev/null) ||
-            ! cp -- "$LEARNINGS_FILE" "$backup" 2>/dev/null; then
+            ! cp -p -- "$LEARNINGS_FILE" "$backup" 2>/dev/null; then
             [[ -n "${backup:-}" ]] && rm -f -- "$backup"
             echo "Error: cannot back up .ralph/learnings.md." >&2
             exit 1
