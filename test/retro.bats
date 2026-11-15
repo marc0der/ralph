@@ -915,3 +915,19 @@ PASS
         grep -A1 '^- \*\*Progress log\*\*' "$BATS_TEST_DIRNAME/../prompts/$prompt.md" | grep -q '^- \*\*Learnings\*\*'
     done
 }
+
+@test "each learnings bullet forbids a review finding against the file" {
+    local prompt
+    for prompt in plan build review; do
+        grep '^- \*\*Learnings\*\*' "$BATS_TEST_DIRNAME/../prompts/$prompt.md" | grep -qF 'Never file a review finding against it'
+    done
+}
+
+@test "the build prompt lists the retro prompt as a loop artifact" {
+    grep '\*\*Exclude loop artifacts\*\*' "$BATS_TEST_DIRNAME/../prompts/build.md" | grep -qF "\`PROMPT_retro.md\`"
+}
+
+@test "the config template carries a retro section with a sonnet model" {
+    awk '/^retro:/ { found = 1; next } /^[a-z]/ { found = 0 } found' "$BATS_TEST_DIRNAME/../templates/config.yaml" > "$TEST_DIR/retro-section.yaml"
+    grep -qxF '  # model: sonnet' "$TEST_DIR/retro-section.yaml"
+}
