@@ -1378,6 +1378,46 @@ retro_learnings_unchanged() {
     fi
 }
 
+# Fail with an error naming the first line of a learnings file that breaks
+# specs/021-retro-phase.md §3 Format; a missing last heading names the line after the end.
+check_learnings_format() {
+    local file="$1"
+    awk '
+        function fail(line, reason) {
+            printf "Error: .ralph/learnings.md line %d: %s.\n", line, reason
+            bad = 1
+            exit 1
+        }
+        BEGIN {
+            split("Environment|Tooling|Codebase|Promote to AGENTS.md", names, "|")
+            seen = 0
+        }
+        NR == 1 {
+            if ($0 != "# Learnings") fail(NR, "the first line must be \"# Learnings\"")
+            next
+        }
+        /^[ \t]*$/ { next }
+        /^#/ {
+            if (seen >= 4) fail(NR, "unexpected heading \"" $0 "\"")
+            if ($0 != "## " names[seen + 1]) fail(NR, "expected heading \"## " names[seen + 1] "\"")
+            seen++
+            next
+        }
+        /^- [^ ].* \(confirmed [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\)$/ {
+            if (seen == 0) fail(NR, "a bullet may not sit above \"## Environment\"")
+            next
+        }
+        {
+            fail(NR, "expected a heading, a bullet \"- <text> (confirmed YYYY-MM-DD)\" or a blank line")
+        }
+        END {
+            if (bad) exit 1
+            if (NR == 0) fail(1, "the first line must be \"# Learnings\"")
+            if (seen < 4) fail(NR + 1, "missing heading \"## " names[seen + 1] "\"")
+        }
+    ' "$file" >&2
+}
+
 # Fail a retro pass that broke a rule of specs/021-retro-phase.md §4. The
 # caller exits 1, so the EXIT trap restores the learnings file.
 check_retro_pass() {
@@ -1400,6 +1440,9 @@ check_retro_pass() {
     if [[ -n "$RALPH_RETRO_BACKUP" && ! -e "$LEARNINGS_FILE" ]]; then
         echo "Error: retro pass deleted .ralph/learnings.md." >&2
         return 1
+    fi
+    if [[ -f "$LEARNINGS_FILE" ]]; then
+        check_learnings_format "$LEARNINGS_FILE" || return 1
     fi
 }
 
