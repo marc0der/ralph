@@ -543,6 +543,7 @@ printf '# Learnings\n- early (confirmed 2026-11-14)\n## Environment\n\n## Toolin
 PASS
     run_retro_expecting_format_failure 2
     [[ "$output" == *'above "## Environment"'* ]]
+    [[ "$(grep -c '^Error:' <<<"$output")" -eq 1 ]]
 }
 
 @test "a retro pass that omits the last heading fails the format check after the last line" {
@@ -581,6 +582,28 @@ PASS
 : > .ralph/learnings.md
 PASS
     run_retro_expecting_format_failure 1
+}
+
+@test "a retro pass that writes a wrong title fails the format check at line 1" {
+    setup_format_pass <<'PASS'
+printf '# Lessons\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+PASS
+    run_retro_expecting_format_failure 1
+    [[ "$output" == *'line 1: the first line must be "# Learnings"'* ]]
+}
+
+@test "a retro pass that writes a placeholder date fails the format check at its line" {
+    setup_format_pass <<'PASS'
+printf '# Learnings\n\n## Environment\n- placeholder (confirmed YYYY-MM-DD)\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+PASS
+    run_retro_expecting_format_failure 4
+}
+
+@test "a retro pass that writes text after the date fails the format check at its line" {
+    setup_format_pass <<'PASS'
+printf '# Learnings\n\n## Environment\n\n## Tooling\n- trailing (confirmed 2026-11-14) more\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+PASS
+    run_retro_expecting_format_failure 6
 }
 
 # Helper: print a pass script that writes a file whose Environment bullets are $1 lines of $2 words.
