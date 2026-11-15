@@ -173,7 +173,12 @@ Any exit after step 2 that does not reach step 6 — a backend failure, a summar
 interrupt, or any other error — restores the file the same way as step 5. The restore runs from the
 EXIT trap.
 
-A pass that leaves the file unchanged is a success.
+A pass that leaves the file unchanged is a success when no other check of step 4 fails. The format
+check reads the file as the pass left it, changed or not. Every file the other phases read must hold
+the §3 format, whoever wrote it, so an unchanged file that already breaks §3 Format fails the pass.
+
+When Ralph cannot make the copy of step 2, it prints an error and exits 1 before the backend runs.
+No pass runs without a copy to restore from.
 
 `--dry-run` prints the prompt and the resolved config, and skips steps 1 to 6.
 

@@ -13,8 +13,8 @@ This file is a template, not a spec. It states no requirement. Copy it to
 
 - `id` — the three-digit prefix of the file name, quoted.
 - `created` — the date the spec is first committed, `YYYY-MM-DD`.
-- `area` — one or more of `backend`, `sandbox`, `plan`, `build`, `review`, `auto`, `config`,
-  `output`, `git`.
+- `area` — one or more of `backend`, `sandbox`, `plan`, `build`, `review`, `retro`, `auto`,
+  `config`, `output`, `git`.
 - `supersedes` — specs this one replaces whole.
 - `amends` — specs this one overrides in part. The intro names the sections it replaces.
 - `extends` — specs this one adds to without overriding any of it.
