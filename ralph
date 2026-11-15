@@ -971,6 +971,11 @@ have_superseded_items() {
     [[ "$(count_plan_items '^- \[~\]')" -gt 0 ]]
 }
 
+# The template's exemplar heading carries the literal YYYY-MM-DD, so it never matches.
+have_progress_entries() {
+    grep -qE '^### \[[0-9]{4}-[0-9]{2}-[0-9]{2}' PROGRESS.md 2>/dev/null
+}
+
 # A base with nothing open or superseded left is a built cycle never archived.
 have_stale_cycle_base() {
     [[ -f "$CYCLE_BASE_FILE" ]] && ! have_open_items && ! have_superseded_items
@@ -1045,6 +1050,15 @@ require_attached_spec_repos() {
     if repo=$(have_detached_spec_repo); then
         echo "Error: $repo is on a detached HEAD." >&2
         echo "Check out a branch before running 'ralph plan'; plan commits its spec changes there." >&2
+        exit 1
+    fi
+}
+
+# Retro distils PROGRESS.md; see specs/021-retro-phase.md §4. A hard stop beside
+# require_init_artifacts, so '--dry-run' cannot bypass it.
+require_progress_entries() {
+    if ! have_progress_entries; then
+        echo "Error: PROGRESS.md holds no entries; there is nothing to learn from." >&2
         exit 1
     fi
 }
@@ -1474,6 +1488,10 @@ cmd_loop() {
                     echo "Error: '$section' does not accept -g/--goal; the work comes from IMPLEMENTATION_PLAN.md." >&2
                     exit 1
                 fi
+                if [[ "$mode" == "retro" ]]; then
+                    echo "Error: 'retro' does not accept -g/--goal; the work comes from PROGRESS.md." >&2
+                    exit 1
+                fi
                 goal="$2";           shift 2 ;;
             -m|--model)      model="$2";          shift 2 ;;
             -b|--backend)    backend="$2";        shift 2 ;;
@@ -1515,8 +1533,8 @@ cmd_loop() {
     fi
 
     # specs/015-one-shot-review.md §12. Review audits the cycle in a single pass.
-    if $hard_override && [[ "$mode" == "review" ]]; then
-        echo "Error: review runs one pass; -n does not apply." >&2
+    if $hard_override && [[ "$mode" == "review" || "$mode" == "retro" ]]; then
+        echo "Error: $mode runs one pass; -n does not apply." >&2
         exit 1
     fi
 
@@ -1545,6 +1563,8 @@ cmd_loop() {
         require_open_items
     elif [[ "$mode" == "review" ]]; then
         require_review_preconditions
+    elif [[ "$mode" == "retro" ]]; then
+        require_progress_entries
     fi
 
     # CLI flag beats the winning config file, which beats the built-in default.
@@ -1600,7 +1620,7 @@ cmd_loop() {
         case "$mode" in
             plan)   max_iterations=$PLAN_DEFAULT_CAP ;;
             build)  max_iterations=$(calculate_build_iterations "$headroom_pct") ;;
-            review) max_iterations=1 ;;
+            review|retro) max_iterations=1 ;;
         esac
     fi
 
@@ -2207,7 +2227,7 @@ cmd_loop() {
         # converged, and there is no second-chance iteration to wait for: -n caps
         # such a run but never disables the check. Review runs one pass, so it
         # has no early exit.
-        if ! $dry_run && [[ "$mode" != "review" ]]; then
+        if ! $dry_run && [[ "$mode" != "review" && "$mode" != "retro" ]]; then
             if mode_converges_on_plan "$mode"; then
                 if [[ "$plan_state_before" == "$plan_state_after" ]]; then
                     echo -e "\n$(convergence_message "$iteration")"
@@ -2552,7 +2572,7 @@ cmd_auto() {
 # Main dispatch — test/resolve_prompt.bats sources everything above this line
 case "${1:-}" in
     sandbox)    shift; cmd_sandbox "$@" ;;
-    plan|build|fix|review) cmd_loop "$@" ;;
+    plan|build|fix|review|retro) cmd_loop "$@" ;;
     auto)       shift; cmd_auto "$@" ;;
     metrics)    shift; cmd_metrics "$@" ;;
     init)       shift; cmd_init "$@" ;;
