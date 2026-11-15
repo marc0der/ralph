@@ -52,6 +52,7 @@ RALPH_PLAN_PROMPT_FILE=""
 RALPH_RETRO_ARMED=false
 RALPH_RETRO_BACKUP=""
 RALPH_RETRO_HEADS=""
+RALPH_RETRO_TREE=""
 
 # --- Backend definitions ---
 # Each backend_<name> function sets well-known variables, among them
@@ -1277,6 +1278,26 @@ first_changed_line() {
     done <<< "$before"
 }
 
+# Print "<repo> <md5>" per repository: the md5 covers its status, its diff
+# against HEAD and every untracked file, with .ralph left out.
+retro_tree_state() {
+    local repo sha path
+    while read -r repo sha; do
+        printf '%s ' "$repo"
+        {
+            git -C "$repo" status --porcelain --no-renames --untracked-files=all -- ':(exclude).ralph' 2>/dev/null || true
+            git -C "$repo" diff --binary HEAD -- ':(exclude).ralph' 2>/dev/null || true
+            git -C "$repo" ls-files -z --others --exclude-standard -- ':(exclude).ralph' 2>/dev/null |
+                while IFS= read -r -d '' path; do
+                    if [[ -f "$repo/$path" ]]; then
+                        printf '%s ' "$path"
+                        md5_hash < "$repo/$path"
+                    fi
+                done || true
+        } | md5_hash
+    done < <(repo_state)
+}
+
 # Copy the learnings file out of the tree, then arm the retro pass. No pass
 # runs without a copy to restore from; see specs/021-retro-phase.md §4.
 arm_retro_pass() {
@@ -1292,6 +1313,7 @@ arm_retro_pass() {
         RALPH_RETRO_BACKUP=$backup
     fi
     RALPH_RETRO_HEADS=$(repo_state)
+    RALPH_RETRO_TREE=$(retro_tree_state)
     RALPH_RETRO_ARMED=true
 }
 
@@ -1339,6 +1361,11 @@ check_retro_pass() {
     changed=$(first_changed_line "$RALPH_RETRO_HEADS" "$(repo_state)")
     if [[ -n "$changed" ]]; then
         echo "Error: retro pass committed in ${changed% *}; retro may not commit." >&2
+        return 1
+    fi
+    changed=$(first_changed_line "$RALPH_RETRO_TREE" "$(retro_tree_state)")
+    if [[ -n "$changed" ]]; then
+        echo "Error: retro pass changed files in ${changed% *}; retro may write only .ralph/learnings.md." >&2
         return 1
     fi
     if [[ -n "$RALPH_RETRO_BACKUP" && ! -e "$LEARNINGS_FILE" ]]; then
