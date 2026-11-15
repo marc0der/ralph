@@ -842,7 +842,7 @@ validate_config() {
             noop_patience: ["build", "fix"],
             skip_push: ["build", "fix"]
         };
-        def sections: ["defaults", "plan", "build", "review", "fix"];
+        def sections: ["defaults", "plan", "build", "review", "fix", "retro"];
         def or_list: if length == 1 then .[0] else (.[:-1] | join(", ")) + " or " + .[-1] end;
         def is_int: type == "number" and . == floor;
         def type_error($key):
@@ -866,6 +866,7 @@ validate_config() {
             phase_keys[$key] as $phases
             | if $phases == "all" or ($phases | index($section)) then empty
               elif $section == "review" and $key == "iterations" then "is not allowed; review runs one pass"
+              elif $section == "retro" and $key == "iterations" then "is not allowed; retro runs one pass"
               else "is not allowed in \($section); set it under \($phases | or_list)" end;
         def present: with_entries(select(.value != null));
         def key_errors($section):
