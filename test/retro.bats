@@ -127,6 +127,25 @@ PASS
     grep -q 'new learning' .ralph/learnings.md
 }
 
+@test "a failed retro pass restores the learnings file at mode 644" {
+    setup_format_pass <<'PASS'
+printf '# Learnings\n\n## Environment\n- no date here\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+PASS
+    chmod 644 .ralph/learnings.md
+    run_retro_expecting_format_failure 4
+    [[ "$(find .ralph/learnings.md -perm 644)" == ".ralph/learnings.md" ]]
+}
+
+@test "a successful retro pass keeps learnings.prev.md at mode 644" {
+    setup_format_pass <<'PASS'
+printf '# Learnings\n\n## Environment\n- new learning (confirmed 2026-11-15)\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+PASS
+    chmod 644 .ralph/learnings.md
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$(find .ralph/learnings.prev.md -perm 644)" == ".ralph/learnings.prev.md" ]]
+}
+
 @test "a first retro pass deletes a stale learnings.prev.md" {
     create_retro_backend
     seed_progress_entry
