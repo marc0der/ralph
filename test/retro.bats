@@ -620,3 +620,29 @@ PASS
     [[ "$status" -eq 1 ]]
     [[ "$output" != *"Retro kept"* ]]
 }
+
+@test "a retro pass prints the promotion banner with each target and the count" {
+    create_retro_backend
+    seed_progress_entry
+    cat > "$TEST_DIR/pass.sh" <<'PASS'
+printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n- AGENTS.md: state the JDK command (confirmed 2026-11-14)\n- services/api/AGENTS.md: state the port (confirmed 2026-11-14)\n' > .ralph/learnings.md
+PASS
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    rule=$(printf '=%.0s' $(seq 1 64))
+    [[ "$output" == *"$rule"$'\n'"!! 2 learnings belong in a guardrails file. Move them by hand:"* ]]
+    [[ "$output" == *"!!   - AGENTS.md: state the JDK command"$'\n'* ]]
+    [[ "$output" == *"!!   - services/api/AGENTS.md: state the port"$'\n'"$rule"* ]]
+    [[ "$output" != *"(confirmed 2026-11-14)"$'\n'"$rule"* ]]
+}
+
+@test "a retro pass with an empty promotion section prints no banner" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "steady"
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"!!"* ]]
+    rule=$(printf '=%.0s' $(seq 1 64))
+    [[ "$output" != *$'\n'"$rule"$'\n'* ]]
+}
