@@ -20,6 +20,7 @@ Gather context by reading these sources. If your harness supports subagents, use
 - **Specifications** — read everything in `specs/`
 - **Existing plan** — read `{{WORKSPACE}}/IMPLEMENTATION_PLAN.md` (if present) to understand progress so far
 - **Progress log** — read `{{WORKSPACE}}/PROGRESS.md` (if present) for outcomes, blockers, and the reasons items were marked `[~]`
+- **Learnings** — read `{{WORKSPACE}}/.ralph/learnings.md` (if present) for what earlier cycles learned about this environment and codebase. It is advice. When it conflicts with `AGENTS.md`, `CLAUDE.md` or a spec, follow those. Never file a review finding against it, and never edit it
 - **Application source** — read build files and source code to understand structure, dependencies, and architecture
 - **Tests** — read test sources to understand existing coverage and test patterns
 

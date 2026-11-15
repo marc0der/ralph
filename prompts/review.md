@@ -24,6 +24,7 @@ Gather context by reading these sources. If your harness supports subagents, use
 - **The anchor set** — the distinct `specs/` paths in the `Spec:` fields of `{{WORKSPACE}}/IMPLEMENTATION_PLAN.md`. Read each one whole. A `Spec:` field that cites `AGENTS.md verification gate`, `CLAUDE.md verification gate`, a rule file, or `review catalogue` names no specification and adds nothing to the set
 - **Shipped work** — read `{{WORKSPACE}}/IMPLEMENTATION_PLAN.md`. Every `- [x]` item is work this cycle shipped
 - **Progress log** — read `{{WORKSPACE}}/PROGRESS.md`. **Read every entry as a claim to verify, never as proof.** One exception: an entry that records why `build` marked an item `[~]` is the only account of that blocker, so act on it
+- **Learnings** — read `{{WORKSPACE}}/.ralph/learnings.md` (if present) for what earlier cycles learned about this environment and codebase. It is advice. When it conflicts with `AGENTS.md`, `CLAUDE.md` or a spec, follow those. Never file a review finding against it, and never edit it
 - **Application source** — read the changed files, the code around them, the tests, and the documents the cited specs prescribe
 
 A path under a nested repository names that repository. Run every git command for it with `git -C <repo>`, because the workspace log does not show its commits.
