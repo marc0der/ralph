@@ -186,9 +186,10 @@ The file holds up to six sections: `defaults`, `plan`, `build`, `fix`, `review` 
 |---------------------|--------------|
 | `plan`              | Turn a goal into `IMPLEMENTATION_PLAN.md`. Requires `-g`. At most 6 passes |
 | `build`             | Implement, test, commit and push the next open item (default: open items plus 20% headroom) |
-| `fix`               | Run `build` with the `fix` section of the config file. `auto` runs it last |
+| `fix`               | Run `build` with the `fix` section of the config file. `auto` runs it as phase 6 |
 | `review`            | Review the cycle's work against its specs, rules and catalogue, and add findings as new items. One pass |
-| `auto`              | Run the whole lifecycle unattended: archive, init, plan, build, review, fix. Requires `-g`; refuses to run outside a container |
+| `retro`             | Distil the cycle's `PROGRESS.md` into `.ralph/learnings.md`. One pass |
+| `auto`              | Run the whole lifecycle unattended: archive, init, plan, build, review, fix, retro. Requires `-g`; refuses to run outside a container |
 | `sandbox`           | Enter this project's devcontainer. `--rebuild` rebuilds the image |
 | `sandbox clean`     | Remove this project's devcontainer |
 | `init`              | Create `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and `specs/`. `--prompts` also copies the prompts, `--config` copies the config file to `ralph.yaml` |
@@ -197,16 +198,16 @@ The file holds up to six sections: `defaults`, `plan`, `build`, `fix`, `review` 
 | `metrics`           | Summarise the latest run's metrics, or a given `metrics.jsonl` |
 | `version`           | Print the version |
 
-### Options (plan, build, fix, review and auto)
+### Options (plan, build, fix, review, retro and auto)
 
 | Flag                 | Description |
 |----------------------|-------------|
 | `-g`, `--goal`       | The spec, directory or sentence to plan from. `plan` and `auto` only, and required there |
-| `-n`, `--iterations` | Maximum passes. In `build` and `fix` it also stops the early exit. `review` and `auto` refuse it |
+| `-n`, `--iterations` | Maximum passes. In `build` and `fix` it also stops the early exit. `review`, `retro` and `auto` refuse it |
 | `-m`, `--model`      | Model to use (default depends on the backend) |
 | `-b`, `--backend`    | `claude`, `codex`, `copilot` or `pi` (default: `claude`) |
 | `-e`, `--effort`     | Effort level, one the backend lists (default: the backend's own) |
-| `--skip-push`        | Don't push after each build pass. Plan and review never push |
+| `--skip-push`        | Don't push after each build pass. Plan, review and retro never push |
 | `--push`             | Push after each build pass, overriding `skip_push: true` |
 | `--dry-run`          | Show what would run, without running it |
 | `--no-metrics`       | Don't record metrics under `.ralph/metrics/` |
@@ -229,7 +230,7 @@ The file holds up to six sections: `defaults`, `plan`, `build`, `fix`, `review` 
 | `PROMPT_*.md`            | Optional project-local prompts |
 | `ralph.yaml`             | Optional project-local config file. Gitignored by `ralph init` |
 | `config.yaml`            | The central config file under `~/.config/ralph/`, written by `install.sh` |
-| `.ralph/`                | Archives, metrics and `auto` state. Gitignored by `ralph init` |
+| `.ralph/`                | Archives, metrics, `auto` state, and `learnings.md` with its undo file `learnings.prev.md`. Gitignored by `ralph init` |
 
 ### Environment
 
