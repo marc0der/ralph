@@ -42,18 +42,20 @@ You'll need Docker (rootful) and the devcontainer CLI (`npm install -g @devconta
       ═════════════ IMPLEMENTATION_PLAN.md ═════════════
 ```
 
-An agent forgets everything between sessions, so ralph keeps its memory in two files:
+An agent forgets everything between sessions, so ralph keeps its memory in three files:
 
 - **`IMPLEMENTATION_PLAN.md`** is the to-do list. `plan` writes it, `build` ticks items off, and `review` adds whatever it finds.
 - **`PROGRESS.md`** is the diary. Every pass writes down what it did, what it learned and what broke.
+- **`.ralph/learnings.md`** is the short list of lessons worth keeping. `retro` writes it, and it survives from one goal to the next.
 
-Each command stops by itself when there's nothing left to do. `build` stops when two passes in a row commit nothing, `plan` stops when a pass leaves the plan unchanged, and `review` runs exactly one pass.
+Each command stops by itself when there's nothing left to do. `build` stops when two passes in a row commit nothing, `plan` stops when a pass leaves the plan unchanged, and `review` and `retro` run exactly one pass.
 
-The three phases have different jobs:
+The four phases have different jobs:
 
 - **`plan`** reads your spec and the code, and writes small, self-contained tasks. It needs a goal: a spec file, a directory, or a sentence.
 - **`build`** picks the next open task, implements it, runs the tests, commits and pushes. It sizes itself to the plan: one pass per open task, plus 20% headroom.
 - **`review`** checks the cycle's work in one pass against the specs the plan cited, your project's written rules and a fixed catalogue of code-quality defects. It adds every finding as a new task, and only runs once every task has shipped.
+- **`retro`** reads the cycle's `PROGRESS.md` in one pass and keeps the few lessons that will still save a future run an iteration in `.ralph/learnings.md`. It needs one dated progress entry.
 
 A capable model writing the plan and a cheaper one following it works well:
 
@@ -66,7 +68,7 @@ ralph build -m sonnet                  # a cheaper model follows the steps
 
 ## Running unattended
 
-`ralph auto` runs the whole cycle in one go: `archive`, `init`, `plan`, `build`, `review`, and a final `fix` to fix what review found.
+`ralph auto` runs the whole cycle in one go: `archive`, `init`, `plan`, `build`, `review`, `fix` to fix what review found, and a final `retro` to keep what the cycle taught.
 
 ```bash
 git add specs/checkout-flow.md && git commit -m 'docs(specs): add checkout flow'
@@ -78,21 +80,33 @@ ralph auto -g specs/checkout-flow.md
 - **It tells you what happened.** At the end you get a `Lifecycle summary`, one row per phase: ran, skipped and why, failed, or not reached.
 - **It can pick up where it stopped.** After a failure or `Ctrl-C`, fix the problem and run `ralph auto --resume -g specs/checkout-flow.md`. It never re-runs `archive` or `init`.
 
-`--dry-run` shows the six commands it would run, without running any. Every phase gets your `-m`, `-b`, `-e`, `--skip-push`, `--push`, `--no-metrics`, `--metrics`, `-q` and `--verbose` flags, which beat every section of the config file. Only `-n` is refused, because each phase sizes itself.
+`--dry-run` shows the seven commands it would run, without running any. Every phase gets your `-m`, `-b`, `-e`, `--skip-push`, `--push`, `--no-metrics`, `--metrics`, `-q` and `--verbose` flags, which beat every section of the config file. Only `-n` is refused, because each phase sizes itself.
 
 ## Day to day
 
 ### Starting a new goal
 
-Finish the old cycle with `ralph review` first, because the plan is the only record of which specs it covered. Then clear the way:
+Finish the old cycle with `ralph review` first, because the plan is the only record of which specs it covered. Then run `ralph retro` to keep what the cycle taught, because `archive` moves the progress log it reads. Then clear the way:
 
 ```bash
+ralph retro                    # distil the cycle's progress into .ralph/learnings.md
 ralph archive                  # keep the old plan and progress under .ralph/
 ralph init                     # fresh plan and progress files
 ralph plan -g "New goal"
 ```
 
 Use `ralph clean` instead of `archive` if you don't need the history. `plan` enforces this step: it refuses to run over a built cycle that was not archived or cleaned.
+
+### Keeping learnings
+
+`ralph retro` reads `PROGRESS.md` and rewrites `.ralph/learnings.md`, the only file it may touch. Plan, build and review read that file as advice, and the project's `AGENTS.md` or `CLAUDE.md` wins wherever they disagree. A learning earns a place only when it saves an iteration, no prose in the repository states it, and it stays true for the next goal.
+
+The file holds at most 30 one-line bullets under four headings: `Environment`, `Tooling`, `Codebase` and `Promote to AGENTS.md`. Ralph checks the format after the pass. A pass that commits, edits any other file or breaks the format fails, and the old file comes back.
+
+- **The undo file.** A successful pass keeps the old file as `.ralph/learnings.prev.md`. A second retro overwrites it.
+- **The banner.** Ralph never edits your guardrails file. A bullet under `Promote to AGENTS.md` prints in a banner at the end of the run, so you can move it by hand.
+
+`archive`, `clean` and `init` leave both files alone, and neither is committed.
 
 ### Choosing an agent and model
 
@@ -137,11 +151,11 @@ Outside a container, ralph warns you and asks `Continue anyway? [y/N]` before it
 
 **Your project's rules.** Ralph reads your `CLAUDE.md` or `AGENTS.md` on every pass, but never writes to it. Put your build and test commands, conventions and gotchas there. If it points to a directory of written rules, every phase follows those rules and review reports code that breaks them.
 
-**The prompts.** `ralph init --prompts` copies the prompts into your project as `PROMPT_plan.md`, `PROMPT_build.md` and `PROMPT_review.md`, where they override the installed ones. The defaults mention Claude model names, so edit them if you use another agent. A local copy doesn't update when ralph does, so refresh it after an upgrade.
+**The prompts.** `ralph init --prompts` copies the prompts into your project as `PROMPT_plan.md`, `PROMPT_build.md`, `PROMPT_review.md` and `PROMPT_retro.md`, where they override the installed ones. The defaults mention Claude model names, so edit them if you use another agent. A local copy doesn't update when ralph does, so refresh it after an upgrade.
 
 **The config file.** A YAML file sets the backend, model, effort, iteration count and loop tuning for each phase. Ralph reads `./ralph.yaml` when it exists and ignores the central copy, otherwise `~/.config/ralph/config.yaml`, which `install.sh` writes on every install, otherwise nothing, and then it uses the built-in defaults. The winning file is read whole: a key it leaves out takes the built-in default, never the central copy's value. A CLI flag beats the file. `ralph init --config` copies the central copy into your project as `ralph.yaml`, which `ralph init` gitignores.
 
-The file holds up to five sections: `defaults`, `plan`, `build`, `fix` and `review`. Each phase section inherits from `defaults` key by key, but when it sets a different `backend` it inherits no `model`, `effort` or `extra_args`. `fix` configures `ralph fix`, the build that `auto` runs last, and does not inherit from `build`. Ralph validates the whole file before every run, so a typo in one section fails every phase.
+The file holds up to six sections: `defaults`, `plan`, `build`, `fix`, `review` and `retro`. Each phase section inherits from `defaults` key by key, but when it sets a different `backend` it inherits no `model`, `effort` or `extra_args`. `fix` configures `ralph fix`, the build that `auto` runs as phase 6, before `retro`, and does not inherit from `build`. Ralph validates the whole file before every run, so a typo in one section fails every phase.
 
 | Key             | Type                                    | Phases           | Default                      | Flag |
 |-----------------|-----------------------------------------|------------------|------------------------------|------|
