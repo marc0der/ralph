@@ -2396,9 +2396,8 @@ cmd_loop() {
             # cannot live inside the metrics block below.
             state_after=$(repo_state)
 
-            # Fingerprint the plan artifacts after the pass. The non-committing
-            # modes use this instead of HEAD for both the metrics noop flag and
-            # convergence.
+            # Plan and review fingerprint the plan artifacts instead of HEAD;
+            # retro compares the learnings file through retro_learnings_unchanged.
             local noop_override=""
             if [[ "$mode" == "retro" ]]; then
                 if retro_learnings_unchanged; then
@@ -2854,7 +2853,7 @@ cmd_auto() {
         fi
     done
 
-    # Reaching phase 6 is a completed lifecycle, including one that skipped
+    # Reaching phase 7 is a completed lifecycle, including one that skipped
     # phases; remove the state file so a later --resume finds nothing.
     rm -f "$AUTO_STATE_FILE"
     auto_report
