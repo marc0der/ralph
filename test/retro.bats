@@ -296,6 +296,19 @@ last_retro_noop() {
     [[ "$(last_retro_noop)" == "false" ]]
 }
 
+@test "a retro pass that leaves a learnings directory fails and restores the file" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    printf 'rm .ralph/learnings.md\nmkdir .ralph/learnings.md\n' > "$TEST_DIR/pass.sh"
+    run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: .ralph/learnings.md is not a regular file."* ]]
+    cmp .ralph/learnings.md "$TEST_DIR/old.md"
+    [[ "$(last_retro_noop)" == "false" ]]
+}
+
 @test "a retro pass that deletes .ralph fails and restores the learnings file" {
     create_retro_backend
     seed_progress_entry
