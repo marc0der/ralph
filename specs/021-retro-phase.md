@@ -209,13 +209,14 @@ When `Promote to AGENTS.md` holds a bullet, Ralph then prints a banner and each 
 
 ```
 ================================================================
-!! 2 learnings belong in a guardrails file. Move them by hand:
-!!   - AGENTS.md: State the nix-shell JDK 11 command as the verification command.
-!!   - services/api/AGENTS.md: ...
+⚠️  2 learnings belong in a guardrails file. Move them by hand:
+⚠️    - AGENTS.md: State the nix-shell JDK 11 command as the verification command.
+⚠️    - services/api/AGENTS.md: ...
 ================================================================
 ```
 
-The banner prints each bullet as written, target file first, and without its date.
+The banner prints each bullet as written, target file first, and without its date. Warning signs
+mark the headline and each bullet line, so the banner stands out from the rest of the output.
 
 ### Metrics
 
@@ -322,6 +323,7 @@ work.
 - The counts of added, dropped and refreshed bullets match a known pair of files.
 - A promotion bullet produces the banner. An empty promotion section produces none.
 - The banner prints each promotion's target file.
+- The banner headline and each bullet line carry a `⚠️` sign.
 - A promotion bullet without a target file fails the format check.
 
 **Lifecycle**
