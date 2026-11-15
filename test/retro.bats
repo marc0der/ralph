@@ -26,6 +26,25 @@ run_retro_expecting_tree_failure() {
     cmp .ralph/learnings.md "$TEST_DIR/old.md"
 }
 
+# Helper: run retro and assert it failed on the artifact check and restored the file.
+# $1 is the path the error must name.
+run_retro_expecting_artifact_failure() {
+    run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: retro pass changed $1; retro may write only .ralph/learnings.md."* ]]
+    cmp .ralph/learnings.md "$TEST_DIR/old.md"
+}
+
+# Helper: init the workspace, seed a retro-ready state, and script the pass as $1.
+setup_artifact_pass() {
+    "$RALPH" init > /dev/null 2>&1
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    write_committing_pass "$1"
+}
+
 @test "retro fails when PROGRESS.md is absent" {
     run "$RALPH" retro --dry-run
     [[ "$status" -eq 1 ]]
@@ -338,4 +357,64 @@ write_committing_pass() {
     write_committing_pass 'echo "# Learnings" > .ralph/learnings.md'
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
+}
+
+@test "a retro pass that edits PROGRESS.md fails and restores the file" {
+    setup_artifact_pass 'echo extra >> PROGRESS.md'
+    run_retro_expecting_artifact_failure PROGRESS.md
+}
+
+@test "a retro pass that edits IMPLEMENTATION_PLAN.md fails and restores the file" {
+    setup_artifact_pass 'echo extra >> IMPLEMENTATION_PLAN.md'
+    run_retro_expecting_artifact_failure IMPLEMENTATION_PLAN.md
+}
+
+@test "a retro pass that edits a PROMPT file fails and restores the file" {
+    setup_artifact_pass 'echo extra >> PROMPT_review.md'
+    run_retro_expecting_artifact_failure PROMPT_review.md
+}
+
+@test "a retro pass that creates ralph.yaml fails and restores the file" {
+    setup_artifact_pass 'echo "defaults: {}" > ralph.yaml'
+    run_retro_expecting_artifact_failure ralph.yaml
+}
+
+@test "a retro pass that edits .ralph/cycle-base fails and restores the file" {
+    setup_artifact_pass 'echo ". -" > .ralph/cycle-base'
+    seed_cycle_base
+    run_retro_expecting_artifact_failure .ralph/cycle-base
+}
+
+@test "a retro pass that edits .ralph/learnings.prev.md fails and restores the file" {
+    setup_artifact_pass 'echo extra >> .ralph/learnings.prev.md'
+    echo previous > .ralph/learnings.prev.md
+    run_retro_expecting_artifact_failure .ralph/learnings.prev.md
+}
+
+@test "a retro pass that creates .ralph/extra fails and restores the file" {
+    setup_artifact_pass 'echo extra > .ralph/extra'
+    run_retro_expecting_artifact_failure .ralph/extra
+}
+
+@test "a retro pass that deletes a covered artifact fails and restores the file" {
+    setup_artifact_pass 'rm PROGRESS.md'
+    run_retro_expecting_artifact_failure PROGRESS.md
+}
+
+@test "a retro pass that edits a file in an archived cycle fails and names it" {
+    setup_artifact_pass 'echo extra >> .ralph/2026-01-01/PROGRESS.md'
+    mkdir -p .ralph/2026-01-01
+    echo old > .ralph/2026-01-01/PROGRESS.md
+    run_retro_expecting_artifact_failure .ralph/2026-01-01/PROGRESS.md
+}
+
+@test "a retro pass that writes only learnings and metrics passes the artifact check" {
+    "$RALPH" init > /dev/null 2>&1
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    write_committing_pass 'echo "- new (confirmed 2026-11-14)" >> .ralph/learnings.md'
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ -d .ralph/metrics ]]
 }
