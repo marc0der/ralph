@@ -18,6 +18,14 @@ MOCK
     export PATH="$TEST_DIR/bin:$PATH"
 }
 
+# Helper: run retro and assert it failed on the working-tree check and restored the file.
+run_retro_expecting_tree_failure() {
+    run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: retro pass changed files in .; retro may write only .ralph/learnings.md."* ]]
+    cmp .ralph/learnings.md "$TEST_DIR/old.md"
+}
+
 @test "retro fails when PROGRESS.md is absent" {
     run "$RALPH" retro --dry-run
     [[ "$status" -eq 1 ]]
@@ -260,4 +268,74 @@ write_committing_pass() {
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"Error: retro pass committed in ./source/svc; retro may not commit."* ]]
     cmp .ralph/learnings.md "$TEST_DIR/old.md"
+}
+
+@test "a retro pass that edits a tracked file fails and restores the file" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    echo one > tracked.txt
+    git add tracked.txt
+    git commit -q -m "add tracked"
+    write_committing_pass 'echo two > tracked.txt'
+    run_retro_expecting_tree_failure
+}
+
+@test "a retro pass that edits an operator-modified file fails and restores the file" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    echo one > tracked.txt
+    git add tracked.txt
+    git commit -q -m "add tracked"
+    echo operator > tracked.txt
+    write_committing_pass 'echo pass >> tracked.txt'
+    run_retro_expecting_tree_failure
+}
+
+@test "a retro pass that creates an untracked file fails and restores the file" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    write_committing_pass 'echo new > "a b.txt"'
+    run_retro_expecting_tree_failure
+}
+
+@test "a retro pass that edits an untracked file fails and restores the file" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    echo one > "a b.txt"
+    write_committing_pass 'echo two > "a b.txt"'
+    run_retro_expecting_tree_failure
+}
+
+@test "a retro pass that edits a nested repository fails and names it" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    git init --quiet source/svc
+    git -C source/svc config user.email "nested@test.com"
+    git -C source/svc config user.name "Nested"
+    git -C source/svc commit --allow-empty -m "nested initial" --quiet
+    write_committing_pass 'echo new > source/svc/file.txt'
+    run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: retro pass changed files in ./source/svc; retro may write only .ralph/learnings.md."* ]]
+    cmp .ralph/learnings.md "$TEST_DIR/old.md"
+}
+
+@test "a retro pass that writes only the learnings file passes the tree check" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    echo operator > "a b.txt"
+    write_committing_pass 'echo "# Learnings" > .ralph/learnings.md'
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
 }
