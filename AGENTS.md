@@ -20,9 +20,10 @@ bats test/sandbox.bats -f "sandbox fails when config is missing"
 
 # Lint
 shellcheck ralph install.sh
+shellcheck test/*.bats test/test_helper.bash
 ```
 
-CI runs both ShellCheck and BATS on every push/PR to main.
+CI runs both ShellCheck and BATS on every push/PR to main. Run both locally after every build iteration, before committing — green BATS with a dirty ShellCheck is not done.
 
 ## Architecture
 
