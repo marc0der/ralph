@@ -509,6 +509,16 @@ write_learnings_pass() {
     run_retro_expecting_tree_failure
 }
 
+@test "a retro pass that repoints a dangling symlink fails and restores the file" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    ln -s missing-a LEARNINGS.md
+    write_learnings_pass 'ln -sfn missing-b LEARNINGS.md'
+    run_retro_expecting_tree_failure
+}
+
 @test "a retro pass that edits a nested repository fails and names it" {
     create_retro_backend
     seed_progress_entry
@@ -519,6 +529,23 @@ write_learnings_pass() {
     git -C source/svc config user.name "Nested"
     git -C source/svc commit --allow-empty -m "nested initial" --quiet
     write_learnings_pass 'echo new > source/svc/file.txt'
+    run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: retro pass changed files in ./source/svc; retro may write only .ralph/learnings.md."* ]]
+    cmp .ralph/learnings.md "$TEST_DIR/old.md"
+}
+
+@test "a retro pass that replaces a nested untracked file fails and names it" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    git init --quiet source/svc
+    git -C source/svc config user.email "nested@test.com"
+    git -C source/svc config user.name "Nested"
+    git -C source/svc commit --allow-empty -m "nested initial" --quiet
+    echo one > source/svc/notes.txt
+    write_learnings_pass 'echo one > source/svc/new.txt; mv -f source/svc/new.txt source/svc/notes.txt'
     run "$RALPH" retro
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"Error: retro pass changed files in ./source/svc; retro may write only .ralph/learnings.md."* ]]
