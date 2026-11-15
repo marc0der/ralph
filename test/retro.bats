@@ -356,6 +356,7 @@ write_committing_pass() {
     git commit -q -m "add tracked"
     write_committing_pass 'echo two > tracked.txt'
     run_retro_expecting_tree_failure
+    [[ "$(cat tracked.txt)" == "two" ]]
 }
 
 @test "a retro pass that edits an operator-modified file fails and restores the file" {
