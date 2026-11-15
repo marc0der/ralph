@@ -716,6 +716,30 @@ PASS
     [[ "$output" != *"(confirmed 2026-11-14)"$'\n'"$rule"* ]]
 }
 
+@test "a retro pass counts a tabbed bullet with a new date as refreshed" {
+    create_retro_backend
+    seed_progress_entry
+    mkdir -p .ralph
+    printf '# Learnings\n\n## Environment\n- split\there (confirmed 2026-11-01)\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+    cat > "$TEST_DIR/pass.sh" <<'PASS'
+printf '# Learnings\n\n## Environment\n- split\there (confirmed 2026-11-14)\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+PASS
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Retro kept 1 learnings: 0 added, 0 dropped, 1 refreshed."* ]]
+}
+
+@test "a retro pass prints a tabbed promotion bullet whole in the banner" {
+    create_retro_backend
+    seed_progress_entry
+    cat > "$TEST_DIR/pass.sh" <<'PASS'
+printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n- AGENTS.md: state\tthe port (confirmed 2026-11-14)\n' > .ralph/learnings.md
+PASS
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"!!   - AGENTS.md: state"$'\t'"the port"$'\n'* ]]
+}
+
 @test "a retro pass with an empty promotion section prints no banner" {
     create_retro_backend
     seed_progress_entry
