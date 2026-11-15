@@ -34,7 +34,7 @@ load test_helper
     # Spec (010-review-phase.md section 8): review is a third mode beside plan and
     # build, so the synopsis must offer all three. A synopsis that still reads
     # 'plan|build' leaves the mode undiscoverable from --help alone.
-    [[ "$output" == *"ralph <plan|build|fix|review> [options]"* ]]
+    [[ "$output" == *"ralph <plan|build|fix|review|retro> [options]"* ]]
     [[ "$output" == *"fix            Run build with the fix section of the config file"* ]]
 }
 
@@ -46,7 +46,16 @@ load test_helper
     [[ "$output" == *"review"*"Review the cycle's work in one pass and file findings as new plan items"* ]]
 }
 
-@test "ralph --help states plan's iteration default and that review rejects -n" {
+@test "ralph --help lists retro in the Modes block" {
+    run "$RALPH" --help
+    [[ "$status" -eq 0 ]]
+    # Spec (021-retro-phase.md section 9): retro is a mode of its own, so the Modes
+    # block names it and where its learnings go.
+    [[ "$output" == *"retro"*"Distil the cycle's learnings into .ralph/learnings.md"* ]]
+    [[ "$output" == *"  ralph retro"$'\n'* ]]
+}
+
+@test "ralph --help states plan's iteration default and that review and retro reject -n" {
     run "$RALPH" --help
     [[ "$status" -eq 0 ]]
     # Spec (015-one-shot-review.md section 13): review runs exactly one pass and
@@ -54,16 +63,16 @@ load test_helper
     # review converges over several passes.
     [[ "$output" == *"--iterations N"*"plan default: 6"* ]]
     [[ "$output" == *"in plan mode it caps"*"never disables"*"convergence exit"* ]]
-    [[ "$output" == *"review rejects -n"* ]]
+    [[ "$output" == *"review and retro reject -n"* ]]
     [[ "$output" != *"plan and review default"* ]]
 }
 
-@test "ralph --help states that review never pushes" {
+@test "ralph --help states that plan, review and retro never push" {
     run "$RALPH" --help
     [[ "$status" -eq 0 ]]
     # Spec (017-plan-commits-specs.md "No push"): only build pushes, so
     # --skip-push stays inert for plan and review.
-    [[ "$output" == *"--skip-push"*"build or fix iteration (plan and review"*"never push)"* ]]
+    [[ "$output" == *"--skip-push"*"build or fix iteration (plan, review and retro"*"never push)"* ]]
 }
 
 @test "ralph --help marks the goal as plan-and-auto only and required" {

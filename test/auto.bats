@@ -34,7 +34,7 @@ seed_resume_state() {
     run "$RALPH" auto --help -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"ralph auto [options]"* ]]
-    [[ "$output" == *"archive, init, plan, build, review, fix"* ]]
+    [[ "$output" == *"archive, init, plan, build, review, fix, retro"* ]]
     [[ "$output" == *"Auto options:"* ]]
     [[ "$output" == *"--resume"* ]]
     [[ "$output" == *"--force"* ]]
