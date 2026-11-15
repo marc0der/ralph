@@ -189,6 +189,19 @@ PASS
     [[ ! -e "$TEST_DIR/backend-ran" ]]
 }
 
+@test "retro fails before the backend when the learnings file is unreadable" {
+    [[ "$(id -u)" -ne 0 ]] || skip "root reads a file at mode 000"
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    printf 'touch "%s/backend-ran"\n' "$TEST_DIR" > "$TEST_DIR/pass.sh"
+    chmod 000 .ralph/learnings.md
+    run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: cannot back up .ralph/learnings.md."* ]]
+    [[ ! -e "$TEST_DIR/backend-ran" ]]
+}
+
 @test "retro removes the backup when an artifact under .ralph is unreadable" {
     [[ "$(id -u)" -ne 0 ]] || skip "root reads a file at mode 000"
     create_retro_backend
@@ -267,6 +280,18 @@ last_retro_noop() {
     [[ "$output" == *"Error: retro pass deleted .ralph/learnings.md."* ]]
     cmp .ralph/learnings.md "$TEST_DIR/old.md"
     [[ "$(last_retro_noop)" == "false" ]]
+}
+
+@test "a retro pass that deletes .ralph fails and restores the learnings file" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    printf 'rm -rf .ralph\n' > "$TEST_DIR/pass.sh"
+    run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: retro pass deleted .ralph/learnings.md."* ]]
+    cmp .ralph/learnings.md "$TEST_DIR/old.md"
 }
 
 @test "an idle retro pass records git.noop true" {
@@ -369,6 +394,19 @@ write_committing_pass() {
     git commit -q -m "add tracked"
     echo operator > tracked.txt
     write_committing_pass 'echo pass >> tracked.txt'
+    run_retro_expecting_tree_failure
+}
+
+@test "a retro pass that stages an operator-modified file fails and restores the file" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    echo one > tracked.txt
+    git add tracked.txt
+    git commit -q -m "add tracked"
+    echo operator > tracked.txt
+    write_committing_pass 'git add tracked.txt'
     run_retro_expecting_tree_failure
 }
 
