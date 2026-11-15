@@ -107,6 +107,14 @@ setup_artifact_pass() {
     [[ "$status" -eq 0 ]]
 }
 
+@test "retro --push without an origin remote never attempts a push" {
+    create_retro_backend
+    seed_progress_entry
+    run "$RALPH" retro --push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"skipping push"* ]]
+}
+
 # Helper: write a §3-valid learnings file holding one bullet tagged with $1.
 write_learnings() {
     mkdir -p .ralph
@@ -732,9 +740,10 @@ PASS
     cat > "$TEST_DIR/pass.sh" <<'PASS'
 printf '# Learnings\n\n## Environment\n- keep me (confirmed 2026-11-01)\n- refresh me (confirmed 2026-11-14)\n\n## Tooling\n- reworded me (confirmed 2026-11-14)\n\n## Codebase\n- add me (confirmed 2026-11-14)\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
 PASS
-    run "$RALPH" retro
+    run --separate-stderr "$RALPH" retro
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Retro kept 4 learnings: 2 added, 2 dropped, 1 refreshed."* ]]
+    [[ "$stderr" == *"Retro kept 4 learnings: 2 added, 2 dropped, 1 refreshed."* ]]
+    [[ "$output" != *"Retro kept"* ]]
 }
 
 @test "a retro pass counts the same text under another heading as dropped and added" {
@@ -785,13 +794,15 @@ PASS
     cat > "$TEST_DIR/pass.sh" <<'PASS'
 printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n- AGENTS.md: state the JDK command (confirmed 2026-11-14)\n- services/api/AGENTS.md: state the port (confirmed 2026-11-14)\n' > .ralph/learnings.md
 PASS
-    run "$RALPH" retro
+    run --separate-stderr "$RALPH" retro
     [[ "$status" -eq 0 ]]
     rule=$(printf '=%.0s' $(seq 1 64))
-    [[ "$output" == *"$rule"$'\n'"!! 2 learnings belong in a guardrails file. Move them by hand:"* ]]
-    [[ "$output" == *"!!   - AGENTS.md: state the JDK command"$'\n'* ]]
-    [[ "$output" == *"!!   - services/api/AGENTS.md: state the port"$'\n'"$rule"* ]]
-    [[ "$output" != *"(confirmed 2026-11-14)"$'\n'"$rule"* ]]
+    [[ "$stderr" == *"$rule"$'\n'"!! 2 learnings belong in a guardrails file. Move them by hand:"* ]]
+    [[ "$stderr" == *"!!   - AGENTS.md: state the JDK command"$'\n'* ]]
+    [[ "$stderr" == *"!!   - services/api/AGENTS.md: state the port"$'\n'"$rule"* ]]
+    [[ "$stderr" != *"(confirmed 2026-11-14)"$'\n'"$rule"* ]]
+    [[ "$output" != *"!!"* ]]
+    [[ "$(grep -cx '================================================================' <<<"$stderr")" -eq 2 ]]
 }
 
 @test "a retro pass counts a tabbed bullet with a new date as refreshed" {
