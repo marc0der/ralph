@@ -246,6 +246,7 @@ seed_resume_state() {
     [[ "$output" == *"3 plan      failed — exit 3"* ]]
     [[ "$output" == *"4 build     not reached"* ]]
     [[ "$output" == *"5 review    not reached"* ]]
+    [[ "$output" == *"7 retro     not reached"* ]]
 }
 
 @test "a failing phase exits 1 with the child's exit 3 in the report" {
