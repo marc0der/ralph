@@ -189,6 +189,22 @@ PASS
     [[ ! -e "$TEST_DIR/backend-ran" ]]
 }
 
+@test "retro removes the backup when an artifact under .ralph is unreadable" {
+    [[ "$(id -u)" -ne 0 ]] || skip "root reads a file at mode 000"
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    echo secret > .ralph/unreadable
+    chmod 000 .ralph/unreadable
+    mkdir "$BATS_TEST_TMPDIR/tmp"
+    TMPDIR="$BATS_TEST_TMPDIR/tmp" run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: cannot read .ralph/unreadable."* ]]
+    [[ -z "$(ls -A "$BATS_TEST_TMPDIR/tmp")" ]]
+    cmp .ralph/learnings.md "$TEST_DIR/old.md"
+}
+
 @test "a retro backend that rewrites the file and exits 1 leaves the old file" {
     create_retro_backend
     seed_progress_entry
