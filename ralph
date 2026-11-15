@@ -1432,6 +1432,9 @@ restore_retro_learnings() {
     [[ "$RALPH_RETRO_ARMED" == "true" ]] || return 0
     RALPH_RETRO_ARMED=false
     mkdir -p "$ARCHIVE_DIR"
+    if [[ -d "$LEARNINGS_FILE" ]]; then
+        rm -rf -- "$LEARNINGS_FILE"
+    fi
     if [[ -n "$RALPH_RETRO_BACKUP" ]]; then
         mv -f -- "$RALPH_RETRO_BACKUP" "$LEARNINGS_FILE"
         RALPH_RETRO_BACKUP=""
@@ -1521,6 +1524,10 @@ check_retro_pass() {
     fi
     if [[ -n "$RALPH_RETRO_BACKUP" && ! -e "$LEARNINGS_FILE" ]]; then
         echo "Error: retro pass deleted .ralph/learnings.md." >&2
+        return 1
+    fi
+    if [[ -e "$LEARNINGS_FILE" && ! -f "$LEARNINGS_FILE" ]]; then
+        echo "Error: .ralph/learnings.md is not a regular file." >&2
         return 1
     fi
     if [[ -f "$LEARNINGS_FILE" ]]; then
