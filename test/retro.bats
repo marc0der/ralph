@@ -565,3 +565,58 @@ PASS
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
 }
+
+@test "a retro pass prints the added, dropped and refreshed counts of a known pair" {
+    create_retro_backend
+    seed_progress_entry
+    mkdir -p .ralph
+    printf '# Learnings\n\n## Environment\n- keep me (confirmed 2026-11-01)\n- refresh me (confirmed 2026-11-01)\n\n## Tooling\n- reword me (confirmed 2026-11-01)\n- drop me (confirmed 2026-11-01)\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+    cat > "$TEST_DIR/pass.sh" <<'PASS'
+printf '# Learnings\n\n## Environment\n- keep me (confirmed 2026-11-01)\n- refresh me (confirmed 2026-11-14)\n\n## Tooling\n- reworded me (confirmed 2026-11-14)\n\n## Codebase\n- add me (confirmed 2026-11-14)\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+PASS
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Retro kept 4 learnings: 2 added, 2 dropped, 1 refreshed."* ]]
+}
+
+@test "a retro pass counts the same text under another heading as dropped and added" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "moving text"
+    cat > "$TEST_DIR/pass.sh" <<'PASS'
+printf '# Learnings\n\n## Environment\n\n## Tooling\n- moving text (confirmed 2026-11-14)\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+PASS
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Retro kept 1 learnings: 1 added, 1 dropped, 0 refreshed."* ]]
+}
+
+@test "a first retro pass without an old file counts every bullet as added" {
+    create_retro_backend
+    seed_progress_entry
+    cat > "$TEST_DIR/pass.sh" <<'PASS'
+printf '# Learnings\n\n## Environment\n- first (confirmed 2026-11-14)\n\n## Tooling\n- second (confirmed 2026-11-14)\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+PASS
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Retro kept 2 learnings: 2 added, 0 dropped, 0 refreshed."* ]]
+}
+
+@test "an idle retro pass keeps every bullet and prints no change" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "steady"
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Retro kept 1 learnings: 0 added, 0 dropped, 0 refreshed."* ]]
+}
+
+@test "a failed retro pass prints no summary" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "steady"
+    export MOCK_EXIT=1
+    run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    [[ "$output" != *"Retro kept"* ]]
+}
