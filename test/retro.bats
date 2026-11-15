@@ -59,7 +59,7 @@ setup_artifact_pass() {
     seed_progress_entry
     write_learnings "old learning"
     cp .ralph/learnings.md "$TEST_DIR/old.md"
-    write_committing_pass "$1"
+    write_learnings_pass "$1"
 }
 
 @test "retro fails when PROGRESS.md is absent" {
@@ -350,7 +350,7 @@ PASS
 }
 
 # Helper: write a pass that rewrites the learnings file, then runs $1.
-write_committing_pass() {
+write_learnings_pass() {
     {
         printf '%s\n' "printf '# Learnings\\n\\n## Environment\\n\\n## Tooling\\n\\n## Codebase\\n\\n## Promote to AGENTS.md\\n' > .ralph/learnings.md"
         printf '%s\n' "$1"
@@ -362,7 +362,7 @@ write_committing_pass() {
     seed_progress_entry
     write_learnings "old learning"
     cp .ralph/learnings.md "$TEST_DIR/old.md"
-    write_committing_pass 'git commit -q --allow-empty -m "pass commit"'
+    write_learnings_pass 'git commit -q --allow-empty -m "pass commit"'
     run "$RALPH" retro
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"Error: retro pass committed in .; retro may not commit."* ]]
@@ -378,7 +378,7 @@ write_committing_pass() {
     git -C source/svc config user.email "nested@test.com"
     git -C source/svc config user.name "Nested"
     git -C source/svc commit --allow-empty -m "nested initial" --quiet
-    write_committing_pass 'git -C source/svc commit -q --allow-empty -m "pass commit"'
+    write_learnings_pass 'git -C source/svc commit -q --allow-empty -m "pass commit"'
     run "$RALPH" retro
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"Error: retro pass committed in ./source/svc; retro may not commit."* ]]
@@ -393,7 +393,7 @@ write_committing_pass() {
     echo one > tracked.txt
     git add tracked.txt
     git commit -q -m "add tracked"
-    write_committing_pass 'echo two > tracked.txt'
+    write_learnings_pass 'echo two > tracked.txt'
     run_retro_expecting_tree_failure
     [[ "$(cat tracked.txt)" == "two" ]]
 }
@@ -407,7 +407,7 @@ write_committing_pass() {
     git add tracked.txt
     git commit -q -m "add tracked"
     echo operator > tracked.txt
-    write_committing_pass 'echo pass >> tracked.txt'
+    write_learnings_pass 'echo pass >> tracked.txt'
     run_retro_expecting_tree_failure
 }
 
@@ -420,7 +420,7 @@ write_committing_pass() {
     git add tracked.txt
     git commit -q -m "add tracked"
     echo operator > tracked.txt
-    write_committing_pass 'git add tracked.txt'
+    write_learnings_pass 'git add tracked.txt'
     run_retro_expecting_tree_failure
 }
 
@@ -429,7 +429,7 @@ write_committing_pass() {
     seed_progress_entry
     write_learnings "old learning"
     cp .ralph/learnings.md "$TEST_DIR/old.md"
-    write_committing_pass 'echo new > "a b.txt"'
+    write_learnings_pass 'echo new > "a b.txt"'
     run_retro_expecting_tree_failure
 }
 
@@ -439,7 +439,7 @@ write_committing_pass() {
     write_learnings "old learning"
     cp .ralph/learnings.md "$TEST_DIR/old.md"
     echo one > "a b.txt"
-    write_committing_pass 'echo two > "a b.txt"'
+    write_learnings_pass 'echo two > "a b.txt"'
     run_retro_expecting_tree_failure
 }
 
@@ -448,7 +448,7 @@ write_committing_pass() {
     seed_progress_entry
     write_learnings "old learning"
     ln -s .ralph/learnings.md LEARNINGS.md
-    write_committing_pass true
+    write_learnings_pass true
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
 }
@@ -460,7 +460,7 @@ write_committing_pass() {
     cp .ralph/learnings.md "$TEST_DIR/old.md"
     echo notes > notes.md
     ln -s .ralph/learnings.md LEARNINGS.md
-    write_committing_pass 'ln -sfn notes.md LEARNINGS.md'
+    write_learnings_pass 'ln -sfn notes.md LEARNINGS.md'
     run_retro_expecting_tree_failure
 }
 
@@ -473,7 +473,7 @@ write_committing_pass() {
     git -C source/svc config user.email "nested@test.com"
     git -C source/svc config user.name "Nested"
     git -C source/svc commit --allow-empty -m "nested initial" --quiet
-    write_committing_pass 'echo new > source/svc/file.txt'
+    write_learnings_pass 'echo new > source/svc/file.txt'
     run "$RALPH" retro
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"Error: retro pass changed files in ./source/svc; retro may write only .ralph/learnings.md."* ]]
@@ -489,7 +489,7 @@ write_committing_pass() {
     git -C "my svc" config user.email "nested@test.com"
     git -C "my svc" config user.name "Nested"
     git -C "my svc" commit --allow-empty -m "nested initial" --quiet
-    write_committing_pass 'echo new > "my svc/app.txt"'
+    write_learnings_pass 'echo new > "my svc/app.txt"'
     run "$RALPH" retro
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"Error: retro pass changed files in ./my svc; retro may write only .ralph/learnings.md."* ]]
@@ -501,7 +501,7 @@ write_committing_pass() {
     seed_progress_entry
     write_learnings "old learning"
     echo operator > "a b.txt"
-    write_committing_pass true
+    write_learnings_pass true
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
 }
@@ -568,7 +568,7 @@ write_committing_pass() {
     create_retro_backend
     seed_progress_entry
     write_learnings "old learning"
-    write_committing_pass true
+    write_learnings_pass true
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
     [[ -d .ralph/metrics ]]
