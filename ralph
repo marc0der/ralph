@@ -1380,6 +1380,7 @@ retro_learnings_unchanged() {
 
 # Fail with an error naming the first line of a learnings file that breaks
 # specs/021-retro-phase.md §3 Format; a missing last heading names the line after the end.
+# A bullet holds "-", its text, "(confirmed" and the date, so its text has NF - 3 words.
 check_learnings_format() {
     local file="$1"
     awk '
@@ -1391,6 +1392,7 @@ check_learnings_format() {
         BEGIN {
             split("Environment|Tooling|Codebase|Promote to AGENTS.md", names, "|")
             seen = 0
+            bullets = 0
         }
         NR == 1 {
             if ($0 != "# Learnings") fail(NR, "the first line must be \"# Learnings\"")
@@ -1405,6 +1407,12 @@ check_learnings_format() {
         }
         /^- [^ ].* \(confirmed [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\)$/ {
             if (seen == 0) fail(NR, "a bullet may not sit above \"## Environment\"")
+            if (++bullets > 30) fail(NR, "the file holds more than 30 bullets")
+            if (NF - 3 > 40) fail(NR, "a bullet holds more than 40 words")
+            target = $2
+            sub(/.*\//, "", target)
+            if (seen == 4 && target != "AGENTS.md:" && target != "CLAUDE.md:")
+                fail(NR, "a promotion bullet must start with \"<path>AGENTS.md:\" or \"<path>CLAUDE.md:\"")
             next
         }
         {
