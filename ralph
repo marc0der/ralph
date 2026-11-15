@@ -29,6 +29,9 @@ RALPH_SELF="$(cd -P "$(dirname "$RALPH_SELF")" && pwd)/$(basename "$RALPH_SELF")
 AUTO_STATE_FILE="$ARCHIVE_DIR/auto-state"
 # HEAD of every repository before the cycle's first build (specs/015-one-shot-review.md §3).
 CYCLE_BASE_FILE="$ARCHIVE_DIR/cycle-base"
+# The cycle-spanning learnings file and its one-step undo (specs/021-retro-phase.md §3, §4).
+LEARNINGS_FILE="$ARCHIVE_DIR/learnings.md"
+LEARNINGS_PREV_FILE="$ARCHIVE_DIR/learnings.prev.md"
 RALPH_PHASES=(archive init plan build review fix)
 RESUME_FLOOR=3
 
@@ -43,6 +46,11 @@ RALPH_PLAN_ARMED=false
 RALPH_PLAN_PASS=0
 RALPH_PLAN_STATE_BEFORE=""
 RALPH_PLAN_PROMPT_FILE=""
+
+# The retro pass in flight and its out-of-tree learnings backup, script-scoped
+# for the same reason; see specs/021-retro-phase.md §4.
+RALPH_RETRO_ARMED=false
+RALPH_RETRO_BACKUP=""
 
 # --- Backend definitions ---
 # Each backend_<name> function sets well-known variables, among them
@@ -1255,6 +1263,37 @@ finish_plan_run() {
     commit_plan_specs || exit 1
 }
 
+# Copy the learnings file out of the tree, then arm the retro pass. No pass
+# runs without a copy to restore from; see specs/021-retro-phase.md §4.
+arm_retro_pass() {
+    RALPH_RETRO_BACKUP=""
+    if [[ -f "$LEARNINGS_FILE" ]]; then
+        local backup
+        if ! backup=$(mktemp "${TMPDIR:-/tmp}/ralph-learnings.XXXXXXXXXX" 2>/dev/null) ||
+            ! cp -- "$LEARNINGS_FILE" "$backup" 2>/dev/null; then
+            [[ -n "${backup:-}" ]] && rm -f -- "$backup"
+            echo "Error: cannot back up .ralph/learnings.md." >&2
+            exit 1
+        fi
+        RALPH_RETRO_BACKUP=$backup
+    fi
+    RALPH_RETRO_ARMED=true
+}
+
+# Keep the old learnings file as the one-step undo, or drop a stale undo when
+# the pass started without a file.
+finish_retro_pass() {
+    [[ "$RALPH_RETRO_ARMED" == "true" ]] || return 0
+    RALPH_RETRO_ARMED=false
+    mkdir -p "$ARCHIVE_DIR"
+    if [[ -n "$RALPH_RETRO_BACKUP" ]]; then
+        mv -f -- "$RALPH_RETRO_BACKUP" "$LEARNINGS_PREV_FILE"
+        RALPH_RETRO_BACKUP=""
+    else
+        rm -f -- "$LEARNINGS_PREV_FILE"
+    fi
+}
+
 truncate_line() {
     local text="$1" max="$2"
     if [[ ${#text} -gt $max ]]; then
@@ -1808,6 +1847,9 @@ cmd_loop() {
             RALPH_PLAN_PROMPT_FILE=$prompt_file
             RALPH_PLAN_ARMED=true
         fi
+        if [[ "$mode" == "retro" ]] && ! $dry_run; then
+            arm_retro_pass
+        fi
 
         # Snapshot the shipped count so the guard after the pass can catch a
         # review that un-ticked an item. Build ticks checkboxes by design, so
@@ -2248,6 +2290,7 @@ cmd_loop() {
     done
 
     finish_plan_run
+    finish_retro_pass
 
     # Ralph counts these itself, so a clean review stays distinguishable from a
     # backend that did nothing.
