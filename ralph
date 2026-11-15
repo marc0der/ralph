@@ -1378,11 +1378,28 @@ print_retro_summary() {
     ' >&2
 }
 
+# Print the promotion banner to stderr, or nothing when the section holds no
+# bullet; see specs/021-retro-phase.md §4 Summary.
+print_promotion_banner() {
+    learnings_bullets "$1" | awk -F'\t' '
+        BEGIN { rule = sprintf("%64s", ""); gsub(/ /, "=", rule) }
+        $1 == "Promote to AGENTS.md" { lines[++count] = $2 }
+        END {
+            if (count == 0) exit
+            print rule
+            printf "!! %d learnings belong in a guardrails file. Move them by hand:\n", count
+            for (i = 1; i <= count; i++) printf "!!   - %s\n", lines[i]
+            print rule
+        }
+    ' >&2
+}
+
 # Keep the old learnings file as the one-step undo, or drop a stale undo when
 # the pass started without a file.
 finish_retro_pass() {
     [[ "$RALPH_RETRO_ARMED" == "true" ]] || return 0
     print_retro_summary "$RALPH_RETRO_BACKUP" "$LEARNINGS_FILE"
+    print_promotion_banner "$LEARNINGS_FILE"
     RALPH_RETRO_ARMED=false
     mkdir -p "$ARCHIVE_DIR"
     if [[ -n "$RALPH_RETRO_BACKUP" ]]; then
