@@ -356,6 +356,10 @@ work.
   change to an untracked file's content, so a pass that rewrites an existing untracked file in
   place goes unnoticed. Accepted: an operator's log in the workspace must not fail a
   correct pass, and the prompt forbids the edit.
+- **A file deleted and created again can pass as an in-place edit.** On some filesystems, ext4
+  among them, the record of §4 step 1 shows a file that a pass deletes and then creates again at
+  the same path as one file whose content changed in place. Accepted for the same reasons as an
+  in-place edit.
 - **Dates are self-reported.** Ralph checks their format, not that the cycle saw the learning again.
 - **A project that does not ignore `.ralph/`** can commit the learnings file through build's
   commits. This is the same exposure `.ralph/cycle-base` has today.
