@@ -1308,6 +1308,24 @@ restore_retro_learnings() {
     fi
 }
 
+# True when the pass left the learnings file byte-identical, or both are absent.
+retro_learnings_unchanged() {
+    if [[ -z "$RALPH_RETRO_BACKUP" ]]; then
+        [[ ! -e "$LEARNINGS_FILE" ]]
+    else
+        cmp -s -- "$RALPH_RETRO_BACKUP" "$LEARNINGS_FILE"
+    fi
+}
+
+# Fail a retro pass that broke a rule of specs/021-retro-phase.md §4. The
+# caller exits 1, so the EXIT trap restores the learnings file.
+check_retro_pass() {
+    if [[ -n "$RALPH_RETRO_BACKUP" && ! -e "$LEARNINGS_FILE" ]]; then
+        echo "Error: retro pass deleted .ralph/learnings.md." >&2
+        return 1
+    fi
+}
+
 truncate_line() {
     local text="$1" max="$2"
     if [[ ${#text} -gt $max ]]; then
@@ -2180,7 +2198,13 @@ cmd_loop() {
             # modes use this instead of HEAD for both the metrics noop flag and
             # convergence.
             local noop_override=""
-            if mode_converges_on_plan "$mode"; then
+            if [[ "$mode" == "retro" ]]; then
+                if retro_learnings_unchanged; then
+                    noop_override=true
+                else
+                    noop_override=false
+                fi
+            elif mode_converges_on_plan "$mode"; then
                 plan_state_after=$(plan_state_hash)
                 if [[ "$plan_state_before" == "$plan_state_after" ]]; then
                     noop_override=true
@@ -2236,6 +2260,10 @@ cmd_loop() {
                     echo "Review may never un-tick an item. Restore IMPLEMENTATION_PLAN.md before re-running." >&2
                     exit 1
                 fi
+            fi
+
+            if [[ "$mode" == "retro" ]] && ! check_retro_pass; then
+                exit 1
             fi
 
             if [[ "$mode" == "plan" ]]; then
