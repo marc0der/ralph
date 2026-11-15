@@ -355,6 +355,27 @@ write_committing_pass() {
     run_retro_expecting_tree_failure
 }
 
+@test "a retro pass that rewrites the target of an untracked symlink passes the tree check" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    ln -s .ralph/learnings.md LEARNINGS.md
+    write_committing_pass true
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+}
+
+@test "a retro pass that repoints an untracked symlink fails and restores the file" {
+    create_retro_backend
+    seed_progress_entry
+    write_learnings "old learning"
+    cp .ralph/learnings.md "$TEST_DIR/old.md"
+    echo notes > notes.md
+    ln -s .ralph/learnings.md LEARNINGS.md
+    write_committing_pass 'ln -sfn notes.md LEARNINGS.md'
+    run_retro_expecting_tree_failure
+}
+
 @test "a retro pass that edits a nested repository fails and names it" {
     create_retro_backend
     seed_progress_entry
