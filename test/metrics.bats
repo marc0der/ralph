@@ -425,6 +425,25 @@ MOCK
     [[ "$output" != *"Repos:"* ]]
 }
 
+@test "a run with two phase folders prints one rollup row per phase, plan first" {
+    mkdir -p .ralph/logs/r1/build .ralph/logs/r1/plan
+    local base='"mode":"build","backend":"claude","wall_s":5,"plan_items_completed":1,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false}'
+    {
+        printf '%s\n' "{\"iteration\":1,\"model\":\"opus\",\"effort\":\"high\",$base}"
+        printf '%s\n' "{\"iteration\":2,\"model\":\"opus\",\"effort\":\"high\",$base}"
+    } > .ralph/logs/r1/build/metrics.jsonl
+    printf '%s\n' "{\"iteration\":1,\"model\":\"sonnet\",\"effort\":null,$base}" \
+        > .ralph/logs/r1/plan/metrics.jsonl
+
+    run "$RALPH" metrics .ralph/logs/r1
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "Run: .ralph/logs/r1"* ]]
+    local squeezed expected
+    squeezed=$(tr -s ' \t' ' ' <<<"$output")
+    expected=$'PHASE MODEL/EFFORT ITERS WALL COST OUT_TOK COMMITS EXIT\nplan sonnet/default 1 - - - - -\nbuild opus/high 2 - - - - -'
+    [[ "$squeezed" == *"$expected" ]]
+}
+
 @test "a build over a lone old store moves it beside the new run" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
