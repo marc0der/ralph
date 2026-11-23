@@ -677,6 +677,46 @@ MOCK
     [[ "$output" =~ $'\n── 1/1 done ── '([2-9]|[0-9]{2,})'s wall ──' ]]
 }
 
+# Wrap the streaming mock so its call number $1 first runs the command $2.
+create_backend_acting_on_call() {
+    local call="$1" action="$2"
+    create_streaming_backend
+    mv "$TEST_DIR/bin/claude" "$TEST_DIR/bin/claude-stream"
+    {
+        printf '#!/usr/bin/env bash\nCALL=%q\nACTION=%q\n' "$call" "$action"
+        cat <<'MOCK'
+count_file="$BATS_TEST_TMPDIR/claude-calls"
+count=$(( $(cat "$count_file" 2>/dev/null || echo 0) + 1 ))
+echo "$count" > "$count_file"
+[[ "$count" -eq "$CALL" ]] && eval "$ACTION"
+exec "$(dirname "$0")/claude-stream" "$@"
+MOCK
+    } > "$TEST_DIR/bin/claude"
+    chmod +x "$TEST_DIR/bin/claude"
+}
+
+@test "footer wall time counts only its own iteration" {
+    "$RALPH" init
+    seed_open_item
+    create_backend_acting_on_call 1 'sleep 3'
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 2 --skip-push --no-metrics
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ $'\n── 1/2 done ── '([3-9]|[0-9]{2,})'s wall ──' ]]
+    [[ "$output" =~ $'\n── 2/2 done ── '[0-2]'s wall ──' ]]
+}
+
+@test "footer drops the figures of a record it did not write" {
+    [[ "$(id -u)" -ne 0 ]] || skip "root writes a read-only file"
+    "$RALPH" init
+    seed_open_item
+    create_backend_acting_on_call 2 'chmod a-w .ralph/metrics/*/metrics.jsonl'
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 2 --skip-push
+    [ "$status" -eq 0 ]
+    [[ "$stderr" == *"metrics capture failed for iteration 2"* ]]
+    [[ "$(grep '^── 1/2 done ── ' <<<"$output")" == *" api"* ]]
+    [[ "$(grep '^── 2/2 done ── ' <<<"$output")" =~ ^'── 2/2 done ── '[0-9]+'s wall ──' ]]
+}
+
 # A mock claude whose tool names ($1 tools of $2 characters) widen the footer.
 create_wide_tool_backend() {
     local count="$1" length="$2"
