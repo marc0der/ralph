@@ -1603,6 +1603,63 @@ card_rule() {
     printf '%s%s%s\n' "$CARD_DIM" "$line" "$CARD_OFF"
 }
 
+# Prints the column widths of the rows, each a sep-joined cell list; a row's last cell sets none.
+card_row_widths() {
+    local LC_ALL=$CARD_LOCALE
+    local row i
+    local -a cells widths=()
+    for row in "$@"; do
+        IFS=$'\x1f' read -ra cells <<< "$row"$'\x1f'
+        for (( i = 0; i < ${#cells[@]} - 1; i++ )); do
+            (( ${#cells[i]} + 2 > ${widths[i]:-0} )) && widths[i]=$(( ${#cells[i]} + 2 ))
+        done
+    done
+    echo "${widths[*]}"
+}
+
+print_card_rows() {
+    local LC_ALL=$CARD_LOCALE
+    local row i len plain colored pad
+    local -a cells widths split_rows=()
+    read -ra widths <<< "$(card_row_widths "$@")"
+    for row in "$@"; do
+        IFS=$'\x1f' read -ra cells <<< "$row"$'\x1f'
+        len=$(( 2 + ${#cells[${#cells[@]} - 1]} ))
+        for (( i = 0; i < ${#cells[@]} - 1; i++ )); do
+            len=$(( len + widths[i] ))
+        done
+        if (( ${#cells[@]} > 2 && len > CARD_WIDTH )); then
+            for (( i = 0; i < ${#cells[@]}; i += 2 )); do
+                split_rows+=("${cells[i]}"$'\x1f'"${cells[i + 1]}")
+            done
+        else
+            split_rows+=("$row")
+        fi
+    done
+    read -ra widths <<< "$(card_row_widths "${split_rows[@]}")"
+    for row in "${split_rows[@]}"; do
+        IFS=$'\x1f' read -ra cells <<< "$row"$'\x1f'
+        plain="  " colored="  "
+        for (( i = 0; i < ${#cells[@]}; i++ )); do
+            pad=""
+            if (( i < ${#cells[@]} - 1 )); then
+                printf -v pad '%*s' $(( widths[i] - ${#cells[i]} )) ''
+            fi
+            plain+="${cells[i]}$pad"
+            if (( i % 2 == 0 )); then
+                colored+="$CARD_LABEL${cells[i]}$CARD_OFF$pad"
+            else
+                colored+="${cells[i]}$pad"
+            fi
+        done
+        if (( ${#plain} > CARD_WIDTH )); then
+            card_fit "$plain"
+        else
+            printf '%s\n' "$colored"
+        fi
+    done
+}
+
 # --- Metrics capture ---
 # Each non-dry-run iteration appends one JSON line to
 # .ralph/metrics/<branch>-<run>/metrics.jsonl and retains the raw backend

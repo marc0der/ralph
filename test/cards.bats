@@ -99,3 +99,62 @@ load test_helper
     [ "$status" -eq 0 ]
     [ "$output" = "<d>ab ---<o>" ]
 }
+
+@test "print_card_rows aligns labels and values in columns" {
+    S=$'\x1f'
+    run ralph_fn eval "CARD_LOCALE=C.UTF-8 CARD_WIDTH=120
+        print_card_rows 'backend${S}claude${S}model${S}opus' 'iterations${S}auto(2)${S}headroom${S}20%' 'config${S}./ralph.yaml (local) [build]'"
+    [ "$status" -eq 0 ]
+    [ "${lines[0]}" = "  backend     claude   model     opus" ]
+    [ "${lines[1]}" = "  iterations  auto(2)  headroom  20%" ]
+    [ "${lines[2]}" = "  config      ./ralph.yaml (local) [build]" ]
+    [ "${#lines[@]}" -eq 3 ]
+}
+
+@test "print_card_rows splits a row past the width into one row per pair" {
+    S=$'\x1f'
+    run ralph_fn eval "CARD_LOCALE=C.UTF-8 CARD_WIDTH=30
+        print_card_rows 'backend${S}claude${S}model${S}opus' 'iterations${S}auto(2)${S}headroom${S}20%'"
+    [ "$status" -eq 0 ]
+    [ "${lines[0]}" = "  backend     claude" ]
+    [ "${lines[1]}" = "  model       opus" ]
+    [ "${lines[2]}" = "  iterations  auto(2)" ]
+    [ "${lines[3]}" = "  headroom    20%" ]
+    [ "${#lines[@]}" -eq 4 ]
+}
+
+@test "print_card_rows splits only the rows that pass the width" {
+    S=$'\x1f'
+    run ralph_fn eval "CARD_LOCALE=C.UTF-8 CARD_WIDTH=20
+        print_card_rows 'a${S}1${S}b${S}long-value-xx' 'a${S}1${S}b${S}2'"
+    [ "$status" -eq 0 ]
+    [ "${lines[0]}" = "  a  1" ]
+    [ "${lines[1]}" = "  b  long-value-xx" ]
+    [ "${lines[2]}" = "  a  1  b  2" ]
+    [ "${#lines[@]}" -eq 3 ]
+}
+
+@test "print_card_rows cuts a row that still passes the width, uncoloured" {
+    S=$'\x1f'
+    run ralph_fn eval "CARD_LOCALE=C.UTF-8 CARD_WIDTH=10 CARD_LABEL='<l>' CARD_OFF='<o>'
+        print_card_rows 'ab${S}abcdefghij'"
+    [ "$status" -eq 0 ]
+    [ "$output" = "  ab  abc…" ]
+}
+
+@test "print_card_rows wraps labels in the label and off codes" {
+    S=$'\x1f'
+    run ralph_fn eval "CARD_LOCALE=C.UTF-8 CARD_WIDTH=40 CARD_LABEL='<l>' CARD_OFF='<o>'
+        print_card_rows 'ab${S}cd${S}ef${S}gh'"
+    [ "$status" -eq 0 ]
+    [ "$output" = "  <l>ab<o>  cd  <l>ef<o>  gh" ]
+}
+
+@test "print_card_rows keeps an empty label cell and a trailing empty value" {
+    S=$'\x1f'
+    run ralph_fn eval "CARD_LOCALE=C.UTF-8 CARD_WIDTH=40
+        print_card_rows 'metrics${S}on${S}${S}file.jsonl' 'quiet${S}'"
+    [ "$status" -eq 0 ]
+    [ "${lines[0]}" = "  metrics  on    file.jsonl" ]
+    [ "${lines[1]}" = "  quiet    " ]
+}
