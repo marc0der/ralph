@@ -767,6 +767,32 @@ MOCK
     [[ "$(jq -r '.phases[6].state' "${runs[0]}auto.json")" == "ran" ]]
 }
 
+@test "auto.json records the exit and times of each phase that ran, and null for one that did not" {
+    create_committing_backend
+    MOCK_REVIEW_NOOP=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push -g "the goal"
+    [[ "$status" -eq 0 ]]
+
+    local -a runs=(.ralph/logs/*/)
+    local json="${runs[0]}auto.json"
+    local stamp='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+    jq -e '.phases[2] | .exit == 0' "$json"
+    jq -e --arg stamp "$stamp" '.phases[2] | (.started | test($stamp)) and (.ended | test($stamp))' "$json"
+    jq -e '.phases[2] | .started <= .ended' "$json"
+    [[ "$(jq -r '.phases[5] | "\(.name) \(.state) \(.exit) \(.started) \(.ended)"' "$json")" \
+        == "fix skipped — no open items null null null" ]]
+}
+
+@test "auto.json records the exit and end time of a phase that failed" {
+    create_committing_backend
+    MOCK_RETRO_EXIT=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push -g "the goal"
+    [[ "$status" -eq 1 ]]
+
+    local -a runs=(.ralph/logs/*/)
+    local json="${runs[0]}auto.json"
+    jq -e '.phases[6] | .state == "failed — exit 1" and .exit == 1 and (.started | type == "string") and (.ended | type == "string")' "$json"
+    jq -e '[.phases[:6][].exit] | all(. == 0)' "$json"
+}
+
 @test "auto warns once and runs every phase when it cannot write auto.json" {
     create_committing_backend
     printf '#!/usr/bin/env bash\ncase "$*" in *auto.json.*) exit 1 ;; esac\nexec %q "$@"\n' \
