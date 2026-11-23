@@ -543,9 +543,8 @@ MOCK
     [[ "$output" == "Run: .ralph/logs/r1"* ]]
     local squeezed expected
     squeezed=$(tr -s ' \t' ' ' <<<"$output")
-    expected=$'PHASE MODEL/EFFORT ITERS WALL COST OUT_TOK COMMITS EXIT\nplan sonnet/default 1 5s $0.5 40 1 -\nbuild opus/high 2 1m10s $3.73 350 3 -'
+    expected=$'PHASE MODEL/EFFORT ITERS WALL COST OUT_TOK COMMITS EXIT\nplan sonnet/default 1 5s $0.5 40 1 -\nbuild opus/high 2 1m10s $3.73 350 3 -\n\nTotals: 3 iterations · wall 1m15s'
     [[ "$squeezed" == *"$expected"* ]]
-    [[ "$squeezed" == *"Totals: 3 iterations · wall 1m15s"* ]]
 }
 
 @test "a rollup row names the model of the phase's first record" {
@@ -703,7 +702,7 @@ EOF
     [[ "$status" -eq 0 ]]
     local squeezed expected
     squeezed=$(tr -s ' \t' ' ' <<<"$output")
-    expected=$'PHASE MODEL/EFFORT ITERS WALL COST OUT_TOK COMMITS EXIT\nplan opus/high 2 10s $0.5 40 2 -\nbuild opus/high 2 10s - - 2 -\nreview opus/high 1 5s $0 0 1 -'
+    expected=$'PHASE MODEL/EFFORT ITERS WALL COST OUT_TOK COMMITS EXIT\nplan opus/high 2 10s $0.5 40 2 -\nbuild opus/high 2 10s - - 2 -\nreview opus/high 1 5s $0 0 1 -\n\nTotals:'
     [[ "$squeezed" == *"$expected"* ]]
 }
 
