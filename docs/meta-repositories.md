@@ -16,7 +16,7 @@ In the workspace's `CLAUDE.md` or `AGENTS.md`:
 - Name each service's own conventions file, so the agent reads it before committing there.
 - If the sync script leaves clones on a detached `HEAD`, name the branch the agent should commit on.
 
-Metrics count git activity in the workspace only. A pass that commits only in a nested repository records 0 commits, but is not marked as a no-op.
+Metrics count git activity in every repository beneath the workspace, with a per-repository breakdown. A pass that commits only in a nested repository records those commits and is not marked as a no-op.
 
 ## Troubleshooting
 
