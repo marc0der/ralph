@@ -7,7 +7,7 @@ load test_helper
     seed_open_item
     run "$RALPH" build --dry-run -n 1
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Backend: claude"* ]]
+    [[ "$(card_row backend "$output" build)" == "backend claude "* ]]
 }
 
 @test "-b codex selects codex backend" {
@@ -15,7 +15,7 @@ load test_helper
     seed_open_item
     run "$RALPH" build --dry-run -n 1 -b codex
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Backend: codex"* ]]
+    [[ "$(card_row backend "$output" build)" == "backend codex "* ]]
     [[ "$output" == *"[dry-run] Would run: codex exec"* ]]
 }
 
@@ -33,7 +33,7 @@ load test_helper
     seed_open_item
     run "$RALPH" build --dry-run -n 1 -b codex
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Model:   gpt-5.2-codex"* ]]
+    [[ "$(card_row backend "$output" build)" == *" model gpt-5.2-codex effort "* ]]
     [[ "$output" == *"gpt-5.2-codex"* ]]
 }
 
@@ -42,7 +42,7 @@ load test_helper
     seed_open_item
     run "$RALPH" build --dry-run -n 1
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Model:   opus"* ]]
+    [[ "$(card_row backend "$output" build)" == *" model opus effort "* ]]
 }
 
 @test "-m flag overrides default model for any backend" {
@@ -50,7 +50,7 @@ load test_helper
     seed_open_item
     run "$RALPH" build --dry-run -n 1 -b codex -m custom-model
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Model:   custom-model"* ]]
+    [[ "$(card_row backend "$output" build)" == *" model custom-model effort "* ]]
     [[ "$output" == *"custom-model"* ]]
 }
 
@@ -59,7 +59,7 @@ load test_helper
     seed_open_item
     run "$RALPH" build --dry-run -n 1 -b copilot
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Backend: copilot"* ]]
+    [[ "$(card_row backend "$output" build)" == "backend copilot "* ]]
     [[ "$output" == *"[dry-run] Would run: copilot --output-format=json --yolo --model"* ]]
     [[ "$output" == *"-p <prompt>"* ]]
 }
@@ -69,7 +69,7 @@ load test_helper
     seed_open_item
     run "$RALPH" build --dry-run -n 1 -b copilot
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Model:   claude-sonnet-4.6"* ]]
+    [[ "$(card_row backend "$output" build)" == *" model claude-sonnet-4.6 effort "* ]]
     [[ "$output" == *"--model claude-sonnet-4.6"* ]]
 }
 
@@ -78,7 +78,7 @@ load test_helper
     seed_open_item
     run "$RALPH" build --dry-run -n 1 -b copilot -m custom-copilot-model
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Model:   custom-copilot-model"* ]]
+    [[ "$(card_row backend "$output" build)" == *" model custom-copilot-model effort "* ]]
     [[ "$output" == *"--model custom-copilot-model"* ]]
 }
 
@@ -95,7 +95,7 @@ load test_helper
     seed_open_item
     run "$RALPH" build --dry-run -n 1 -b pi
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Backend: pi"* ]]
+    [[ "$(card_row backend "$output" build)" == "backend pi "* ]]
     # No permission-flag positional, no stray empty arg between --model and --no-session
     [[ "$output" == *"[dry-run] Would run: pi -p --mode json --model anthropic/claude-opus-4-8 --no-session"* ]]
 }
@@ -105,7 +105,7 @@ load test_helper
     seed_open_item
     run "$RALPH" build --dry-run -n 1 -b pi
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Model:   anthropic/claude-opus-4-8"* ]]
+    [[ "$(card_row backend "$output" build)" == *" model anthropic/claude-opus-4-8 effort "* ]]
     [[ "$output" == *"--model anthropic/claude-opus-4-8"* ]]
 }
 
@@ -114,7 +114,7 @@ load test_helper
     seed_open_item
     run "$RALPH" build --dry-run -n 1 -b pi -m custom-pi-model
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Model:   custom-pi-model"* ]]
+    [[ "$(card_row backend "$output" build)" == *" model custom-pi-model effort "* ]]
     [[ "$output" == *"--model custom-pi-model"* ]]
 }
 

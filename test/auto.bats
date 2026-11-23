@@ -54,12 +54,6 @@ seed_resume_state() {
     [[ "$output" == *"running outside a container with --force"* ]]
 }
 
-@test "auto --force prints its notice, not the backend banner" {
-    create_committing_backend
-    DEVCONTAINER=false PATH="$TEST_DIR/bin:$PATH" run "$RALPH" auto --force --dry-run -g "the goal"
-    [[ "$output" != *"Backend:"* ]]
-}
-
 @test "auto proceeds inside a container without --force" {
     create_committing_backend
     run_auto --skip-push --no-metrics

@@ -901,7 +901,7 @@ MOCK
     [[ "$status" -eq 0 ]]
     # Metrics stayed enabled: the run still announced its metrics file and only
     # failed when it tried to write into the directory that was never created.
-    [[ "$output" == *"Metrics: .ralph/metrics/"* ]]
+    [[ "$(card_row metrics "$stderr" build)" == "metrics on .ralph/metrics/"* ]]
     [[ "$stderr" == *"metrics capture failed for iteration 1"* ]]
     # The stream fell back to the per-run temp file, which the EXIT trap
     # deletes, so its path must not be offered as something to inspect. The
