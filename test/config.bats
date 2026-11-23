@@ -550,7 +550,7 @@ run_retro_with_config() {
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build --skip-push --no-metrics
     [[ "$status" -eq 0 ]]
     [[ "$(card_row iterations "$stderr" build)" == "iterations 3 "* ]]
-    [[ "$output" == *"ITERATION 3 / 3"* ]]
+    [[ "$output" == *"── 3/3 ── "* ]]
     [[ "$output" != *"No changes detected"* ]]
     [[ "$(card_row iterations "$stderr" build)" == "iterations 3 headroom 20% patience 2 "* ]]
 }
@@ -599,8 +599,8 @@ run_retro_with_config() {
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build --skip-push --no-metrics
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"No changes detected for 3 consecutive iterations — exiting early."* ]]
-    [[ "$output" == *"ITERATION 3 / 6"* ]]
-    [[ "$output" != *"ITERATION 4 / 6"* ]]
+    [[ "$output" == *"── 3/6 ── "* ]]
+    [[ "$output" != *"── 4/6 ── "* ]]
     [[ "$(card_row iterations "$stderr" build)" == *"patience 3 push off" ]]
 }
 
