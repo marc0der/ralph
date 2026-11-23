@@ -3062,8 +3062,34 @@ cmd_auto() {
     local auto_resume_notice=""
     local run_dir=""
     local recorded_run=""
+    local auto_started=""
+    local auto_branch=""
+    local auto_json_failed=false
+    # Rewritten through a temp file and mv, so a reader never sees half a file
+    # (specs/023-run-logs-and-metrics.md §3). A failed write only warns, once.
+    write_auto_json() {
+        if [[ -z $run_dir ]] || $auto_json_failed; then
+            return 0
+        fi
+        local tmp=""
+        if tmp=$(mktemp "$run_dir/auto.json.XXXXXX" 2>/dev/null) &&
+            jq -n --arg goal "$goal" --arg branch "$auto_branch" --arg started "$auto_started" \
+                --arg names "${RALPH_PHASES[*]}" \
+                '($names | split(" ")) as $name
+                 | {goal: $goal, branch: $branch, started: $started,
+                    phases: [$ARGS.positional | to_entries[]
+                             | {phase: (.key + 1), name: $name[.key], state: .value}]}' \
+                --args "${phase_state[@]:1}" > "$tmp" 2>/dev/null &&
+            mv "$tmp" "$run_dir/auto.json" 2>/dev/null; then
+            return 0
+        fi
+        [[ -z $tmp ]] || rm -f "$tmp"
+        echo "Warning: cannot write $run_dir/auto.json; lifecycle metrics disabled" >&2
+        auto_json_failed=true
+    }
     auto_report() {
         local i
+        write_auto_json
         echo "" >&2
         echo "Lifecycle summary" >&2
         for ((i = 1; i <= ${#RALPH_PHASES[@]}; i++)); do
@@ -3172,6 +3198,8 @@ cmd_auto() {
     # One run directory per lifecycle (specs/023-run-logs-and-metrics.md §3). Every
     # child writes its phase folder into it through RALPH_RUN_DIR.
     if [[ $no_metrics != true ]]; then
+        auto_started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        auto_branch=$(git branch --show-current 2>/dev/null || true)
         if $resume && [[ -d $recorded_run ]]; then
             run_dir=$recorded_run
             export RALPH_RUN_DIR="$run_dir"
@@ -3179,7 +3207,7 @@ cmd_auto() {
             if $resume; then
                 echo "Resumed into a new run directory; earlier phases are not in it." >&2
             fi
-            run_dir=$(new_run_dir "$(git branch --show-current 2>/dev/null || true)")
+            run_dir=$(new_run_dir "$auto_branch")
             if mkdir -p "$run_dir" 2>/dev/null; then
                 export RALPH_RUN_DIR="$run_dir"
             else
@@ -3199,6 +3227,8 @@ cmd_auto() {
         phase_num=$((phase_num + 1))
 
         [[ $phase_num -lt $start_phase ]] && continue
+
+        write_auto_json
 
         # Guards read the plan as it stands on disk right now, never a decision
         # made earlier in the run. build (4) and fix (6) need both artifacts and an
