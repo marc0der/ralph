@@ -988,6 +988,12 @@ PASS
     [[ "$(grep -cF "date '+%Y-%m-%d %H:%M'" "$BATS_TEST_DIRNAME/../prompts/review.md")" -eq 1 ]]
 }
 
+@test "the retro prompt dates bullets from date +%F" {
+    prompt="$BATS_TEST_DIRNAME/../prompts/retro.md"
+    grep -qF 'date +%F' "$prompt"
+    run ! grep -qF "Use today's date" "$prompt"
+}
+
 @test "plan, build and review prompts point at the learnings file" {
     local prompt
     for prompt in plan build review; do

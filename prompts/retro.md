@@ -52,7 +52,7 @@ You write the whole file again. Follow these rules:
 - Keep every other bullet and its date.
 - When the file would exceed 30 bullets, remove the bullets with the oldest dates first. Never remove a `Promote to AGENTS.md` bullet for this reason. Among equal dates, remove the bullet nearest the end of the file first.
 
-Use today's date for a new bullet. Write it as `YYYY-MM-DD`.
+Run `date +%F` once before you write the file. Use its output for every new bullet and every bullet this cycle observed again.
 
 ### Choose the heading
 
