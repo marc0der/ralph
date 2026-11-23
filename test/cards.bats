@@ -724,3 +724,37 @@ MOCK
     [[ "$stderr" == *"━━ ralph build"* ]]
     [[ "$stderr" != *$'\e'* ]]
 }
+
+@test "terminal NO_COLOR=1 leaves no escape code on either stream" {
+    "$RALPH" init
+    seed_open_item
+    NO_COLOR=1 TERM=xterm run_on_tty "$RALPH" build --dry-run -n 1 -y
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"── 1/1 ── claude"* ]]
+    [[ "$output" == *"━━ ralph build"* ]]
+    [[ "$output" != *$'\e'* ]]
+}
+
+@test "terminal TERM=dumb leaves no escape code on either stream" {
+    "$RALPH" init
+    seed_open_item
+    NO_COLOR='' TERM=dumb run_on_tty "$RALPH" build --dry-run -n 1 -y
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"── 1/1 ── claude"* ]]
+    [[ "$output" == *"━━ ralph build"* ]]
+    [[ "$output" != *$'\e'* ]]
+}
+
+@test "terminal stdout keeps colour when stderr is a file" {
+    create_streaming_backend
+    "$RALPH" init
+    seed_open_item
+    NO_COLOR='' TERM=xterm PATH="$TEST_DIR/bin:$PATH" run_on_tty bash -c \
+        "$(printf '%q' "$RALPH") build -n 1 -y --skip-push 2> stderr.txt"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\e[2m── 1/1 ── claude'* ]]
+    [[ "$output" == *$'\e[2m── 1/1 done ── '* ]]
+    [[ "$output" != *"━━ ralph build"* ]]
+    grep -q '━━ ralph build' stderr.txt
+    [[ "$(<stderr.txt)" != *$'\e'* ]]
+}
