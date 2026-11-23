@@ -493,3 +493,40 @@ MOCK
     [ "${#line}" -eq 120 ]
     [[ "$line" == *"…" ]]
 }
+
+@test "headline in review counts shipped items and cited specs" {
+    "$RALPH" init
+    printf -- '- [x] **One**\n  Spec: specs/a.md item 1\n- [x] **Two**\n  Spec: specs/a.md item 2\n- [x] **Three**\n  Spec: specs/b.md §1\n' >> IMPLEMENTATION_PLAN.md
+    seed_cycle_base
+    run --separate-stderr "$RALPH" review --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n▶ reviewing 3 shipped items against 2 cited specs\n'* ]]
+}
+
+@test "headline in review uses the singular for one item and one spec" {
+    "$RALPH" init
+    seed_shipped_item
+    seed_cycle_base
+    run --separate-stderr "$RALPH" review --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n▶ reviewing 1 shipped item against 1 cited spec\n'* ]]
+}
+
+@test "headline in review says no cited specs for an empty anchor set" {
+    "$RALPH" init
+    printf -- '- [x] **Gate**\n  Spec: CLAUDE.md verification gate\n' >> IMPLEMENTATION_PLAN.md
+    seed_cycle_base
+    run --separate-stderr "$RALPH" review --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n▶ reviewing 1 shipped item against no cited specs\n'* ]]
+}
+
+@test "review keeps its Review filed line on the shared spec count" {
+    "$RALPH" init
+    seed_shipped_item
+    seed_cycle_base
+    create_streaming_backend
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" review --skip-push --no-metrics
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Review filed 0 findings. Reviewed 1 specs and "* ]]
+}
