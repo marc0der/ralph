@@ -704,3 +704,23 @@ MOCK
     [[ "$line" == *" commits (+0/-0) ──"* ]]
     [[ "$line" != *Tool* ]]
 }
+
+@test "terminal divider holds an escape code with colour allowed" {
+    "$RALPH" init
+    seed_open_item
+    NO_COLOR='' TERM=xterm run_on_tty "$RALPH" build --dry-run -n 1 -y
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\e[2m── 1/1 ── claude'* ]]
+}
+
+@test "terminal run off a terminal prints no escape code on either stream" {
+    create_streaming_backend
+    "$RALPH" init
+    seed_open_item
+    NO_COLOR='' TERM=xterm PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"── 1/1 ── "* ]]
+    [[ "$output" != *$'\e'* ]]
+    [[ "$stderr" == *"━━ ralph build"* ]]
+    [[ "$stderr" != *$'\e'* ]]
+}
