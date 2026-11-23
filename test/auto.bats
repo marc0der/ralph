@@ -491,7 +491,7 @@ seed_resume_state() {
     DEVCONTAINER=true run "$RALPH" auto --dry-run -g "the goal"
     [[ "$status" -eq 0 ]]
     [[ ! -f IMPLEMENTATION_PLAN.md ]]
-    [[ ! -d .ralph/metrics ]]
+    [[ ! -d .ralph/logs ]]
 }
 
 @test "--dry-run shows -g on the plan row and on no other row" {
@@ -596,11 +596,11 @@ seed_resume_state() {
 
 # --- Flag forwarding by behaviour (§11) -------------------------------------
 
-@test "--no-metrics reaches children: no .ralph/metrics directory is created" {
+@test "--no-metrics reaches children: no .ralph/logs directory is created" {
     create_committing_backend
     run_auto --skip-push --no-metrics
     [[ "$status" -eq 0 ]]
-    [[ ! -d .ralph/metrics ]]
+    [[ ! -d .ralph/logs ]]
 }
 
 @test "auto without --quiet shows Backend command: lines" {

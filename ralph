@@ -304,7 +304,7 @@ Options:
                        never push)
       --push           Push after each build or fix iteration; overrides skip_push: true
       --dry-run        Print what would be executed without running
-      --no-metrics     Don't record per-iteration metrics under .ralph/metrics/
+      --no-metrics     Don't record per-iteration metrics under .ralph/logs/
       --metrics        Record metrics; overrides metrics: false
   -q, --quiet          Don't stream backend activity; hide commands, exit codes and the raw stream path
       --verbose        Stream backend activity; overrides quiet: true
@@ -1707,10 +1707,17 @@ print_run_card() {
 
 # --- Metrics capture ---
 # Each non-dry-run iteration appends one JSON line to
-# .ralph/metrics/<branch>-<run>/metrics.jsonl and retains the raw backend
-# stream alongside (iter-NNN.stream.jsonl). Result-event fields (duration,
-# turns, cost, token usage) are populated for the claude backend; other
-# backends degrade to nulls. A failure here never interrupts the loop.
+# .ralph/logs/<branch>-<run>/<section>/metrics.jsonl and retains the raw
+# backend stream alongside (iter-NNN.stream.jsonl). Result-event fields
+# (duration, turns, cost, token usage) are populated for the claude backend;
+# other backends degrade to nulls. A failure here never interrupts the loop.
+
+# Print the path of a new run directory for a branch. The PID suffix keeps runs
+# started within the same second distinct.
+new_run_dir() {
+    local branch="$1"
+    echo "$ARCHIVE_DIR/logs/${branch//\//-}-$(date +%Y%m%d-%H%M%S)-$$"
+}
 
 fmt_duration() {
     local s="$1"
@@ -1910,10 +1917,10 @@ cmd_metrics() {
     local file="${1:-}"
     if [[ -z "$file" ]]; then
         # shellcheck disable=SC2012  # newest-by-mtime needs ls; paths are ralph-generated (no odd filenames)
-        file=$(ls -1t "$ARCHIVE_DIR"/metrics/*/metrics.jsonl 2>/dev/null | head -1 || true)
+        file=$(ls -1t "$ARCHIVE_DIR"/logs/*/*/metrics.jsonl 2>/dev/null | head -1 || true)
     fi
     if [[ -z "$file" || ! -f "$file" ]]; then
-        echo "No metrics found under $ARCHIVE_DIR/metrics/." >&2
+        echo "No metrics found under $ARCHIVE_DIR/logs/." >&2
         echo "Usage: ralph metrics [path/to/metrics.jsonl]" >&2
         exit 1
     fi
@@ -2165,8 +2172,7 @@ cmd_loop() {
     ($dry_run || $no_metrics) && metrics_enabled=false
     local metrics_dir="" metrics_file=""
     if $metrics_enabled; then
-        # PID suffix keeps runs started within the same second distinct
-        metrics_dir="$ARCHIVE_DIR/metrics/${current_branch//\//-}-$(date +%Y%m%d-%H%M%S)-$$"
+        metrics_dir="$(new_run_dir "$current_branch")/$section"
         metrics_file="$metrics_dir/metrics.jsonl"
         if ! mkdir -p "$metrics_dir" 2>/dev/null; then
             echo "Warning: cannot create $metrics_dir; metrics disabled for this run" >&2

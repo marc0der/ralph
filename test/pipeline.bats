@@ -859,10 +859,10 @@ MOCK
     # root, where chmod-based denial does not bite (same idiom as
     # test/metrics.bats "metrics failure does not fail the loop").
     mkdir -p .ralph
-    touch .ralph/metrics
+    touch .ralph/logs
 
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
-    rm -f .ralph/metrics
+    rm -f .ralph/logs
 
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *"metrics disabled for this run"* ]]
@@ -890,7 +890,7 @@ MOCK
     [[ "$status" -eq 0 ]]
     # Metrics stayed enabled: the run still announced its metrics file and only
     # failed when it tried to write into the directory that was never created.
-    [[ "$(card_row metrics "$stderr" build)" == "metrics: on .ralph/metrics/"* ]]
+    [[ "$(card_row metrics "$stderr" build)" == "metrics: on .ralph/logs/"* ]]
     [[ "$stderr" == *"metrics capture failed for iteration 1"* ]]
     # The stream fell back to the per-run temp file, which the EXIT trap
     # deletes, so its path must not be offered as something to inspect. The
@@ -965,7 +965,7 @@ MOCK
 #!/usr/bin/env bash
 cat > /dev/null
 echo '{"type":"result","result":"done"}'
-rm -rf .ralph/metrics
+rm -rf .ralph/logs
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
 
@@ -1065,7 +1065,7 @@ MOCK
     [[ "$output" != *"stderr leaked"* ]]
 
     local stream
-    stream=$(find .ralph/metrics -name 'iter-001.stream.jsonl' -print -quit)
+    stream=$(find .ralph/logs -name 'iter-001.stream.jsonl' -print -quit)
     [[ -n "$stream" ]]
     # `run !` and not a bare `!`: in bats a bare `!` cannot fail a test, so
     # both of these would be inert (SC2314).
@@ -1121,7 +1121,7 @@ MOCK
     [[ "$stderr" != *"backend command failed"* ]]
 
     local stream
-    stream=$(find .ralph/metrics -name 'iter-001.stream.jsonl' -print -quit)
+    stream=$(find .ralph/logs -name 'iter-001.stream.jsonl' -print -quit)
     [[ -n "$stream" ]]
     # All ten emitted lines, in order, with the bad one still first: tee copies
     # the stream verbatim and the renderer filters only its own output.

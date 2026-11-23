@@ -311,7 +311,7 @@ load test_helper
     seed_open_item
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
     [ "$status" -eq 0 ]
-    [[ "$(card_row metrics "$stderr" build)" == "metrics: on .ralph/metrics/"*"/metrics.jsonl" ]]
+    [[ "$(card_row metrics "$stderr" build)" == "metrics: on .ralph/logs/"*"/metrics.jsonl" ]]
 }
 
 @test "run card prints metrics off under --no-metrics" {
@@ -735,7 +735,7 @@ MOCK
     [[ "$(id -u)" -ne 0 ]] || skip "root writes a read-only file"
     "$RALPH" init
     seed_open_item
-    create_backend_acting_on_call 2 'chmod a-w .ralph/metrics/*/metrics.jsonl'
+    create_backend_acting_on_call 2 'chmod a-w .ralph/logs/*/*/metrics.jsonl'
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 2 --skip-push
     [ "$status" -eq 0 ]
     [[ "$stderr" == *"metrics capture failed for iteration 2"* ]]
