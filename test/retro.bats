@@ -994,6 +994,13 @@ PASS
     run ! grep -qF "Use today's date" "$prompt"
 }
 
+@test "the progress template names the date command and the zone" {
+    template="$BATS_TEST_DIRNAME/../templates/PROGRESS.md"
+    grep -qF '### [YYYY-MM-DD HH:mm]' "$template"
+    grep -qF "date '+%Y-%m-%d %H:%M'" "$template"
+    grep -qF 'TZ' "$template"
+}
+
 @test "plan, build and review prompts point at the learnings file" {
     local prompt
     for prompt in plan build review; do

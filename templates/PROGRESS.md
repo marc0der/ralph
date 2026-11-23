@@ -6,6 +6,8 @@
 
 Each entry must follow this structure exactly:
 
+Take the heading's time from `date '+%Y-%m-%d %H:%M'`. Its zone is the sandbox's `TZ`, which is fixed when the sandbox is built and is UTC unless the host exported `TZ`. On a run outside the sandbox it is the host's zone.
+
 ---
 
 ### [YYYY-MM-DD HH:mm] — [IMPLEMENTATION_PLAN.md item reference]
