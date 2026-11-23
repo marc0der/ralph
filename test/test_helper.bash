@@ -6,6 +6,8 @@ export RALPH="$BATS_TEST_DIRNAME/../ralph"
 # When tests run inside the devcontainer DEVCONTAINER=true leaks in and silently
 # flips that branch — unset it so every test sees the same host-side defaults.
 unset DEVCONTAINER
+# A RALPH_RUN_DIR leaked from an auto run would send every loop into one folder.
+unset RALPH_RUN_DIR
 
 # Source ralph's functions without its main dispatch, as resolve_prompt.bats does.
 ralph_fn() {

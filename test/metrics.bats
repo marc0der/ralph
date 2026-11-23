@@ -115,6 +115,39 @@ latest_metrics_file() {
     [[ ! -e "${builds[0]}" ]]
 }
 
+@test "RALPH_RUN_DIR naming a directory receives the phase folder and no other run is created" {
+    "$RALPH" init
+    printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
+    create_committing_backend
+    mkdir -p .ralph/logs/given
+
+    RALPH_RUN_DIR=.ralph/logs/given PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
+    [[ "$status" -eq 0 ]]
+
+    [[ -f .ralph/logs/given/build/metrics.jsonl ]]
+    [[ -f .ralph/logs/given/build/iter-001.stream.jsonl ]]
+    [[ "$(ls .ralph/logs)" == "given" ]]
+}
+
+@test "the backend does not see RALPH_RUN_DIR" {
+    "$RALPH" init
+    printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
+    mkdir -p "$TEST_DIR/bin" .ralph/logs/given
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+echo "${RALPH_RUN_DIR-unset}" > "$TEST_DIR/backend-env"
+echo '{"type":"result","subtype":"success","duration_ms":500,"duration_api_ms":400,"num_turns":2,"result":"Nothing to do.","session_id":"s2","total_cost_usd":0.01,"usage":{"input_tokens":10,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":5}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    export TEST_DIR
+    RALPH_RUN_DIR=.ralph/logs/given PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
+    [[ "$status" -eq 0 ]]
+
+    [[ "$(cat "$TEST_DIR/backend-env")" == "unset" ]]
+}
+
 @test "noop iteration is recorded with noop=true and zero commits" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
