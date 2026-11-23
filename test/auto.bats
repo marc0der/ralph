@@ -663,3 +663,47 @@ seed_resume_state() {
     [[ "$output" == *"lifecycle metrics disabled"* ]]
     [[ "$output" == *"7 retro     ran"* ]]
 }
+
+@test "a failed lifecycle records its run folder in .ralph/auto-state" {
+    create_committing_backend
+    MOCK_RETRO_EXIT=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push -g "the goal"
+    [[ "$status" -eq 1 ]]
+
+    local -a runs=(.ralph/logs/*/)
+    [[ "${#runs[@]}" -eq 1 ]]
+    grep -qx "run=${runs[0]%/}" .ralph/auto-state
+}
+
+@test "--resume reuses the recorded run folder and the retro appends to its folder" {
+    create_committing_backend
+    MOCK_RETRO_EXIT=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push -g "the goal"
+    [[ "$status" -eq 1 ]]
+    local -a before=(.ralph/logs/*/)
+
+    run_auto --resume --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"Resumed into a new run directory"* ]]
+
+    local -a runs=(.ralph/logs/*/)
+    [[ "${#runs[@]}" -eq 1 ]]
+    [[ "${runs[0]}" == "${before[0]}" ]]
+    [[ -f "${runs[0]}retro/iter-001.stream.jsonl" ]]
+    [[ -f "${runs[0]}retro/iter-002.stream.jsonl" ]]
+}
+
+@test "--resume with the recorded run folder gone starts a new one and says so" {
+    create_committing_backend
+    MOCK_RETRO_EXIT=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push -g "the goal"
+    [[ "$status" -eq 1 ]]
+    local -a before=(.ralph/logs/*/)
+    rm -rf "${before[0]}"
+
+    run_auto --resume --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Resumed into a new run directory; earlier phases are not in it."* ]]
+
+    local -a runs=(.ralph/logs/*/)
+    [[ "${#runs[@]}" -eq 1 ]]
+    [[ "${runs[0]}" != "${before[0]}" ]]
+    [[ -f "${runs[0]}retro/iter-001.stream.jsonl" ]]
+}
