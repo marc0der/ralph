@@ -366,15 +366,15 @@ load test_helper
 }
 
 @test "clock_hhmm prints the local time of epoch 0" {
-    TZ=UTC run ralph_fn clock_hhmm 0
+    TZ=ABC-2 run ralph_fn clock_hhmm 0
     [ "$status" -eq 0 ]
-    [ "$output" = "00:00" ]
+    [ "$output" = "02:00" ]
 }
 
 @test "clock_hhmm prints the local time of epoch 3660" {
-    TZ=UTC run ralph_fn clock_hhmm 3660
+    TZ=ABC-2 run ralph_fn clock_hhmm 3660
     [ "$status" -eq 0 ]
-    [ "$output" = "01:01" ]
+    [ "$output" = "03:01" ]
 }
 
 @test "divider counts 1/3, 2/3 and 3/3 across a three-iteration run" {
