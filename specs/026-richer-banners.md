@@ -53,12 +53,17 @@ agent's output.
 
 The cards and the footer use one width per stream. On a terminal, the width is `COLUMNS` when it
 is a positive integer, else the column count that the stream's terminal reports, capped at 120.
+The cap applies to both sources. A terminal that reports no positive column count gets 120. Ralph
+reads `COLUMNS` from its caller's environment only, and never lets the shell rewrite it during
+the run.
 The width is read for the stream the line goes to: stderr for the run card, stdout for the
 iteration card and the footer. Off a terminal, the width is 120. A line longer than the width is cut
 to the width, and its last character is `…`. No card line wraps. Every rule line, including the
-divider and the footer, is padded with its rule character to exactly the width. The examples in
+divider and the footer, is padded with its rule character to exactly the width. A rule line that
+holds text ends in a space and at least two rule characters. Those characters count toward its
+length, also when Ralph checks whether the footer is longer than the width. The examples in
 this spec are shortened. Width is measured in screen columns. Ralph measures it in a UTF-8
-locale whatever the caller's locale is.
+locale whatever the caller's locale is, and counts one column per character.
 
 ### Colour
 
@@ -70,7 +75,9 @@ Ralph uses colour on a stream only when all of these are true:
 
 The choice is made for stdout and stderr separately, so `ralph build 2> log` keeps colour on
 stdout. Rules print dim, labels print in one colour, values print in the terminal's default
-colour, and the headline prints bold. This spec does not fix the label colour.
+colour, and the headline prints bold. This spec does not fix the label colour. A rule line prints
+dim as a whole, the text in it included, so the divider and the footer print dim. A run card row
+that is cut to the width prints without colour.
 
 ### Run card
 
@@ -102,7 +109,8 @@ does today. It prints before the outside-a-container warning. For a `build` run:
 - `metrics` prints the effective value: `on`, `off` or `off (dry-run)`. When it is `on`, the
   metrics file path follows, as `specs/023-run-logs-and-metrics.md` places it.
 - `extra args` prints the section's `extra_args`, joined by spaces, only when the section sets
-  any.
+  any. A `-b` that drops the file's `extra_args` (spec 019 §5) leaves the row out, as it leaves
+  them out of the backend command.
 - The run card holds no goal. The plan headline carries it (see the iteration card).
 
 Under `auto`, each child prints its own run card. `auto`'s own notices are unchanged.
@@ -210,7 +218,10 @@ Tests run off a terminal, so their output has no colour and a width of 120.
 **Footer**
 - With metrics on, the footer holds today's metric figures.
 - With `--no-metrics`, the footer holds the wall time only.
+- When the metrics record is not written, the footer holds the wall time only.
 - A failed iteration prints no footer.
+- A footer longer than the width loses its tool list. A footer still longer than the width ends
+  in `…`.
 
 **Colour and width**
 - Off a terminal, no output line holds an escape sequence.
@@ -220,6 +231,10 @@ Tests run off a terminal, so their output has no colour and a width of 120.
 - With stdout on a terminal and stderr off one, stdout holds escape sequences and stderr holds
   none.
 - With `COLUMNS=60` on a terminal, no card line is longer than 60 characters.
+- With `COLUMNS=60` on a terminal that reports 70 columns, no card line is longer than 60
+  characters.
+- With `COLUMNS` unset, the divider is exactly as wide as a 70-column terminal, and 120 wide on a
+  terminal that reports 0 columns.
 - Every test that needs a terminal skips with a message when it cannot give Ralph one.
 
 ## 6. Accepted risks
@@ -231,7 +246,11 @@ Tests run off a terminal, so their output has no colour and a width of 120.
 - **Box-drawing characters need a UTF-8 terminal.** Ralph already prints `━` and `⚠️`. `─`, `▶` and
   `…` are new. Only card and footer lines end a cut with `…`; other lines keep `...`.
 - **The width can change during a run.** Each card reads the width when it prints, so a resized
-  terminal gets a matching card at the next iteration. Earlier cards stay as printed.
+  terminal gets a matching card at the next iteration. Earlier cards stay as printed. A caller that
+  sets `COLUMNS` fixes the width for the whole run.
+- **Wide characters count as one column.** Ralph counts one column per character. A CJK ideograph
+  or an emoji takes two, so a title, goal or path that holds one can make its line pass the
+  width.
 
 ## 7. Out of scope
 
