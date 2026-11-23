@@ -793,6 +793,35 @@ MOCK
     jq -e '[.phases[:6][].exit] | all(. == 0)' "$json"
 }
 
+@test "auto.json records an interrupted phase with exit 130" {
+    create_committing_backend
+    mv "$TEST_DIR/bin/claude" "$TEST_DIR/bin/claude.real"
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+prompt=\$(cat)
+if echo "\$prompt" | grep -qi 'plan prompt'; then
+    touch "$BATS_TEST_TMPDIR/plan-started"
+    sleep 1
+fi
+echo "\$prompt" | "$TEST_DIR/bin/claude.real" "\$@"
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    local pid status_code=0 waited=0
+    PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true "$RALPH" auto --skip-push -g "the goal" > "$TEST_DIR/out" 2>&1 &
+    pid=$!
+    while [[ ! -f "$BATS_TEST_TMPDIR/plan-started" ]] && (( waited < 100 )); do
+        sleep 0.1
+        waited=$((waited + 1))
+    done
+    kill -TERM "$pid"
+    wait "$pid" || status_code=$?
+
+    [[ "$status_code" -eq 130 ]]
+    local -a runs=(.ralph/logs/*/)
+    jq -e '.phases[2] | .name == "plan" and .state == "interrupted" and .exit == 130' "${runs[0]}auto.json"
+}
+
 @test "--resume keeps the first goal, branch, start time and the earlier auto.json entries" {
     create_committing_backend
     MOCK_RETRO_EXIT=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push -g "the goal"
