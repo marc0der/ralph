@@ -984,6 +984,10 @@ PASS
     [[ "$(grep -cF "date '+%Y-%m-%d %H:%M'" "$BATS_TEST_DIRNAME/../prompts/build.md")" -eq 2 ]]
 }
 
+@test "the review prompt reads the heading time from date" {
+    [[ "$(grep -cF "date '+%Y-%m-%d %H:%M'" "$BATS_TEST_DIRNAME/../prompts/review.md")" -eq 1 ]]
+}
+
 @test "plan, build and review prompts point at the learnings file" {
     local prompt
     for prompt in plan build review; do
