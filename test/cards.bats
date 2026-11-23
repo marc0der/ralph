@@ -228,6 +228,46 @@ load test_helper
     [ "$(card_row quiet "$stderr" build)" = "quiet on" ]
 }
 
+@test "run card prints the iterations row with the build tuning cells" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run
+    [ "$status" -eq 0 ]
+    [ "$(card_row iterations "$stderr" build)" = "iterations auto(2) headroom 20% patience 2 push on" ]
+}
+
+@test "run card prints a fixed iteration count without auto and with push off" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run -n 3 --skip-push
+    [ "$status" -eq 0 ]
+    [ "$(card_row iterations "$stderr" build)" = "iterations 3 headroom 20% patience 2 push off" ]
+}
+
+@test "run card prints the build tuning cells in fix" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" fix --dry-run
+    [ "$status" -eq 0 ]
+    [ "$(card_row iterations "$stderr" fix)" = "iterations auto(2) headroom 20% patience 2 push on" ]
+}
+
+@test "run card prints no tuning cells in plan, review and retro" {
+    "$RALPH" init
+    run --separate-stderr "$RALPH" plan --dry-run -g "A goal"
+    [ "$status" -eq 0 ]
+    [ "$(card_row iterations "$stderr" plan)" = "iterations 6" ]
+    seed_shipped_item
+    seed_cycle_base
+    run --separate-stderr "$RALPH" review --dry-run
+    [ "$status" -eq 0 ]
+    [ "$(card_row iterations "$stderr" review)" = "iterations 1" ]
+    seed_progress_entry
+    run --separate-stderr "$RALPH" retro --dry-run
+    [ "$status" -eq 0 ]
+    [ "$(card_row iterations "$stderr" retro)" = "iterations 1" ]
+}
+
 @test "card_row returns the row of the named card only" {
     text=$'━━ ralph plan ━━\n  quiet  off\n━━━━\n━━ ralph build ━━\n  quiet  on\n━━━━'
     run card_row quiet "$text" build
