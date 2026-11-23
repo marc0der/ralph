@@ -646,6 +646,13 @@ write_learnings_pass() {
     [[ -d .ralph/metrics ]]
 }
 
+@test "a retro pass whose stream files land under .ralph/logs passes the artifact check" {
+    setup_artifact_pass 'mkdir -p .ralph/logs/r/retro && echo x > .ralph/logs/r/retro/iter-001.stream.jsonl'
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ -f .ralph/logs/r/retro/iter-001.stream.jsonl ]]
+}
+
 @test "a retro pass that writes a fifth heading fails the format check at its line" {
     setup_format_pass <<'PASS'
 printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n\n## Extra\n' > .ralph/learnings.md
