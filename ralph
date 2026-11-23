@@ -1661,8 +1661,9 @@ print_card_rows() {
 }
 
 print_run_card() {
-    local config_file="$1" section="$2" model="$4" effort="$5"
-    local quiet="${12}" branch="${13}" prompt_file="${14}"
+    local config_file="$1" section="$2" mode="$3" model="$4" effort="$5"
+    local iterations="$6" iterations_fixed="$7" headroom_pct="$8" noop_patience="$9"
+    local skip_push="${10}" quiet="${12}" branch="${13}" prompt_file="${14}"
     local source_label S=$'\x1f'
 
     source_label=$(config_source_label "$config_file")
@@ -1670,6 +1671,14 @@ print_run_card() {
     [[ "$source_label" == "(central)" ]] && source_label="$config_file $source_label"
     local quiet_label=off
     $quiet && quiet_label=on
+
+    [[ "$mode" == "build" ]] && ! $iterations_fixed && iterations="auto($iterations)"
+    local iterations_row="iterations${S}$iterations"
+    if [[ "$mode" == "build" ]]; then
+        local push=on
+        $skip_push && push=off
+        iterations_row+="${S}headroom${S}$headroom_pct%${S}patience${S}$noop_patience${S}push${S}$push"
+    fi
 
     card_style 2
     {
@@ -1679,6 +1688,7 @@ print_run_card() {
             "config${S}$source_label [$section]" \
             "branch${S}$branch" \
             "prompt${S}$prompt_file" \
+            "$iterations_row" \
             "quiet${S}$quiet_label"
         card_rule ━ ""
     } >&2
