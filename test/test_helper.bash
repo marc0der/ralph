@@ -93,6 +93,23 @@ MOCK
     chmod +x "$TEST_DIR/bin/claude"
 }
 
+# Helper: shim `mkdir` to report success for a `*/metrics/*` path without creating it.
+create_metrics_mkdir_shim() {
+    mkdir -p "$TEST_DIR/bin"
+    local real_mkdir
+    real_mkdir=$(command -v mkdir)
+    {
+        printf '#!/usr/bin/env bash\nREAL_MKDIR=%q\n' "$real_mkdir"
+        cat <<'MOCK'
+for arg in "$@"; do
+    case "$arg" in */metrics/*) exit 0 ;; esac
+done
+exec "$REAL_MKDIR" "$@"
+MOCK
+    } > "$TEST_DIR/bin/mkdir"
+    chmod +x "$TEST_DIR/bin/mkdir"
+}
+
 # Helper: append one real open item to the plan. `ralph init` scaffolds a plan
 # whose only column-zero entry is the exemplar under `## Entry Format`, and
 # `plan_items_body` strips that, so an initialised workspace holds zero open
