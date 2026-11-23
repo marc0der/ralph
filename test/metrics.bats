@@ -34,7 +34,7 @@ MOCK
 
 latest_metrics_file() {
     # shellcheck disable=SC2012  # newest-by-mtime needs ls; paths are ralph-generated (no odd filenames)
-    ls -1t .ralph/metrics/*/metrics.jsonl | head -1
+    ls -1t .ralph/logs/*/*/metrics.jsonl | head -1
 }
 
 @test "build records one metrics line per iteration" {
@@ -159,7 +159,7 @@ MOCK
 
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y --no-metrics
     [[ "$status" -eq 0 ]]
-    [[ ! -d ".ralph/metrics" ]]
+    [[ ! -d ".ralph/logs" ]]
 }
 
 @test "dry-run does not create metrics" {
@@ -168,7 +168,7 @@ MOCK
 
     run "$RALPH" build -n 1 --dry-run
     [[ "$status" -eq 0 ]]
-    [[ ! -d ".ralph/metrics" ]]
+    [[ ! -d ".ralph/logs" ]]
 }
 
 @test "plan mode records metrics" {
@@ -226,10 +226,10 @@ MOCK
     # tests run as root, where chmod-based denial doesn't bite): capture must
     # disable itself with a warning and the loop must still run to completion.
     mkdir -p .ralph
-    touch .ralph/metrics
+    touch .ralph/logs
 
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
-    rm -f .ralph/metrics
+    rm -f .ralph/logs
 
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"metrics disabled for this run"* ]]
@@ -385,22 +385,22 @@ MOCK
 }
 
 @test "ralph metrics reads records that lack effort, config and section" {
-    mkdir -p .ralph/metrics/old
+    mkdir -p .ralph/logs/old
     printf '%s\n' '{"iteration":1,"mode":"build","backend":"claude","model":"opus","wall_s":5,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false},"plan_items_completed":1}' \
-        > .ralph/metrics/old/metrics.jsonl
+        > .ralph/logs/old/metrics.jsonl
 
-    run "$RALPH" metrics .ralph/metrics/old/metrics.jsonl
+    run "$RALPH" metrics .ralph/logs/old/metrics.jsonl
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"1 iterations"* ]]
     [[ "$output" != *"Config:"* ]]
 }
 
 @test "ralph metrics shows the built-in source and default effort for null fields" {
-    mkdir -p .ralph/metrics/builtin
+    mkdir -p .ralph/logs/builtin
     printf '%s\n' '{"iteration":1,"mode":"build","section":"build","backend":"claude","model":"opus","effort":null,"config":null,"wall_s":5,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false},"plan_items_completed":1}' \
-        > .ralph/metrics/builtin/metrics.jsonl
+        > .ralph/logs/builtin/metrics.jsonl
 
-    run "$RALPH" metrics .ralph/metrics/builtin/metrics.jsonl
+    run "$RALPH" metrics .ralph/logs/builtin/metrics.jsonl
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Config: built-in (no config file) [build]"* ]]
     [[ "$output" == *"effort=default"* ]]

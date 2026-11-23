@@ -93,7 +93,7 @@ MOCK
     chmod +x "$TEST_DIR/bin/claude"
 }
 
-# Helper: shim `mkdir` to report success for a `*/metrics/*` path without creating it.
+# Helper: shim `mkdir` to report success for a `*/logs/*` path without creating it.
 create_metrics_mkdir_shim() {
     mkdir -p "$TEST_DIR/bin"
     local real_mkdir
@@ -102,7 +102,7 @@ create_metrics_mkdir_shim() {
         printf '#!/usr/bin/env bash\nREAL_MKDIR=%q\n' "$real_mkdir"
         cat <<'MOCK'
 for arg in "$@"; do
-    case "$arg" in */metrics/*) exit 0 ;; esac
+    case "$arg" in */logs/*) exit 0 ;; esac
 done
 exec "$REAL_MKDIR" "$@"
 MOCK

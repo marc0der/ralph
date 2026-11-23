@@ -280,7 +280,7 @@ PASS
 
 # Helper: print git.noop of the last metrics record; each test makes one run.
 last_retro_noop() {
-    cat .ralph/metrics/*/metrics.jsonl | jq -r '.git.noop' | tail -1
+    cat .ralph/logs/*/*/metrics.jsonl | jq -r '.git.noop' | tail -1
 }
 
 @test "a retro pass that deletes the learnings file fails and restores it" {
@@ -643,7 +643,7 @@ write_learnings_pass() {
     write_learnings_pass true
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
-    [[ -d .ralph/metrics ]]
+    [[ -d .ralph/logs ]]
 }
 
 @test "a retro pass whose stream files land under .ralph/logs passes the artifact check" {

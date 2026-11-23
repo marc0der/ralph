@@ -448,10 +448,10 @@ run_retro_with_config() {
     printf 'defaults:\n  metrics: false\n' > ralph.yaml
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 0 ]]
-    [[ ! -d .ralph/metrics ]]
+    [[ ! -d .ralph/logs ]]
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push --metrics
     [[ "$status" -eq 0 ]]
-    compgen -G '.ralph/metrics/*/metrics.jsonl' >/dev/null
+    compgen -G '.ralph/logs/*/*/metrics.jsonl' >/dev/null
 }
 
 @test "skip_push from the file skips the push, and --push overrides it" {
