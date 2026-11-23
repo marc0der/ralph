@@ -603,6 +603,18 @@ seed_resume_state() {
     [[ ! -d .ralph/logs ]]
 }
 
+@test "auto --no-metrics over a lone old store moves it" {
+    create_committing_backend
+    mkdir -p .ralph/metrics/r1
+    printf '%s\n' '{"iteration":1}' > .ralph/metrics/r1/metrics.jsonl
+
+    run_auto --skip-push --no-metrics
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Moved .ralph/metrics/ to .ralph/logs/."* ]]
+    [[ ! -e .ralph/metrics ]]
+    [[ -f .ralph/logs/r1/metrics.jsonl ]]
+}
+
 @test "auto without --quiet shows Backend command: lines" {
     create_committing_backend
     run_auto --skip-push --no-metrics

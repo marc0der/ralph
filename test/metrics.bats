@@ -388,6 +388,48 @@ MOCK
     [[ -f .ralph/logs ]]
 }
 
+@test "an old argument path is read from the new store" {
+    mkdir -p .ralph/metrics/r1
+    printf '%s\n' '{"iteration":1,"mode":"build","backend":"claude","model":"opus","wall_s":5,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false},"plan_items_completed":1}' \
+        > .ralph/metrics/r1/metrics.jsonl
+
+    run "$RALPH" metrics .ralph/metrics/r1/metrics.jsonl
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Run: .ralph/logs/r1/metrics.jsonl"* ]]
+    [[ "$output" == *"Totals: 1 iterations"* ]]
+}
+
+@test "a build over a lone old store moves it beside the new run" {
+    "$RALPH" init
+    printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
+    create_noop_backend
+    mkdir -p .ralph/metrics/r1
+    printf '%s\n' '{"iteration":1}' > .ralph/metrics/r1/metrics.jsonl
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Moved .ralph/metrics/ to .ralph/logs/."* ]]
+    [[ ! -e .ralph/metrics ]]
+    [[ -f .ralph/logs/r1/metrics.jsonl ]]
+    local builds=(.ralph/logs/*/build)
+    [[ ${#builds[@]} -eq 1 ]]
+    [[ -f "${builds[0]}/metrics.jsonl" ]]
+}
+
+@test "build --no-metrics leaves a lone old store in place" {
+    "$RALPH" init
+    printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
+    create_noop_backend
+    mkdir -p .ralph/metrics/r1
+    printf '%s\n' '{"iteration":1}' > .ralph/metrics/r1/metrics.jsonl
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y --no-metrics
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"Moved .ralph/metrics/"* ]]
+    [[ -f .ralph/metrics/r1/metrics.jsonl ]]
+    [[ ! -e .ralph/logs ]]
+}
+
 @test "metrics failure does not fail the loop" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
