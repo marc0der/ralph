@@ -1695,6 +1695,11 @@ iso_utc() {
     date -u -d "@$1" +%FT%TZ 2>/dev/null || date -u -r "$1" +%FT%TZ
 }
 
+# Epoch → local HH:MM; GNU date first, BSD/macOS fallback.
+clock_hhmm() {
+    date -d "@$1" +%H:%M 2>/dev/null || date -r "$1" +%H:%M
+}
+
 write_iteration_metrics() {
     local metrics_file="$1" raw_file="$2" mode="$3" branch="$4" backend="$5" model="$6"
     local iteration="$7" started="$8" ended="$9" head_before="${10}" head_after="${11}" plan_done_before="${12}"
