@@ -460,6 +460,18 @@ MOCK
     [[ "$output" == *"Totals: 1 iterations"* ]]
 }
 
+@test "an old argument path is read in place when the store move failed" {
+    mkdir -p .ralph/metrics/r1
+    printf '%s\n' '{"iteration":1,"mode":"build","backend":"claude","model":"opus","wall_s":5,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false},"plan_items_completed":1}' \
+        > .ralph/metrics/r1/metrics.jsonl
+    touch .ralph/logs
+
+    run "$RALPH" metrics .ralph/metrics/r1/metrics.jsonl
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Run: .ralph/metrics/r1/metrics.jsonl"* ]]
+    [[ "$output" == *"Totals: 1 iterations"* ]]
+}
+
 @test "Repos line sums each repository over every record that names it" {
     mkdir -p .ralph/logs/r1/build
     local base='"mode":"build","backend":"claude","model":"opus","wall_s":5,"plan_items_completed":1'
