@@ -148,6 +148,23 @@ MOCK
     [[ "$(cat "$TEST_DIR/backend-env")" == "unset" ]]
 }
 
+@test "a second run into one phase folder continues the record and stream numbers" {
+    "$RALPH" init
+    printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
+    create_committing_backend
+    mkdir -p .ralph/logs/given
+
+    RALPH_RUN_DIR=.ralph/logs/given PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
+    [[ "$status" -eq 0 ]]
+    RALPH_RUN_DIR=.ralph/logs/given PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"ITERATION 1 / 1"* ]]
+
+    [[ "$(jq -r '.iteration' .ralph/logs/given/build/metrics.jsonl | paste -sd,)" == "1,2" ]]
+    [[ -f .ralph/logs/given/build/iter-001.stream.jsonl ]]
+    [[ -f .ralph/logs/given/build/iter-002.stream.jsonl ]]
+}
+
 @test "noop iteration is recorded with noop=true and zero commits" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
