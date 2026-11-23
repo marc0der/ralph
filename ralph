@@ -1561,13 +1561,13 @@ truncate_line() {
     fi
 }
 
-card_fit() {
-    local LC_ALL=$CARD_LOCALE
+card_fit() (
+    LC_ALL=$CARD_LOCALE
     truncate_line "$1" "$CARD_WIDTH" "…"
-}
+)
 
-card_rule() {
-    local LC_ALL=$CARD_LOCALE
+card_rule() (
+    LC_ALL=$CARD_LOCALE
     local char="$1" text="$2" line fill
     if [[ -z $text ]]; then
         printf -v fill '%*s' "$CARD_WIDTH" ''
@@ -1579,11 +1579,11 @@ card_rule() {
         line="$text ${fill// /$char}"
     fi
     printf '%s%s%s\n' "$CARD_DIM" "$line" "$CARD_OFF"
-}
+)
 
 # Prints the column widths of the rows, each a sep-joined cell list; a row's last cell sets none.
-card_row_widths() {
-    local LC_ALL=$CARD_LOCALE
+card_row_widths() (
+    LC_ALL=$CARD_LOCALE
     local row i
     local -a cells widths=()
     for row in "$@"; do
@@ -1593,10 +1593,10 @@ card_row_widths() {
         done
     done
     echo "${widths[*]}"
-}
+)
 
-print_card_rows() {
-    local LC_ALL=$CARD_LOCALE
+print_card_rows() (
+    LC_ALL=$CARD_LOCALE
     local row i len plain colored pad
     local -a cells widths split_rows=()
     read -ra widths <<< "$(card_row_widths "$@")"
@@ -1636,7 +1636,7 @@ print_card_rows() {
             printf '%s\n' "$colored"
         fi
     done
-}
+)
 
 print_run_card() {
     local config_file="$1" section="$2" mode="$3" model="$4" effort="$5"
@@ -1757,10 +1757,10 @@ print_iteration_card() {
     fi
 }
 
-print_iteration_footer() {
+print_iteration_footer() (
     local iteration="$1" max="$2" wall="$3" suffix="${4:-}" tools="${5:-}"
     card_style 1
-    local LC_ALL=$CARD_LOCALE
+    LC_ALL=$CARD_LOCALE
     local text
     text="── $iteration/$max done ── $(fmt_duration "$wall") wall$suffix"
     if [[ -n "$tools" ]] && (( ${#text} + ${#tools} + 6 <= CARD_WIDTH )); then
@@ -1768,7 +1768,7 @@ print_iteration_footer() {
     fi
     echo ""
     card_rule ─ "$text"
-}
+)
 
 write_iteration_metrics() {
     local metrics_file="$1" raw_file="$2" mode="$3" branch="$4" backend="$5" model="$6"

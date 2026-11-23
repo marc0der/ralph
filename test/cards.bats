@@ -834,3 +834,11 @@ run_ralph_at_width() {
     [ "$(card_line_widths <<< "$footer")" -eq 40 ]
     [[ "$footer" == *… ]]
 }
+
+@test "a dry-run build under an uninstalled locale warns about setlocale at most once" {
+    "$RALPH" init
+    printf -- '- [ ] **Real task**\n' >> IMPLEMENTATION_PLAN.md
+    run --separate-stderr env LC_ALL=xx_YY.UTF-8 "$RALPH" build --dry-run -n 1
+    [ "$status" -eq 0 ]
+    [ "$(grep -c setlocale <<< "$stderr")" -le 1 ]
+}
