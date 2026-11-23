@@ -1297,7 +1297,8 @@ retro_tree_state() {
 }
 
 # Print a sorted "<path> <md5>" line per gitignored Ralph artifact a retro pass
-# may not touch: the learnings file and the metrics directory are left out.
+# may not touch: the learnings file and the run logs, in `logs/` and the old
+# `metrics/`, are left out.
 retro_artifact_state() {
     local path
     {
@@ -1311,7 +1312,7 @@ retro_artifact_state() {
                 if [[ "$path" != "$LEARNINGS_FILE" ]]; then
                     hash_readable_artifact "$path" || return 1
                 fi
-            done < <(find -H "$ARCHIVE_DIR" -path "$ARCHIVE_DIR/metrics" -prune -o -type f -print0)
+            done < <(find -H "$ARCHIVE_DIR" \( -path "$ARCHIVE_DIR/logs" -o -path "$ARCHIVE_DIR/metrics" \) -prune -o -type f -print0)
         fi
     } | LC_ALL=C sort
 }
