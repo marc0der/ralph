@@ -473,10 +473,9 @@ MOCK
 }
 
 # A build iteration that commits only inside a nested repository leaves the
-# workspace HEAD where it was. The caller now overrides the noop flag with the
-# repository-listing verdict, while the counts stay workspace-only (spec
-# section 4), so this record reads noop=false with commits=0.
-@test "a nested-only commit records noop=false with zero commits" {
+# workspace HEAD where it was. The record still counts that commit, as the one
+# entry of git.repos.
+@test "a nested-only commit records noop=false with one commit" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
     echo "source/" >> .gitignore
@@ -501,6 +500,8 @@ MOCK
     line=$(tail -1 "$(latest_metrics_file)")
     [[ $(jq -r '.git.noop' <<<"$line") == "false" ]]
     [[ $(jq -r '.git.commits' <<<"$line") == "1" ]]
+    [[ $(jq -r '.git.repos | length' <<<"$line") == "1" ]]
+    [[ $(jq -r '.git.repos[0].repo' <<<"$line") == "./source/svc" ]]
 }
 
 # Discard the setup helper's initial commit so the workspace HEAD is unborn.
@@ -528,8 +529,8 @@ reinit_commitless_workspace() {
     [[ $(jq -rs 'map(.git.commits) | join(",")' "$f") == "0,0" ]]
 }
 
-# `commits` stays 0: `git rev-list --count -..<sha>` fails into
-# write_iteration_metrics' existing `|| echo 0`.
+# The workspace has no commit before the pass, so repo_git_counts counts its
+# first commit from the empty tree.
 @test "first commit on a commitless workspace records noop=false" {
     reinit_commitless_workspace
     "$RALPH" init
@@ -553,6 +554,94 @@ MOCK
     line=$(tail -1 "$(latest_metrics_file)")
     [[ $(jq -r '.git.noop' <<<"$line") == "false" ]]
     [[ $(jq -r '.git.commits' <<<"$line") == "1" ]]
+    [[ $(jq -r '.git.repos | length' <<<"$line") == "1" ]]
+    [[ $(jq -r '.git.repos[0].repo' <<<"$line") == "." ]]
+}
+
+@test "commits in a nested repository and the workspace sum into one record" {
+    "$RALPH" init
+    printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
+    echo "source/" >> .gitignore
+    mkdir -p source/svc
+    git -C source/svc init --quiet
+    git -C source/svc config user.email "nested@test.com"
+    git -C source/svc config user.name "Nested"
+    git -C source/svc commit --allow-empty -m "nested initial" --quiet
+
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+echo "a" > source/svc/a.txt
+git -C source/svc add a.txt
+git -C source/svc commit -q -m "nested one"
+echo "b" > source/svc/b.txt
+git -C source/svc add b.txt
+git -C source/svc commit -q -m "nested two"
+echo "work" > src.txt
+git add src.txt
+git commit -q -m "workspace work"
+echo '{"type":"result","result":"done"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" build -n 1 --skip-push -y
+
+    local line
+    line=$(tail -1 "$(latest_metrics_file)")
+    [[ $(jq -r '.git.commits' <<<"$line") == "3" ]]
+    [[ $(jq -r '.git.files_changed' <<<"$line") == "3" ]]
+    [[ $(jq -r '.git.insertions' <<<"$line") == "3" ]]
+    [[ $(jq -r '.git.repos | length' <<<"$line") == "2" ]]
+    [[ $(jq -r '.git.repos | map(.repo) | join(",")' <<<"$line") == ".,./source/svc" ]]
+    [[ $(jq -r '.git.repos[] | select(.repo == ".") | .commits' <<<"$line") == "1" ]]
+    [[ $(jq -r '.git.repos[] | select(.repo == "./source/svc") | .commits' <<<"$line") == "2" ]]
+    [[ $(jq -r '.git.repos[] | select(.repo == "./source/svc") | .files_changed' <<<"$line") == "2" ]]
+}
+
+@test "a repository created during the pass counts from the empty tree" {
+    "$RALPH" init
+    printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
+    echo "source/" >> .gitignore
+
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+mkdir -p source/fresh
+git -C source/fresh init --quiet
+git -C source/fresh config user.email "nested@test.com"
+git -C source/fresh config user.name "Nested"
+printf 'one\ntwo\nthree\n' > source/fresh/f.txt
+git -C source/fresh add f.txt
+git -C source/fresh commit -q -m "first"
+echo '{"type":"result","result":"done"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" build -n 1 --skip-push -y
+
+    local line
+    line=$(tail -1 "$(latest_metrics_file)")
+    [[ $(jq -r '.git.repos | length' <<<"$line") == "1" ]]
+    [[ $(jq -r '.git.repos[0].repo' <<<"$line") == "./source/fresh" ]]
+    [[ $(jq -r '.git.repos[0].commits' <<<"$line") == "1" ]]
+    [[ $(jq -r '.git.repos[0].files_changed' <<<"$line") == "1" ]]
+    [[ $(jq -r '.git.repos[0].insertions' <<<"$line") == "3" ]]
+    [[ $(jq -r '.git.insertions' <<<"$line") == "3" ]]
+}
+
+@test "a pass that moves no repository records empty repos and zero counts" {
+    "$RALPH" init
+    printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
+    create_noop_backend
+
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" build -n 1 --skip-push -y
+
+    local line
+    line=$(tail -1 "$(latest_metrics_file)")
+    [[ $(jq -c '.git.repos' <<<"$line") == "[]" ]]
+    [[ $(jq -r '[.git.commits, .git.files_changed, .git.insertions, .git.deletions] | join(",")' <<<"$line") == "0,0,0,0" ]]
 }
 
 @test "fix records effort, config and section beside mode" {
