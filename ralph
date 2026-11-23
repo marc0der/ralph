@@ -1721,7 +1721,7 @@ plural() {
     fi
 }
 
-# The plain headline of the iteration card; empty for a mode with none yet.
+# The plain headline of the iteration card.
 iteration_headline() {
     local mode="$1" goal="$2" title=""
     if [[ "$mode" == "build" ]]; then
