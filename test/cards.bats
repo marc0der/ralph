@@ -464,3 +464,32 @@ MOCK
     [ "${#line}" -eq 120 ]
     [[ "$line" == *"…" ]]
 }
+
+@test "headline in plan names the goal" {
+    "$RALPH" init
+    run --separate-stderr "$RALPH" plan --dry-run -n 1 -g "Add REST endpoint"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n▶ goal: Add REST endpoint\n'* ]]
+}
+
+@test "headline in plan folds a goal with a newline into one line" {
+    "$RALPH" init
+    run --separate-stderr "$RALPH" plan --dry-run -n 1 -g $'a\nb'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n▶ goal: a b\n'* ]]
+}
+
+@test "headline in plan squeezes each whitespace run to one space" {
+    "$RALPH" init
+    run --separate-stderr "$RALPH" plan --dry-run -n 1 -g $'a  \t\n\n b'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n▶ goal: a b\n'* ]]
+}
+
+@test "headline in plan is cut to the card width with an ellipsis" {
+    "$RALPH" init
+    "$RALPH" plan --dry-run -n 1 -g "$(printf 'g%.0s' {1..150})" > out.txt 2> /dev/null
+    line=$(grep '^▶ goal: ' out.txt)
+    [ "${#line}" -eq 120 ]
+    [[ "$line" == *"…" ]]
+}

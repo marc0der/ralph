@@ -1701,7 +1701,7 @@ clock_hhmm() {
 
 # The plain headline of the iteration card; empty for a mode with none yet.
 iteration_headline() {
-    local mode="$1" title=""
+    local mode="$1" goal="$2" title=""
     if [[ "$mode" == "build" ]]; then
         if [[ -f IMPLEMENTATION_PLAN.md ]]; then
             title=$(plan_items_body | awk '!found && /^- \[ \]/ {
@@ -1713,6 +1713,8 @@ iteration_headline() {
         else
             echo "▶ next: no open item"
         fi
+    elif [[ "$mode" == "plan" ]]; then
+        echo "▶ goal: $(printf '%s' "$goal" | tr -s '[:space:]' ' ')"
     fi
 }
 
