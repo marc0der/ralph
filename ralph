@@ -2961,13 +2961,17 @@ cmd_loop() {
     fi
 }
 
+utc_now() {
+    date -u +%Y-%m-%dT%H:%M:%SZ
+}
+
 write_auto_state() {
     mkdir -p "$ARCHIVE_DIR"
     {
         echo "phase=$1"
         echo "phase_name=$2"
         echo "child_exit=$3"
-        echo "failed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        echo "failed_at=$(utc_now)"
         echo "run=${RALPH_RUN_DIR:-}"
     } > "$AUTO_STATE_FILE"
 }
@@ -3198,7 +3202,7 @@ cmd_auto() {
     # One run directory per lifecycle (specs/023-run-logs-and-metrics.md §3). Every
     # child writes its phase folder into it through RALPH_RUN_DIR.
     if [[ $no_metrics != true ]]; then
-        auto_started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        auto_started=$(utc_now)
         auto_branch=$(git branch --show-current 2>/dev/null || true)
         if $resume && [[ -d $recorded_run ]]; then
             run_dir=$recorded_run
