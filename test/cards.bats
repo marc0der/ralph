@@ -394,3 +394,73 @@ load test_helper
     [[ "$output" == *"── 1/2 ── "*" · "*" ── 0s ── "* ]]
     [[ "$output" == *"── 2/2 ── "*" · "*" ── 2s ── "* ]]
 }
+
+@test "headline names the first open item without bold markers" {
+    "$RALPH" init
+    printf -- '- [ ] **First task**\n- [ ] **Second task**\n' >> IMPLEMENTATION_PLAN.md
+    run --separate-stderr "$RALPH" build --dry-run -n 1
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n▶ next: First task\n'* ]]
+    [[ "$output" != *"**"* ]]
+}
+
+@test "headline never takes its title from the exemplar entry" {
+    "$RALPH" init
+    printf -- '- [ ] **Real task**\n' >> IMPLEMENTATION_PLAN.md
+    run --separate-stderr "$RALPH" build --dry-run -n 1
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"▶ next: Real task"* ]]
+    [[ "$output" != *"Short imperative title"* ]]
+}
+
+@test "headline names the second item once the agent ticks the first" {
+    "$RALPH" init
+    printf -- '# Implementation Plan\n\n## Items\n\n- [ ] **First task**\n- [ ] **Second task**\n' > IMPLEMENTATION_PLAN.md
+    create_committing_backend
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 2 --skip-push --no-metrics
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"── 1/2 ── "*$'\n▶ next: First task\n'* ]]
+    [[ "$output" == *"── 2/2 ── "*$'\n▶ next: Second task\n'* ]]
+}
+
+@test "headline says no open item when the plan holds none at the iteration start" {
+    "$RALPH" init
+    printf -- '# Implementation Plan\n\n## Items\n\n- [ ] **Only task**\n' > IMPLEMENTATION_PLAN.md
+    create_committing_backend
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 2 --skip-push --no-metrics
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"── 2/2 ── "*$'\n▶ next: no open item\n'* ]]
+}
+
+@test "headline says no open item and prints no cat error for a deleted plan" {
+    "$RALPH" init
+    printf -- '# Implementation Plan\n\n## Items\n\n- [ ] **Only task**\n' > IMPLEMENTATION_PLAN.md
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+rm -f IMPLEMENTATION_PLAN.md
+echo '{"type":"result","subtype":"success","result":"done","usage":{"input_tokens":1,"output_tokens":1}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 2 --skip-push --no-metrics
+    [[ "$output" == *"── 2/2 ── "*$'\n▶ next: no open item\n'* ]]
+    [[ "$stderr" != *"cat:"* ]]
+}
+
+@test "headline prints under --quiet" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run --quiet -n 1
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"▶ next: Task"* ]]
+}
+
+@test "headline is cut to the card width with an ellipsis" {
+    "$RALPH" init
+    printf -- '- [ ] **%s**\n' "$(printf 'w%.0s' {1..150})" >> IMPLEMENTATION_PLAN.md
+    "$RALPH" build --dry-run -n 1 > out.txt 2> /dev/null
+    line=$(grep '^▶ next: ' out.txt)
+    [ "${#line}" -eq 120 ]
+    [[ "$line" == *"…" ]]
+}
