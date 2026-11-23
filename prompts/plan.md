@@ -24,6 +24,8 @@ Gather context by reading these sources. If your harness supports subagents, use
 - **Application source** — read build files and source code to understand structure, dependencies, and architecture
 - **Tests** — read test sources to understand existing coverage and test patterns
 
+Never read the output of earlier passes. It lives in `{{WORKSPACE}}/.ralph/metrics/` and in your harness's session files.
+
 ## Phase 2: Analyse
 
 Analyse and synthesise the findings yourself, in one context. Compare the source code and tests against the specifications.
@@ -176,6 +178,7 @@ Do not add sections. Do not restate current state. Do not re-verify items you al
 ## Constraints
 
 - **Plan only. Edit specs and the plan, and commit nothing.**
+- Write no file other than `IMPLEMENTATION_PLAN.md` and files under the `specs/` directory of a repository. Never write a memory note or a file outside the workspace
 - Never assume functionality is missing — confirm with code search first
 - Author a spec at `specs/FILENAME.md` only for work no existing spec covers, then write items to implement it
 - The plan is a work queue. Every line in it is an instruction or a pass/fail criterion
