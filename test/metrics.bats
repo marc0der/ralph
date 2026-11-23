@@ -84,6 +84,37 @@ latest_metrics_file() {
     grep -q '"type":"result"' "$dir/iter-001.stream.jsonl"
 }
 
+@test "a standalone build writes its phase folder under .ralph/logs" {
+    "$RALPH" init
+    printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
+    create_committing_backend
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
+    [[ "$status" -eq 0 ]]
+
+    local folders=(.ralph/logs/*/build)
+    [[ ${#folders[@]} -eq 1 ]]
+    [[ -d "${folders[0]}" ]]
+    [[ -f "${folders[0]}/metrics.jsonl" ]]
+    [[ -f "${folders[0]}/iter-001.stream.jsonl" ]]
+    [[ "$output" == *"Metrics recorded: ${folders[0]}/metrics.jsonl"* ]]
+}
+
+@test "fix writes its phase folder under fix" {
+    "$RALPH" init
+    printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
+    create_committing_backend
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" fix -n 1 --skip-push -y
+    [[ "$status" -eq 0 ]]
+
+    local fixes=(.ralph/logs/*/fix)
+    [[ ${#fixes[@]} -eq 1 ]]
+    [[ -f "${fixes[0]}/metrics.jsonl" ]]
+    local builds=(.ralph/logs/*/build)
+    [[ ! -e "${builds[0]}" ]]
+}
+
 @test "noop iteration is recorded with noop=true and zero commits" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
