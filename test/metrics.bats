@@ -425,14 +425,16 @@ MOCK
     [[ "$output" != *"Repos:"* ]]
 }
 
-@test "a run with two phase folders prints one rollup row per phase, plan first" {
+@test "a run with two phase folders prints a summed row per phase, plan first, then Totals" {
     mkdir -p .ralph/logs/r1/build .ralph/logs/r1/plan
-    local base='"mode":"build","backend":"claude","wall_s":5,"plan_items_completed":1,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false}'
+    local tail='"mode":"build","backend":"claude","plan_items_completed":1'
+    local git1='"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false}'
+    local git2='"git":{"commits":2,"files_changed":1,"insertions":2,"deletions":0,"noop":false}'
     {
-        printf '%s\n' "{\"iteration\":1,\"model\":\"opus\",\"effort\":\"high\",$base}"
-        printf '%s\n' "{\"iteration\":2,\"model\":\"opus\",\"effort\":\"high\",$base}"
+        printf '%s\n' "{\"iteration\":1,\"model\":\"opus\",\"effort\":\"high\",\"wall_s\":5,\"cost_usd\":1.234,\"tokens\":{\"output\":100},$tail,$git1}"
+        printf '%s\n' "{\"iteration\":2,\"model\":\"opus\",\"effort\":\"high\",\"wall_s\":65,\"cost_usd\":2.5,\"tokens\":{\"output\":250},$tail,$git2}"
     } > .ralph/logs/r1/build/metrics.jsonl
-    printf '%s\n' "{\"iteration\":1,\"model\":\"sonnet\",\"effort\":null,$base}" \
+    printf '%s\n' "{\"iteration\":1,\"model\":\"sonnet\",\"effort\":null,\"wall_s\":5,\"cost_usd\":0.5,\"tokens\":{\"output\":40},$tail,$git1}" \
         > .ralph/logs/r1/plan/metrics.jsonl
 
     run "$RALPH" metrics .ralph/logs/r1
@@ -440,8 +442,9 @@ MOCK
     [[ "$output" == "Run: .ralph/logs/r1"* ]]
     local squeezed expected
     squeezed=$(tr -s ' \t' ' ' <<<"$output")
-    expected=$'PHASE MODEL/EFFORT ITERS WALL COST OUT_TOK COMMITS EXIT\nplan sonnet/default 1 - - - - -\nbuild opus/high 2 - - - - -'
-    [[ "$squeezed" == *"$expected" ]]
+    expected=$'PHASE MODEL/EFFORT ITERS WALL COST OUT_TOK COMMITS EXIT\nplan sonnet/default 1 5s $0.5 40 1 -\nbuild opus/high 2 1m10s $3.73 350 3 -'
+    [[ "$squeezed" == *"$expected"* ]]
+    [[ "$squeezed" == *"Totals: 3 iterations · wall 1m15s"* ]]
 }
 
 @test "a build over a lone old store moves it beside the new run" {
