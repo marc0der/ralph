@@ -2035,26 +2035,49 @@ run_phase_dirs() {
 }
 
 print_run_rollup() {
-    local run="$1" phase_dir rows
+    local run="$1" auto_json="$1/auto.json" phase phase_dir entry state phase_exit rows
     local -a metrics_files=()
-    echo "Run: $run"
+    if [[ -f "$auto_json" ]]; then
+        echo "Run: $run (auto)"
+        echo "Goal: $(jq -r '.goal' "$auto_json")"
+    else
+        echo "Run: $run"
+    fi
     echo ""
     rows=$'PHASE\tMODEL/EFFORT\tITERS\tWALL\tCOST\tOUT_TOK\tCOMMITS\tEXIT'
-    while IFS= read -r phase_dir; do
+    for phase in "${LOOP_PHASES[@]}"; do
+        phase_dir="$run/$phase"
+        state=""
+        phase_exit="-"
+        if [[ -f "$auto_json" ]]; then
+            entry=$(jq -r --arg phase "$phase" \
+                '.phases[] | select(.name == $phase) | [.state, (.exit // "-")] | @tsv' "$auto_json")
+            [[ -n "$entry" ]] || continue
+            state=${entry%$'\t'*}
+            phase_exit=${entry##*$'\t'}
+        elif [[ ! -d "$phase_dir" ]]; then
+            continue
+        fi
+        if [[ ! -d "$phase_dir" ]]; then
+            rows+=$'\n'$(printf '%s\t%s\t\t\t\t\t\t%s' "$phase" "$state" "$phase_exit")
+            continue
+        fi
         metrics_files+=("$phase_dir/metrics.jsonl")
-        rows+=$'\n'$(jq -rs --arg phase "${phase_dir##*/}" "$JQ_FMTD"'
+        rows+=$'\n'$(jq -rs --arg phase "$phase" --arg exit "$phase_exit" "$JQ_FMTD"'
             first as $first
             | (map(.cost_usd // 0) | add) as $cost
             | [$phase, "\($first.model)/\($first.effort // "default")", length,
                (map(.wall_s) | add | fmtd),
                "$\(($cost * 100 | round) / 100)",
                (map(.tokens.output // 0) | add),
-               (map(.git.commits) | add), "-"]
+               (map(.git.commits) | add), $exit]
             | @tsv' "$phase_dir/metrics.jsonl")
-    done < <(run_phase_dirs "$run")
+    done
     print_tsv_table <<<"$rows"
-    echo ""
-    print_metrics_totals "${metrics_files[@]}"
+    if (( ${#metrics_files[@]} > 0 )); then
+        echo ""
+        print_metrics_totals "${metrics_files[@]}"
+    fi
 }
 
 cmd_metrics() {
@@ -2068,7 +2091,7 @@ cmd_metrics() {
         # shellcheck disable=SC2012  # newest-by-mtime needs ls; paths are ralph-generated (no odd filenames)
         file=$(ls -1t "$ARCHIVE_DIR"/logs/*/*/metrics.jsonl 2>/dev/null | head -1 || true)
     fi
-    if [[ -d "$file" ]] && (( $(run_phase_dirs "$file" | wc -l) >= 2 )); then
+    if [[ -d "$file" ]] && { [[ -f "$file/auto.json" ]] || (( $(run_phase_dirs "$file" | wc -l) >= 2 )); }; then
         print_run_rollup "$file"
         return 0
     fi
