@@ -468,59 +468,68 @@ run_retro_with_config() {
     [[ "$output" == *"No 'origin' remote — skipping push."* ]]
 }
 
-@test "the Config block names the built-in source and prints under --quiet and --dry-run" {
+@test "the run card names the built-in source and prints under --quiet and --dry-run" {
     "$RALPH" init
     seed_open_item
     run --separate-stderr "$RALPH" build --dry-run -q
     [[ "$status" -eq 0 ]]
-    [[ "$stderr" == *"Config: built-in (no config file) [build]
-  backend=claude model=opus effort=default
-  iterations=auto(2) headroom=20% patience=2 push=on metrics=off (dry-run) quiet=on"* ]]
-    [[ "$output" != *"Config:"* ]]
+    [[ "$(card_row config "$stderr" build)" == "config built-in (no config file) [build]" ]]
+    [[ "$(card_row backend "$stderr" build)" == "backend claude model opus effort default" ]]
+    [[ "$(card_row iterations "$stderr" build)" == "iterations auto(2) headroom 20% patience 2 push on" ]]
+    [[ "$(card_row metrics "$stderr" build)" == "metrics off (dry-run)" ]]
+    [[ "$(card_row quiet "$stderr" build)" == "quiet on" ]]
+    [[ "$output" != *"━━ ralph"* ]]
 }
 
-@test "the Config block names the local and central sources" {
+@test "the run card names the local and central sources" {
     require_yq_or_skip
     "$RALPH" init
     seed_open_item
     printf 'build:\n  effort: high\n' > "$RALPH_CONFIG_DIR/config.yaml"
     run --separate-stderr "$RALPH" build --dry-run
     [[ "$status" -eq 0 ]]
-    [[ "$stderr" == *"Config: $RALPH_CONFIG_DIR/config.yaml (central) [build]"* ]]
-    [[ "$stderr" == *"effort=high"* ]]
+    [[ "$(card_row config "$stderr" build)" == "config $RALPH_CONFIG_DIR/config.yaml (central) [build]" ]]
+    [[ "$(card_row backend "$stderr" build)" == *"effort high" ]]
     printf 'build:\n  skip_push: true\n  quiet: true\n' > ralph.yaml
     run --separate-stderr "$RALPH" build --dry-run -n 3 -b codex -m gpt-x
     [[ "$status" -eq 0 ]]
-    [[ "$stderr" == *"Config: ./ralph.yaml (local) [build]
-  backend=codex model=gpt-x effort=default
-  iterations=3 headroom=20% patience=2 push=off metrics=off (dry-run) quiet=on"* ]]
+    [[ "$(card_row config "$stderr" build)" == "config ./ralph.yaml (local) [build]" ]]
+    [[ "$(card_row backend "$stderr" build)" == "backend codex model gpt-x effort default" ]]
+    [[ "$(card_row iterations "$stderr" build)" == "iterations 3 headroom 20% patience 2 push off" ]]
+    [[ "$(card_row metrics "$stderr" build)" == "metrics off (dry-run)" ]]
+    [[ "$(card_row quiet "$stderr" build)" == "quiet on" ]]
 }
 
-@test "the Config block prints the plan cap and review's single pass without build tuning" {
+@test "the run card prints the plan cap and review's single pass without build tuning" {
     "$RALPH" init
     run --separate-stderr "$RALPH" plan --dry-run -g goal --verbose -e low
     [[ "$status" -eq 0 ]]
-    [[ "$stderr" == *"Config: built-in (no config file) [plan]
-  backend=claude model=opus effort=low
-  iterations=6 metrics=off (dry-run) quiet=off"* ]]
+    [[ "$(card_row config "$stderr" plan)" == "config built-in (no config file) [plan]" ]]
+    [[ "$(card_row backend "$stderr" plan)" == "backend claude model opus effort low" ]]
+    [[ "$(card_row iterations "$stderr" plan)" == "iterations 6" ]]
+    [[ "$(card_row metrics "$stderr" plan)" == "metrics off (dry-run)" ]]
+    [[ "$(card_row quiet "$stderr" plan)" == "quiet off" ]]
     seed_shipped_item
     seed_cycle_base
     run --separate-stderr "$RALPH" review --dry-run -q
     [[ "$status" -eq 0 ]]
-    [[ "$stderr" == *"[review]"*"iterations=1 metrics=off (dry-run) quiet=on"* ]]
-    [[ "$stderr" != *"headroom="* && "$stderr" != *"push="* ]]
+    [[ "$(card_row iterations "$stderr" review)" == "iterations 1" ]]
+    [[ "$(card_row metrics "$stderr" review)" == "metrics off (dry-run)" ]]
+    [[ "$(card_row quiet "$stderr" review)" == "quiet on" ]]
 }
 
-@test "the Config block prints metrics on and off for a real run" {
+@test "the run card prints metrics on and off for a real run" {
     "$RALPH" init
     seed_open_item
     create_streaming_backend
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
     [[ "$status" -eq 0 ]]
-    [[ "$stderr" == *"iterations=1 headroom=20% patience=2 push=off metrics=on quiet=off"* ]]
+    [[ "$(card_row iterations "$stderr" build)" == "iterations 1 headroom 20% patience 2 push off" ]]
+    [[ "$(card_row metrics "$stderr" build)" == "metrics on "* ]]
+    [[ "$(card_row quiet "$stderr" build)" == "quiet off" ]]
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics
     [[ "$status" -eq 0 ]]
-    [[ "$stderr" == *"push=off metrics=off quiet=off"* ]]
+    [[ "$(card_row metrics "$stderr" build)" == "metrics off" ]]
 }
 
 @test "plan.iterations replaces the plan cap" {
@@ -530,7 +539,6 @@ run_retro_with_config() {
     run --separate-stderr "$RALPH" plan --dry-run -g goal
     [[ "$status" -eq 0 ]]
     [[ "$(card_row iterations "$stderr" plan)" == "iterations 2" ]]
-    [[ "$stderr" == *"iterations=2 metrics="* ]]
 }
 
 @test "build.iterations replaces the calculated count and turns off the noop exit" {
@@ -544,7 +552,7 @@ run_retro_with_config() {
     [[ "$(card_row iterations "$stderr" build)" == "iterations 3 "* ]]
     [[ "$output" == *"ITERATION 3 / 3"* ]]
     [[ "$output" != *"No changes detected"* ]]
-    [[ "$stderr" == *"iterations=3 headroom=20% patience=2"* ]]
+    [[ "$(card_row iterations "$stderr" build)" == "iterations 3 headroom 20% patience 2 "* ]]
 }
 
 @test "-n beats build.iterations" {
@@ -565,7 +573,7 @@ run_retro_with_config() {
     run --separate-stderr "$RALPH" build --dry-run
     [[ "$status" -eq 0 ]]
     [[ "$(card_row iterations "$stderr" build)" == "iterations auto(6) "* ]]
-    [[ "$stderr" == *"iterations=auto(6) headroom=50% patience=2"* ]]
+    [[ "$(card_row iterations "$stderr" build)" == "iterations auto(6) headroom 50% patience 2 "* ]]
     printf 'build:\n  headroom_pct: 0\n' > ralph.yaml
     run "$RALPH" build --dry-run
     [[ "$(card_row iterations "$output" build)" == "iterations auto(4) "* ]]
@@ -593,7 +601,7 @@ run_retro_with_config() {
     [[ "$output" == *"No changes detected for 3 consecutive iterations — exiting early."* ]]
     [[ "$output" == *"ITERATION 3 / 6"* ]]
     [[ "$output" != *"ITERATION 4 / 6"* ]]
-    [[ "$stderr" == *"patience=3 push=off"* ]]
+    [[ "$(card_row iterations "$stderr" build)" == *"patience 3 push off" ]]
 }
 
 @test "fix --dry-run runs build mode under the fix section" {
@@ -603,8 +611,8 @@ run_retro_with_config() {
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *"━━ ralph fix "* ]]
     [[ "$(card_row prompt "$stderr" fix)" == "prompt "*"/build.md" ]]
-    [[ "$stderr" == *"Config: built-in (no config file) [fix]"* ]]
-    [[ "$stderr" == *"iterations=auto(2) headroom=20% patience=2 push=on"* ]]
+    [[ "$(card_row config "$stderr" fix)" == "config built-in (no config file) [fix]" ]]
+    [[ "$(card_row iterations "$stderr" fix)" == "iterations auto(2) headroom 20% patience 2 push on" ]]
 }
 
 @test "fix reads the fix section and not the build section" {
@@ -615,7 +623,7 @@ run_retro_with_config() {
     run --separate-stderr "$RALPH" fix --dry-run
     [[ "$status" -eq 0 ]]
     [[ "$(card_row iterations "$stderr" fix)" == "iterations 5 "* ]]
-    [[ "$stderr" == *"effort=low"* ]]
+    [[ "$(card_row backend "$stderr" fix)" == *"effort low" ]]
     run "$RALPH" build --dry-run
     [[ "$(card_row iterations "$output" build)" == "iterations 3 "* ]]
 }
@@ -707,22 +715,26 @@ run_retro_with_config() {
     seed_open_item
     run --separate-stderr "$RALPH" build -b codex --dry-run
     [[ "$status" -eq 0 ]]
-    [[ "$stderr" == *"Config: $RALPH_CONFIG_DIR/config.yaml (central) [build]"* ]]
+    [[ "$(card_row config "$stderr" build)" == "config $RALPH_CONFIG_DIR/config.yaml (central) [build]" ]]
     [[ "$stderr" != *"overrides config backend"* ]]
 }
 
-# Helper: the Config block of a --dry-run in each phase, with the source label cut.
+# Helper: the card rows of a --dry-run in each phase, with the source cut from config.
 # Review and retro run first, while the plan holds no open item; plan, build and fix follow one.
-dry_run_config_blocks() {
-    local phase config_stderr
+dry_run_card_rows() {
+    local phase card_stderr
     seed_progress_entry
     grep -v '^- \[ \]' IMPLEMENTATION_PLAN.md > plan.tmp && mv plan.tmp IMPLEMENTATION_PLAN.md
     for phase in review retro plan build fix; do
         [[ "$phase" == plan ]] && seed_open_item
         local args=()
         [[ "$phase" == plan ]] && args=(-g goal)
-        config_stderr=$("$RALPH" "$phase" --dry-run "${args[@]}" 2>&1 >/dev/null) || return 1
-        awk '/^Config: /{sub(/^Config: .* \[/, "["); n = 3} n-- > 0' <<< "$config_stderr"
+        card_stderr=$("$RALPH" "$phase" --dry-run "${args[@]}" 2>&1 >/dev/null) || return 1
+        card_row backend "$card_stderr" "$phase"
+        card_row config "$card_stderr" "$phase" | sed 's/^config .* \[/config [/'
+        card_row iterations "$card_stderr" "$phase"
+        card_row metrics "$card_stderr" "$phase"
+        card_row quiet "$card_stderr" "$phase"
     done
 }
 
@@ -733,10 +745,10 @@ dry_run_config_blocks() {
     seed_cycle_base
     cp "$BATS_TEST_DIRNAME/../templates/config.yaml" "$RALPH_CONFIG_DIR/config.yaml"
     local shipped builtin
-    shipped=$(dry_run_config_blocks)
+    shipped=$(dry_run_card_rows)
     rm "$RALPH_CONFIG_DIR/config.yaml"
-    builtin=$(dry_run_config_blocks)
-    [[ "$(grep -c '^\[' <<< "$shipped")" -eq 5 ]]
-    [[ "$shipped" == "[review]"*"[retro]"*"[plan]"*"[build]"*"[fix]"* ]]
+    builtin=$(dry_run_card_rows)
+    [[ "$(grep -c '^config \[' <<< "$shipped")" -eq 5 ]]
+    [[ "$(grep '^config \[' <<< "$shipped" | tr '\n' ' ')" == "config [review] config [retro] config [plan] config [build] config [fix] " ]]
     [[ "$shipped" == "$builtin" ]]
 }
