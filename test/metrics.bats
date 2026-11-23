@@ -642,6 +642,40 @@ EOF
     [[ "$output" == *"Totals: 1 iterations"* ]]
 }
 
+@test "a build folder with only a stream file prints 0 iterations, with no argument and by path" {
+    mkdir -p .ralph/logs/r1/build
+    printf '%s\n' '{"type":"result"}' > .ralph/logs/r1/build/iter-001.stream.jsonl
+
+    run "$RALPH" metrics
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Run: .ralph/logs/r1/build/metrics.jsonl"* ]]
+    [[ "$output" == *"Totals: 0 iterations · wall 0s · api 0s · turns 0 · cost \$0"* ]]
+    [[ "$output" != *"No metrics found"* ]]
+
+    run "$RALPH" metrics .ralph/logs/r1/build
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Run: .ralph/logs/r1/build/metrics.jsonl"* ]]
+    [[ "$output" == *"Totals: 0 iterations · wall 0s · api 0s · turns 0 · cost \$0"* ]]
+}
+
+@test "an empty metrics.jsonl argument prints 0 iterations" {
+    mkdir -p .ralph/logs/r1/build
+    : > .ralph/logs/r1/build/metrics.jsonl
+
+    run "$RALPH" metrics .ralph/logs/r1/build/metrics.jsonl
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Totals: 0 iterations · wall 0s · api 0s · turns 0 · cost \$0"* ]]
+    [[ "$output" == *"commits 0 (+0/-0) · plan items 0 · noop iterations 0"* ]]
+}
+
+@test "a phase folder without records or stream files reports no metrics" {
+    mkdir -p .ralph/logs/r1/build
+
+    run "$RALPH" metrics .ralph/logs/r1/build
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"No metrics found"* ]]
+}
+
 @test "a build over a lone old store moves it beside the new run" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
