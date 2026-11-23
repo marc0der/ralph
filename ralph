@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Keeps bash from rewriting COLUMNS: card width reads the caller's value only.
+shopt -u checkwinsize
 
 VERSION="0.1.0"
 CONFIG_DIR="${RALPH_CONFIG_DIR:-$HOME/.config/ralph}"
@@ -39,6 +41,13 @@ RESUME_FLOOR=3
 # Script-scoped so the EXIT trap can read it after cmd_loop's locals are gone,
 # which lets the trap defer expansion instead of baking the path into its body.
 RALPH_TEMP_STREAM=""
+
+# Card width and colour codes, set per stream by card_style (specs/026-richer-banners.md §3).
+CARD_WIDTH=120
+CARD_DIM=""
+CARD_BOLD=""
+CARD_LABEL=""
+CARD_OFF=""
 
 # The plan pass in flight, script-scoped so the EXIT trap can guard and commit
 # it after a backend failure or an interrupt; see specs/017-plan-commits-specs.md.
@@ -1533,6 +1542,26 @@ check_retro_pass() {
     fi
     if [[ -f "$LEARNINGS_FILE" ]]; then
         check_learnings_format "$LEARNINGS_FILE" || return 1
+    fi
+}
+
+# shellcheck disable=SC2034 # the card printers read these globals
+card_style() {
+    local fd="$1" cols=""
+    CARD_WIDTH=120
+    CARD_DIM="" CARD_BOLD="" CARD_LABEL="" CARD_OFF=""
+    [[ -t $fd ]] || return 0
+    if [[ ${COLUMNS:-} =~ ^[1-9][0-9]*$ ]]; then
+        cols=$COLUMNS
+    else
+        { cols=$(stty size 2>/dev/null <&3); } 3<&"$fd" || true
+        cols=${cols#* }
+    fi
+    if [[ $cols =~ ^[1-9][0-9]*$ ]]; then
+        CARD_WIDTH=$(( cols < 120 ? cols : 120 ))
+    fi
+    if [[ -z ${NO_COLOR:-} && ${TERM:-} != dumb ]]; then
+        CARD_DIM=$'\e[2m' CARD_BOLD=$'\e[1m' CARD_LABEL=$'\e[36m' CARD_OFF=$'\e[0m'
     fi
 }
 
