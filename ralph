@@ -1983,6 +1983,9 @@ cmd_loop() {
     shift
     [[ "$mode" == "fix" ]] && mode=build
 
+    local run_dir="${RALPH_RUN_DIR:-}"
+    unset RALPH_RUN_DIR
+
     local max_iterations=""
     local goal=""
     local model=""
@@ -2172,7 +2175,8 @@ cmd_loop() {
     ($dry_run || $no_metrics) && metrics_enabled=false
     local metrics_dir="" metrics_file=""
     if $metrics_enabled; then
-        metrics_dir="$(new_run_dir "$current_branch")/$section"
+        [[ -d "$run_dir" ]] || run_dir=$(new_run_dir "$current_branch")
+        metrics_dir="$run_dir/$section"
         metrics_file="$metrics_dir/metrics.jsonl"
         if ! mkdir -p "$metrics_dir" 2>/dev/null; then
             echo "Warning: cannot create $metrics_dir; metrics disabled for this run" >&2
