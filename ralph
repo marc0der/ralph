@@ -91,6 +91,11 @@ def fmtd: if . == null then "-"
   else "\(.)s" end;
 '
 
+# Prepended to every `ralph metrics` jq program that formats a cost.
+JQ_FMTC='
+def fmtc: "$\((. * 100 | round) / 100)";
+'
+
 # shellcheck disable=SC2034  # Variables are set here and consumed in cmd_loop
 backend_claude() {
     BACKEND_NAME="claude"
@@ -1977,10 +1982,10 @@ write_iteration_metrics() {
 # after the wall-clock figure, which the caller prefixes via fmt_duration).
 metrics_summary_suffix() {
     local metrics_file="$1"
-    tail -n 1 "$metrics_file" | jq -r '
+    tail -n 1 "$metrics_file" | jq -r "$JQ_FMTC"'
         (if .api_s then " · " + (.api_s | tostring) + "s api" else "" end)
         + (if .turns then " · " + (.turns | tostring) + " turns" else "" end)
-        + (if .cost_usd then " · $" + (((.cost_usd * 100 | round) / 100) | tostring) else "" end)
+        + (if .cost_usd then " · " + (.cost_usd | fmtc) else "" end)
         + " · " + (.git.commits | tostring) + " commits (+" + (.git.insertions | tostring)
         + "/-" + (.git.deletions | tostring) + ")"' 2>/dev/null || true
 }
@@ -1994,7 +1999,7 @@ metrics_tool_list() {
 }
 
 print_metrics_totals() {
-    jq -rs "$JQ_FMTD"'
+    jq -rs "$JQ_FMTD$JQ_FMTC"'
         (map(.wall_s) | add // 0) as $wall
         | (map(.api_s // 0) | add // 0) as $api
         | (map(.cost_usd // 0) | add // 0) as $cost
@@ -2003,7 +2008,7 @@ print_metrics_totals() {
                    insertions: (map(.insertions) | add // 0), deletions: (map(.deletions) | add // 0)})) as $repos
         | ("Totals: \(length) iterations · wall \($wall | fmtd) · api \($api | fmtd)"
           + " · turns \(map(.turns // 0) | add // 0)"
-          + " · cost $\(($cost * 100 | round) / 100)"
+          + " · cost \($cost | fmtc)"
           + " · tokens in \(map(.tokens.input // 0) | add // 0) / out \(map(.tokens.output // 0) | add // 0)"
           + " (cache read \(map(.tokens.cache_read // 0) | add // 0))"
           + " · commits \(map(.git.commits) | add // 0)"
@@ -2068,13 +2073,13 @@ print_run_rollup() {
             continue
         fi
         metrics_files+=("$phase_dir/metrics.jsonl")
-        rows+=$'\n'$(jq -rs --arg phase "$phase" --arg exit "$phase_exit" "$JQ_FMTD"'
+        rows+=$'\n'$(jq -rs --arg phase "$phase" --arg exit "$phase_exit" "$JQ_FMTD$JQ_FMTC"'
             first as $first
             | [.[] | .cost_usd // empty] as $costs
             | [.[] | .tokens.output // empty] as $out_tokens
             | [$phase, "\($first.model)/\($first.effort // "default")", length,
                (map(.wall_s) | add | fmtd),
-               (if ($costs | length) > 0 then "$\((($costs | add) * 100 | round) / 100)" else "-" end),
+               (if ($costs | length) > 0 then ($costs | add | fmtc) else "-" end),
                (if ($out_tokens | length) > 0 then ($out_tokens | add) else "-" end),
                (map(.git.commits) | add), $exit]
             | @tsv' "$phase_dir/metrics.jsonl")
@@ -2142,12 +2147,12 @@ cmd_metrics() {
     local table
     table=$({
         printf 'ITER\tWALL\tAPI\tTURNS\tCOST\tTOK_IN\tTOK_OUT\tCACHE_RD\tCOMMITS\t+/-\tPLAN\tTOP_TOOLS\n'
-        jq -r "$JQ_FMTD"'
+        jq -r "$JQ_FMTD$JQ_FMTC"'
             [ .iteration,
               (.wall_s | fmtd),
               (.api_s | fmtd),
               (.turns // "-"),
-              (if .cost_usd then "$\((.cost_usd * 100 | round) / 100)" else "-" end),
+              (if .cost_usd then (.cost_usd | fmtc) else "-" end),
               (.tokens.input // "-"), (.tokens.output // "-"), (.tokens.cache_read // "-"),
               .git.commits, "+\(.git.insertions)/-\(.git.deletions)",
               .plan_items_completed,
@@ -2976,7 +2981,7 @@ cmd_loop() {
 }
 
 utc_now() {
-    date -u +%Y-%m-%dT%H:%M:%SZ
+    iso_utc "$(date +%s)"
 }
 
 write_auto_state() {
