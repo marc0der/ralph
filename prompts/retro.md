@@ -20,7 +20,7 @@ Gather context by reading these sources. If your harness supports subagents, use
 - **Operational guardrails** — read the root `AGENTS.md` or `CLAUDE.md`. For a candidate about a nested repository, also read the `AGENTS.md` or `CLAUDE.md` of that repository
 - **Prose sources** — search the specs, the code comments and `git log` for each candidate. You need them for admission test 2 and for the promotion rule
 
-Never read `{{WORKSPACE}}/.ralph/metrics/`. Never read the archived cycles under `.ralph/<timestamp>/`.
+Never read `{{WORKSPACE}}/.ralph/logs/`. Never read the archived cycles under `.ralph/<timestamp>/`.
 
 ## Phase 2: Decide
 
@@ -110,7 +110,7 @@ Check the file against every rule before you stop.
 - Run no command that changes the working tree, and run no command that installs anything.
 - Never edit `AGENTS.md`, `CLAUDE.md`, anything under `specs/`, `PROGRESS.md` or `IMPLEMENTATION_PLAN.md`.
 - Never write `.ralph/cycle-base` or `.ralph/learnings.prev.md`.
-- Never read `.ralph/metrics/`.
+- Never read `{{WORKSPACE}}/.ralph/logs/`.
 - Write the file even when no candidate passes. Keep the four headings.
 - Record no rationale, no evidence and no history in the file. A bullet states one fact.
 

@@ -933,10 +933,10 @@ PASS
     grep -qF "(confirmed YYYY-MM-DD)" "$prompt"
 }
 
-@test "the retro prompt writes only the learnings file and never reads the metrics" {
+@test "the retro prompt writes only the learnings file and never reads the run logs" {
     prompt="$BATS_TEST_DIRNAME/../prompts/retro.md"
     grep -qF "Write \`{{WORKSPACE}}/.ralph/learnings.md\` and no other file" "$prompt"
-    grep -qF "Never read \`{{WORKSPACE}}/.ralph/metrics/\`" "$prompt"
+    grep -qF "Never read \`{{WORKSPACE}}/.ralph/logs/\`" "$prompt"
 }
 
 @test "the retro prompt exemplar passes the format check" {
