@@ -635,3 +635,31 @@ seed_resume_state() {
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"6 fix       ran"* ]]
 }
+
+# --- Run directory (specs/023-run-logs-and-metrics.md §3) --------------------
+
+@test "a lifecycle with metrics leaves one run folder holding every loop phase" {
+    create_committing_backend
+    run_auto --skip-push
+    [[ "$status" -eq 0 ]]
+
+    local -a runs=(.ralph/logs/*/)
+    [[ "${#runs[@]}" -eq 1 ]]
+    local phase
+    for phase in plan build review fix retro; do
+        [[ -f "${runs[0]}$phase/metrics.jsonl" ]]
+    done
+}
+
+@test "auto warns and runs every phase when it cannot create the run folder" {
+    create_committing_backend
+    mkdir -p .ralph
+    touch .ralph/logs
+
+    run_auto --skip-push
+    rm -f .ralph/logs
+
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"lifecycle metrics disabled"* ]]
+    [[ "$output" == *"7 retro     ran"* ]]
+}
