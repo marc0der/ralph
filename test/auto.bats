@@ -801,6 +801,16 @@ MOCK
 
 @test "auto.json records the exit and times of each phase that ran, and null for one that did not" {
     create_committing_backend
+    mv "$TEST_DIR/bin/claude" "$TEST_DIR/bin/claude.real"
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+prompt=\$(cat)
+if echo "\$prompt" | grep -qi 'plan prompt'; then
+    sleep 1
+fi
+echo "\$prompt" | "$TEST_DIR/bin/claude.real" "\$@"
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
     MOCK_REVIEW_NOOP=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push -g "the goal"
     [[ "$status" -eq 0 ]]
 
@@ -810,6 +820,7 @@ MOCK
     jq -e '.phases[2] | .exit == 0' "$json"
     jq -e --arg stamp "$stamp" '.phases[2] | (.started | test($stamp)) and (.ended | test($stamp))' "$json"
     jq -e '.phases[2] | .started <= .ended' "$json"
+    jq -e '.phases[3].started >= .phases[2].ended' "$json"
     [[ "$(jq -r '.phases[5] | "\(.name) \(.state) \(.exit) \(.started) \(.ended)"' "$json")" \
         == "fix skipped — no open items null null null" ]]
 }
