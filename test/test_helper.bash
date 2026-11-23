@@ -227,3 +227,18 @@ run_on_tty() {
     run script -qefc "$wrapper" /dev/null
     output=${output//$'\r'/}
 }
+
+card_line_widths() {
+    local LC_ALL=C line char
+    while IFS= read -r line; do
+        line=$(printf '%s' "$line" | sed $'s/\e\\[[0-9;]*m//g')
+        case $line in
+            "━"* | "─"* | "▶"* | "  "*) ;;
+            *) continue ;;
+        esac
+        for char in ─ ━ … ▶ ·; do
+            line=${line//"$char"/x}
+        done
+        echo "${#line}"
+    done
+}
