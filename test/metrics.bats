@@ -320,6 +320,46 @@ MOCK
     [[ "$output" == *"commits 2"* ]]
 }
 
+@test "ralph metrics with no argument prints the rollup of the newer of two runs" {
+    local name phase
+    for name in older newer; do
+        for phase in plan build; do
+            mkdir -p ".ralph/logs/$name/$phase"
+            printf '%s\n' '{"iteration":1,"mode":"build","backend":"claude","model":"opus","effort":null,"wall_s":5,"cost_usd":0.5,"tokens":{"output":40},"plan_items_completed":1,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false}}' \
+                > ".ralph/logs/$name/$phase/metrics.jsonl"
+        done
+    done
+    touch -t 202601010000 .ralph/logs/older/plan/metrics.jsonl .ralph/logs/older/build/metrics.jsonl
+
+    run "$RALPH" metrics
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "Run: .ralph/logs/newer"$'\n'* ]]
+    [[ "$output" == *"PHASE"*"MODEL/EFFORT"* ]]
+    [[ "$output" != *"older"* ]]
+}
+
+@test "ralph metrics with no argument picks a run by its auto.json, stream files and top-level metrics.jsonl" {
+    local name phase signal
+    for name in a b; do
+        for phase in plan build; do
+            mkdir -p ".ralph/logs/$name/$phase"
+            printf '%s\n' '{"iteration":1,"mode":"build","backend":"claude","model":"opus","effort":null,"wall_s":5,"cost_usd":0.5,"tokens":{"output":40},"plan_items_completed":1,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false}}' \
+                > ".ralph/logs/$name/$phase/metrics.jsonl"
+        done
+    done
+    touch -t 202601010000 .ralph/logs/a/plan/metrics.jsonl .ralph/logs/a/build/metrics.jsonl
+    touch -t 202602010000 .ralph/logs/b/plan/metrics.jsonl .ralph/logs/b/build/metrics.jsonl
+
+    for signal in auto.json build/iter-002.stream.jsonl iter-001.stream.jsonl metrics.jsonl; do
+        printf '%s\n' '{"goal":"g","phases":[{"phase":3,"name":"plan","state":"ran","exit":0},{"phase":4,"name":"build","state":"ran","exit":0}]}' \
+            > ".ralph/logs/a/$signal"
+        run "$RALPH" metrics
+        [[ "$status" -eq 0 ]] || { echo "$signal: exit $status"; false; }
+        [[ "$output" == "Run: .ralph/logs/a"* ]] || { echo "$signal: $output"; false; }
+        rm ".ralph/logs/a/$signal"
+    done
+}
+
 @test "ralph metrics with no runs errors helpfully" {
     "$RALPH" init
     run "$RALPH" metrics
