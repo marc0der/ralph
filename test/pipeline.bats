@@ -999,7 +999,7 @@ MOCK
     [[ "$status" -eq 0 ]]
     # Reaching iteration 2 is the whole point: before the guards the run ended
     # inside iteration 1.
-    [[ "$output" == *"ITERATION 2 / 2"* ]]
+    [[ "$output" == *"── 2/2 ── "* ]]
     [[ "$stderr" == *"Raw stream unavailable:"* ]]
     [[ "$stderr" == *"iter-001.stream.jsonl"* ]]
     # cat's own complaint is the diagnostic the guard replaces; the loop's
@@ -1233,7 +1233,7 @@ MOCK
     # this change that parse error exited the run with jq's own status.
     [[ "$stderr" == *"summary parse failed on iteration 1"* ]]
     [[ "$stderr" != *"jq parse failure"* ]]
-    [[ "$output" == *"ITERATION 1 / 1"* ]]
+    [[ "$output" == *"── 1/1 ── "* ]]
 }
 
 # --- Verbose mode: live immediacy ---
@@ -1330,7 +1330,7 @@ MOCK
     [[ "$status" -eq 0 ]]
     # Should run: noop(1), commit(2), noop(3), noop(4)=early exit
     [[ "$output" == *"No changes detected for 2 consecutive iterations"* ]]
-    [[ "$output" == *"ITERATION 4"* ]]
+    [[ "$output" == *"── 4/"* ]]
 }
 
 @test "noop detection is disabled when -n is passed" {

@@ -347,3 +347,50 @@ load test_helper
     [ "$status" -eq 0 ]
     [ "$output" = "01:01" ]
 }
+
+@test "divider counts 1/3, 2/3 and 3/3 across a three-iteration run" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run -n 3
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n── 1/3 ── '* ]]
+    [[ "$output" == *$'\n── 2/3 ── '* ]]
+    [[ "$output" == *$'\n── 3/3 ── '* ]]
+    [[ "$output" != *"ITERATION"* ]]
+}
+
+@test "divider names backend, model and effort, 0s elapsed and the clock time" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run -n 1 -m opus -e high
+    [ "$status" -eq 0 ]
+    divider=$(grep '^── 1/1 ── ' <<< "$output")
+    [[ "$divider" =~ ^──\ 1/1\ ──\ claude\ ·\ opus\ ·\ high\ ──\ 0s\ ──\ [0-9]{2}:[0-9]{2}\ ─+$ ]]
+}
+
+@test "divider prints default for an unset effort" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run -n 1 -m opus
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"── 1/1 ── claude · opus · default ── 0s ── "* ]]
+}
+
+@test "divider follows a blank line and is 120 wide off a terminal" {
+    "$RALPH" init
+    seed_open_item
+    "$RALPH" build --dry-run -n 1 > out.txt 2> /dev/null
+    [ -z "$(sed -n 1p out.txt)" ]
+    [[ "$(sed -n 2p out.txt)" == "── 1/1 ── "* ]]
+    [ "$(sed -n 2p out.txt | wc -m)" -eq 121 ]
+}
+
+@test "divider shows a nonzero elapsed time on a later iteration" {
+    "$RALPH" init
+    seed_open_item
+    create_streaming_backend
+    MOCK_DELAY=1 PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 2 --skip-push --no-metrics
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"── 1/2 ── "*" · "*" ── 0s ── "* ]]
+    [[ "$output" == *"── 2/2 ── "*" · "*" ── 2s ── "* ]]
+}

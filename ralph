@@ -1700,6 +1700,13 @@ clock_hhmm() {
     date -d "@$1" +%H:%M 2>/dev/null || date -r "$1" +%H:%M
 }
 
+print_iteration_card() {
+    local iteration="$1" max="$2" model="$3" effort="$4" elapsed="$5" started="$6"
+    card_style 1
+    echo ""
+    card_rule ─ "── $iteration/$max ── $BACKEND_NAME · $model · ${effort:-default} ── $(fmt_duration "$elapsed") ── $(clock_hhmm "$started")"
+}
+
 write_iteration_metrics() {
     local metrics_file="$1" raw_file="$2" mode="$3" branch="$4" backend="$5" model="$6"
     local iteration="$7" started="$8" ended="$9" head_before="${10}" head_after="${11}" plan_done_before="${12}"
@@ -2179,16 +2186,14 @@ cmd_loop() {
         write_cycle_base
     fi
 
+    local run_start=0
     while [[ $iteration -lt $max_iterations ]]; do
         iteration=$((iteration + 1))
-        local iter_label=" ITERATION $iteration / $max_iterations "
-        local pad_total=$((line_width - ${#iter_label}))
-        local pad_left=$((pad_total / 2))
-        local pad_right=$((pad_total - pad_left))
-        printf '\n%s%s%s\n\n' \
-            "$(printf '%*s' "$pad_left" '' | tr ' ' '=')" \
-            "$iter_label" \
-            "$(printf '%*s' "$pad_right" '' | tr ' ' '=')"
+        local iter_start
+        iter_start=$(date +%s)
+        [[ $iteration -eq 1 ]] && run_start=$iter_start
+        print_iteration_card "$iteration" "$max_iterations" "$model" "$effort" \
+            "$((iter_start - run_start))" "$iter_start"
 
         # Snapshot HEAD to detect noops. Plan and review commit nothing during a
         # pass, so they fingerprint the artifacts they may change instead.
@@ -2217,8 +2222,7 @@ cmd_loop() {
             shipped_before=$(count_plan_items '^- \[x\]')
         fi
 
-        local iter_start plan_done_before=0
-        iter_start=$(date +%s)
+        local plan_done_before=0
         if [[ -f "IMPLEMENTATION_PLAN.md" ]]; then
             plan_done_before=$(plan_items_body | grep -c '^- \[x\]' || true)
         fi
