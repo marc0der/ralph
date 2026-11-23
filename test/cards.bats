@@ -62,3 +62,40 @@ load test_helper
     run ralph_fn truncate_line abcdefghij 6
     [ "$output" = "abc..." ]
 }
+
+@test "card_rule pads a short text to 120 characters" {
+    run ralph_fn eval "LC_ALL=C card_style 1; LC_ALL=C card_rule ─ '── 1/3 ── claude'"
+    [ "$status" -eq 0 ]
+    [ "$output" = "── 1/3 ── claude $(printf '─%.0s' {1..103})" ]
+    [ "$(printf '%s' "$output" | LC_ALL=C.UTF-8 wc -m)" -eq 120 ]
+}
+
+@test "card_rule prints the rule character alone for an empty text" {
+    run ralph_fn eval "LC_ALL=C card_style 1; LC_ALL=C card_rule ━ ''"
+    [ "$status" -eq 0 ]
+    [ "$output" = "$(printf '━%.0s' {1..120})" ]
+}
+
+@test "card_rule follows CARD_WIDTH and ends in a space and two rule characters at the limit" {
+    run ralph_fn eval "CARD_LOCALE=C.UTF-8 CARD_WIDTH=10; card_rule - abcdefg"
+    [ "$status" -eq 0 ]
+    [ "$output" = "abcdefg --" ]
+}
+
+@test "card_rule cuts a text that leaves no room for two rule characters" {
+    run ralph_fn eval "CARD_LOCALE=C.UTF-8 CARD_WIDTH=10; card_rule - abcdefgh"
+    [ "$status" -eq 0 ]
+    [ "$output" = "abcdefgh …" ]
+}
+
+@test "card_rule cuts a text longer than the width" {
+    run ralph_fn eval "LC_ALL=C card_style 1; LC_ALL=C card_rule ─ \"\$(printf 'x%.0s' {1..130})\""
+    [ "$status" -eq 0 ]
+    [ "$output" = "$(printf 'x%.0s' {1..119})…" ]
+}
+
+@test "card_rule wraps the line in the dim and off codes" {
+    run ralph_fn eval "CARD_LOCALE=C.UTF-8 CARD_WIDTH=6 CARD_DIM='<d>' CARD_OFF='<o>'; card_rule - ab"
+    [ "$status" -eq 0 ]
+    [ "$output" = "<d>ab ---<o>" ]
+}
