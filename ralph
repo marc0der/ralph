@@ -2968,6 +2968,7 @@ write_auto_state() {
         echo "phase_name=$2"
         echo "child_exit=$3"
         echo "failed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        echo "run=${RALPH_RUN_DIR:-}"
     } > "$AUTO_STATE_FILE"
 }
 
@@ -3060,6 +3061,7 @@ cmd_auto() {
     local -a phase_state=('' 'not reached' 'not reached' 'not reached' 'not reached' 'not reached' 'not reached' 'not reached')
     local auto_resume_notice=""
     local run_dir=""
+    local recorded_run=""
     auto_report() {
         local i
         echo "" >&2
@@ -3107,6 +3109,7 @@ cmd_auto() {
         done
         local recorded_exit
         recorded_exit=$(sed -n 's/^child_exit=//p' "$AUTO_STATE_FILE" | head -n1)
+        recorded_run=$(sed -n 's/^run=//p' "$AUTO_STATE_FILE" | head -n1)
         start_phase=$recorded_phase
         [[ $start_phase -lt $RESUME_FLOOR ]] && start_phase=$RESUME_FLOOR
         # Manual-repair notice (§5 known hazard). Resume is unconditional; it
@@ -3169,12 +3172,20 @@ cmd_auto() {
     # One run directory per lifecycle (specs/023-run-logs-and-metrics.md §3). Every
     # child writes its phase folder into it through RALPH_RUN_DIR.
     if [[ $no_metrics != true ]]; then
-        run_dir=$(new_run_dir "$(git branch --show-current 2>/dev/null || true)")
-        if mkdir -p "$run_dir" 2>/dev/null; then
+        if $resume && [[ -d $recorded_run ]]; then
+            run_dir=$recorded_run
             export RALPH_RUN_DIR="$run_dir"
         else
-            echo "Warning: cannot create $run_dir; lifecycle metrics disabled" >&2
-            run_dir=""
+            if $resume; then
+                echo "Resumed into a new run directory; earlier phases are not in it." >&2
+            fi
+            run_dir=$(new_run_dir "$(git branch --show-current 2>/dev/null || true)")
+            if mkdir -p "$run_dir" 2>/dev/null; then
+                export RALPH_RUN_DIR="$run_dir"
+            else
+                echo "Warning: cannot create $run_dir; lifecycle metrics disabled" >&2
+                run_dir=""
+            fi
         fi
     fi
 
