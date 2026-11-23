@@ -219,6 +219,8 @@ card_row() {
 run_on_tty() {
     [[ "$(script --version 2>/dev/null)" == *util-linux* ]] \
         || skip "script from util-linux is not on PATH"
+    script -qefc true /dev/null > /dev/null 2>&1 \
+        || skip "script cannot open a pseudo-terminal"
     local wrapper="$BATS_TEST_TMPDIR/tty-wrapper.sh"
     printf '#!/usr/bin/env bash\ncd %q || exit 1\nexec' "$PWD" > "$wrapper"
     printf ' %q' "$@" >> "$wrapper"
