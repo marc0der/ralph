@@ -2093,7 +2093,8 @@ cmd_metrics() {
     migrate_run_store
     local file="${1:-}"
     if [[ "$file" == "$ARCHIVE_DIR/metrics/"* ]]; then
-        file="$ARCHIVE_DIR/logs/${file#"$ARCHIVE_DIR/metrics/"}"
+        local moved_file="$ARCHIVE_DIR/logs/${file#"$ARCHIVE_DIR/metrics/"}"
+        [[ -e "$moved_file" ]] && file=$moved_file
     fi
     if [[ -z "$file" ]]; then
         local newest="" candidate
