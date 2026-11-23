@@ -1719,6 +1719,16 @@ new_run_dir() {
     echo "$ARCHIVE_DIR/logs/${branch//\//-}-$(date +%Y%m%d-%H%M%S)-$$"
 }
 
+# Print the highest iteration a phase folder already records, else 0. A missing
+# or broken metrics.jsonl counts as 0, so a reused folder never stops a run.
+phase_iteration_offset() {
+    local metrics_file="$1/metrics.jsonl" highest
+    highest=$(jq -s '[.[] | objects | .iteration | select(type == "number")] | max // 0 | floor' \
+        "$metrics_file" 2>/dev/null) || highest=0
+    [[ "$highest" =~ ^[0-9]+$ ]] || highest=0
+    echo "$highest"
+}
+
 fmt_duration() {
     local s="$1"
     if [[ -z "$s" || "$s" == "null" ]]; then
@@ -2173,12 +2183,14 @@ cmd_loop() {
 
     local metrics_enabled=true
     ($dry_run || $no_metrics) && metrics_enabled=false
-    local metrics_dir="" metrics_file=""
+    local metrics_dir="" metrics_file="" iteration_offset=0
     if $metrics_enabled; then
         [[ -d "$run_dir" ]] || run_dir=$(new_run_dir "$current_branch")
         metrics_dir="$run_dir/$section"
         metrics_file="$metrics_dir/metrics.jsonl"
-        if ! mkdir -p "$metrics_dir" 2>/dev/null; then
+        if mkdir -p "$metrics_dir" 2>/dev/null; then
+            iteration_offset=$(phase_iteration_offset "$metrics_dir")
+        else
             echo "Warning: cannot create $metrics_dir; metrics disabled for this run" >&2
             metrics_enabled=false
         fi
@@ -2376,7 +2388,7 @@ cmd_loop() {
             # the user sees a shell error naming a file ralph chose not to use.
             local raw_file=""
             if $metrics_enabled; then
-                raw_file="$metrics_dir/$(printf 'iter-%03d' "$iteration").stream.jsonl"
+                raw_file="$metrics_dir/$(printf 'iter-%03d' $((iteration_offset + iteration))).stream.jsonl"
             fi
             if [[ -z "$raw_file" ]] || ! { : > "$raw_file"; } 2>/dev/null; then
                 raw_file="$temp_stream"
@@ -2675,7 +2687,7 @@ cmd_loop() {
                 # silently understated. /dev/null slurps to [] instead, which
                 # the filter turns into an explicit set of nulls.
                 if write_iteration_metrics "$metrics_file" "${raw_file:-/dev/null}" "$mode" \
-                    "$current_branch" "$BACKEND_NAME" "$model" "$iteration" \
+                    "$current_branch" "$BACKEND_NAME" "$model" "$((iteration_offset + iteration))" \
                     "$iter_start" "$iter_end" "$head_before" "$head_after_m" \
                     "$plan_done_before" "$noop_override" "$effort" "$config_file" "$section"; then
                     metrics_written=true
