@@ -2011,6 +2011,15 @@ print_metrics_totals() {
         ' "$@"
 }
 
+# Align tab-separated rows from stdin, or pass them through without column.
+print_tsv_table() {
+    if command -v column >/dev/null 2>&1; then
+        column -t -s $'\t'
+    else
+        cat
+    fi
+}
+
 cmd_metrics() {
     reject_quiet metrics "$@"
     migrate_run_store
@@ -2054,11 +2063,7 @@ cmd_metrics() {
                 | map("\(.key):\(.value)") | join(" ") | if . == "" then "-" else . end)
             ] | @tsv' "$file"
     })
-    if command -v column >/dev/null 2>&1; then
-        column -t -s $'\t' <<<"$table"
-    else
-        echo "$table"
-    fi
+    print_tsv_table <<<"$table"
 
     echo ""
     print_metrics_totals "$file"
