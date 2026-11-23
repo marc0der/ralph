@@ -500,7 +500,7 @@ MOCK
     local line
     line=$(tail -1 "$(latest_metrics_file)")
     [[ $(jq -r '.git.noop' <<<"$line") == "false" ]]
-    [[ $(jq -r '.git.commits' <<<"$line") == "0" ]]
+    [[ $(jq -r '.git.commits' <<<"$line") == "1" ]]
 }
 
 # Discard the setup helper's initial commit so the workspace HEAD is unborn.
@@ -552,7 +552,7 @@ MOCK
     local line
     line=$(tail -1 "$(latest_metrics_file)")
     [[ $(jq -r '.git.noop' <<<"$line") == "false" ]]
-    [[ $(jq -r '.git.commits' <<<"$line") == "0" ]]
+    [[ $(jq -r '.git.commits' <<<"$line") == "1" ]]
 }
 
 @test "fix records effort, config and section beside mode" {
