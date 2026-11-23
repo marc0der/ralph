@@ -268,6 +268,55 @@ load test_helper
     [ "$(card_row iterations "$stderr" retro)" = "iterations 1" ]
 }
 
+@test "run card prints metrics off in a dry run" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run
+    [ "$status" -eq 0 ]
+    [ "$(card_row metrics "$stderr" build)" = "metrics off (dry-run)" ]
+}
+
+@test "run card prints metrics on with the metrics file" {
+    create_streaming_backend
+    "$RALPH" init
+    seed_open_item
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
+    [ "$status" -eq 0 ]
+    [[ "$(card_row metrics "$stderr" build)" == "metrics on .ralph/metrics/"*"/metrics.jsonl" ]]
+}
+
+@test "run card prints metrics off under --no-metrics" {
+    create_streaming_backend
+    "$RALPH" init
+    seed_open_item
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics
+    [ "$status" -eq 0 ]
+    [ "$(card_row metrics "$stderr" build)" = "metrics off" ]
+}
+
+@test "run card prints the extra args row only when the section sets extra_args" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run
+    [ "$status" -eq 0 ]
+    [ -z "$(card_row 'extra args' "$stderr" build)" ]
+    printf 'build:\n  extra_args: [--foo, bar]\n' > ralph.yaml
+    run --separate-stderr "$RALPH" build --dry-run
+    [ "$status" -eq 0 ]
+    [ "$(card_row 'extra args' "$stderr" build)" = "extra args --foo bar" ]
+}
+
+@test "run card leaves out extra args that -b drops" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_open_item
+    printf 'build:\n  extra_args: [--foo]\n' > ralph.yaml
+    run --separate-stderr "$RALPH" build --dry-run -b pi
+    [ "$status" -eq 0 ]
+    [ -z "$(card_row 'extra args' "$stderr" build)" ]
+}
+
 @test "card_row returns the row of the named card only" {
     text=$'━━ ralph plan ━━\n  quiet  off\n━━━━\n━━ ralph build ━━\n  quiet  on\n━━━━'
     run card_row quiet "$text" build
