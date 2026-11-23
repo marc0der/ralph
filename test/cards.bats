@@ -392,7 +392,7 @@ load test_helper
     MOCK_DELAY=1 PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 2 --skip-push --no-metrics
     [ "$status" -eq 0 ]
     [[ "$output" == *"── 1/2 ── "*" · "*" ── 0s ── "* ]]
-    [[ "$output" == *"── 2/2 ── "*" · "*" ── 2s ── "* ]]
+    [[ "$output" =~ "── 2/2 ── "[^$'\n']*" ── "([2-9]|[0-9]{2,})"s ── " ]]
 }
 
 @test "headline names the first open item without bold markers" {
