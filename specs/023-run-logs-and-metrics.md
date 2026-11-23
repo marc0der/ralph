@@ -2,8 +2,8 @@
 id: "023"
 created: 2026-11-23
 area: [output, auto, git]
-amends: ["009", "012"]
-related: ["011", "019", "021"]
+amends: ["009", "011", "012", "013", "021"]
+related: ["019"]
 ---
 
 # Run Logs and Metrics
@@ -17,7 +17,9 @@ workspace, not only the workspace.
 
 This spec replaces `012-auto-lifecycle.md` §10, which left run-level grouping for later. It
 amends `009-verbose-live-streaming.md` wherever that spec names the `.ralph/metrics/` path of
-the retained stream file.
+the retained stream file. It replaces the workspace-only counts of `011-nested-git-repos.md` §4
+and §9 and `013-meta-repo-hardening.md` §3 and §10. It amends `021-retro-phase.md` §4, where the
+retro check exempts `logs/` in place of `metrics/`.
 
 ## 1. Problem
 
@@ -43,7 +45,8 @@ the retained stream file.
   its own subdirectory.
 - **Counting.** The `git` counts of an iteration are sums over every repository whose `HEAD`
   moved during the pass, and a `git.repos` array breaks them down.
-- **Summary.** `ralph metrics` on an `auto` run prints one row per phase and a lifecycle total.
+- **Summary.** `ralph metrics` on an `auto` run prints one row per loop phase that `auto.json`
+  lists and a lifecycle total.
   On a single phase it prints today's per-iteration table.
 
 ## 3. Behaviour
@@ -73,9 +76,11 @@ the retained stream file.
 - When `RALPH_RUN_DIR` is set and names a directory, the run writes to
   `$RALPH_RUN_DIR/<section>/`. Otherwise it creates a new run directory as today and writes to
   `<run>/<section>/`.
-- When `<section>/metrics.jsonl` already holds records, the run continues their numbering: its
-  first iteration takes the highest recorded `iteration` plus one, in the record and in the
-  stream file name. The banner's `ITERATION n / max` keeps counting from 1, because it counts
+- `cmd_loop` reads `RALPH_RUN_DIR` once and removes it from the environment before it starts the
+  backend.
+- When `<section>/` already holds records or stream files, the run continues their numbering:
+  its first iteration takes one past the highest number among the recorded `iteration` values
+  and the existing `iter-NNN.stream.jsonl` names, in the record and in the stream file name. The banner's `ITERATION n / max` keeps counting from 1, because it counts
   this run's passes against this run's cap.
 - `--no-metrics`, `metrics: false` and `--dry-run` disable the store as today. The flag and key
   names do not change.
@@ -84,9 +89,13 @@ the retained stream file.
 
 ### `cmd_auto`
 
-- Unless metrics are disabled, `auto` creates the run directory before phase 1 and exports
-  `RALPH_RUN_DIR` to every child. `archive` and `init` write nothing there.
-- `auto` writes `auto.json` before phase 1 and rewrites it after each phase:
+- Unless `--no-metrics` is passed, `auto` creates the run directory before phase 1 and exports
+  `RALPH_RUN_DIR` to every child as the run folder's path relative to the workspace root, for
+  example `.ralph/logs/main-20261123-101500-4242`. `archive` and `init` write nothing there.
+- `auto` writes `auto.json` before phase 1 and rewrites it after each phase. `auto` also rewrites
+  it in its SIGINT/SIGTERM trap and before every `exit 1`. `phases` lists all seven phases in
+  lifecycle order. A phase that did not run has `exit`, `started` and `ended` set to `null`, and
+  an interrupted phase has `exit` 130:
 
   ```json
   {"goal": "…", "branch": "…", "started": "<ISO 8601 UTC>",
@@ -94,14 +103,22 @@ the retained stream file.
                "started": "…", "ended": "…"}]}
   ```
 
-  `state` is the same text the closing `auto_report` prints for that phase, for example `ran` or
-  `skipped — no open items`. A phase that runs again on resume replaces its entry. The rewrite goes
-  through a temp file in the run directory and `mv`, so a reader never sees half a file.
+  `state` is the text `auto_report` prints for that phase in the process that ran, skipped or
+  refused it, for example `ran` or `skipped — no open items`. On a resume into an existing run,
+  `auto` reads `auto.json` first, keeps every entry before the resume point unchanged, and replaces
+  the entry of each phase it reaches. `goal`, `branch` and `started` keep their first values. The
+  rewrite goes through a temp file in the run directory and `mv`, so a reader never sees half a
+  file. A failure to create the run folder or to write `auto.json` prints one
+  `Warning: …; lifecycle metrics disabled` line and never stops the lifecycle. When the folder
+  cannot be created, `auto` exports no `RALPH_RUN_DIR`. After a failed `auto.json` write, `auto`
+  stops writing it.
 - `write_auto_state` adds a `run=<run directory>` line.
 - `--resume` reads `run=`. When that directory exists, `auto` reuses it and exports it again.
   When the line is missing or the directory is gone, `auto` creates a new run directory and
   prints `Resumed into a new run directory; earlier phases are not in it.`
 - `--no-metrics` creates no run directory and no `auto.json`, as today.
+- A phase whose section resolves `metrics: false` writes no phase folder, and `auto.json` still
+  lists the phase.
 
 ### Git counts
 
@@ -115,7 +132,7 @@ the after-listing whose SHA is not `-` and differs from its before-line:
 | `-`, or absent | `git -C <repo> rev-list --count <after>` | the empty tree |
 
 The diff is `git -C <repo> diff --shortstat <base> <after>`. The empty tree's SHA comes from
-`git hash-object -t tree /dev/null`, so the SHA-256 object format works too.
+`git -C <repo> hash-object -t tree /dev/null`, run in each repository, so the SHA-256 object format works too.
 
 The record keeps its `git` keys and adds one:
 
@@ -136,14 +153,16 @@ The record keeps its `git` keys and adds one:
 
 The argument may be a run directory, a phase subdirectory, or a `metrics.jsonl` file.
 
-- **No argument.** Ralph picks the run under `.ralph/logs/` that holds the most recently modified
-  `metrics.jsonl`, and treats it as a run-directory argument.
+- **No argument.** Ralph picks the run under `.ralph/logs/` whose `auto.json`, `metrics.jsonl` or
+  stream file was modified most recently, and treats it as a run-directory argument.
 - **A run directory with `auto.json`.** Ralph prints the rollup. Its header gives the run path
-  with `(auto)` and the goal. The table has one row per phase subdirectory, in lifecycle order,
-  with these columns: `PHASE`, `MODEL/EFFORT`, `ITERS`, `WALL`, `COST`, `OUT_TOK`, `COMMITS` and
+  with `(auto)` and the goal. The table has one row per phase from `plan` to `retro` that
+  `auto.json` lists, in lifecycle order, where a phase with no folder prints its `state` in place
+  of the numbers. Its columns are `PHASE`, `MODEL/EFFORT`, `ITERS`, `WALL`, `COST`, `OUT_TOK`, `COMMITS` and
   `EXIT`. `MODEL/EFFORT` comes from the phase's first record and prints `default` for a null
-  effort. `EXIT` comes from `auto.json`. The table is followed by a `Totals:` line over every
-  record of every phase.
+  effort. `EXIT` comes from `auto.json`. `WALL` is the sum of the phase's `wall_s` values, as in
+  `Totals:`. A phase folder with no records prints `0` in `ITERS` and `-` in every other column
+  except `EXIT`. The table is followed by a `Totals:` line over every record of every phase.
 - **A run directory without `auto.json`.** This is a standalone run. When it holds one phase
   subdirectory, Ralph prints that phase's per-iteration table. When it holds more than one, Ralph
   prints the rollup with `-` in `EXIT`.
@@ -160,8 +179,9 @@ The argument may be a run directory, a phase subdirectory, or a `metrics.jsonl` 
 
 ### Moving `.ralph/metrics/`
 
-`migrate_run_store` runs first in `cmd_loop` (before `arm_retro_pass`), in `cmd_auto`, and in
-`cmd_metrics`:
+`migrate_run_store` runs in `cmd_loop` just before the run folder is created, and only when the
+store is enabled; in `cmd_auto` after the dry-run return and the container and goal checks; and in
+`cmd_metrics` before the argument is read:
 
 - When `.ralph/metrics/` does not exist, it does nothing.
 - When `.ralph/logs/` does not exist, it renames `.ralph/metrics/` to `.ralph/logs/` and prints
@@ -171,6 +191,8 @@ The argument may be a run directory, a phase subdirectory, or a `metrics.jsonl` 
   each entry it leaves behind, it prints
   `Warning: kept .ralph/metrics/<name>; .ralph/logs/<name> already exists.`
 - A failed move only warns. It never stops the command.
+- In `cmd_metrics`, an argument that starts with `.ralph/metrics/` is read from the same path under
+  `.ralph/logs/` after the move.
 
 ### Other readers of the path
 
@@ -187,8 +209,9 @@ The argument may be a run directory, a phase subdirectory, or a `metrics.jsonl` 
   lifecycle and that `ralph metrics` shows it phase by phase.
 - `docs/meta-repositories.md`: the line "Metrics count git activity in the workspace only" is
   replaced by one that says counts cover every repository, with a per-repository breakdown.
-- `CLAUDE.md`: the core loop flow names `iter-NNN.stream.jsonl` under `.ralph/logs/<run>/<phase>/`,
-  and the `metrics` row says it summarises a run, phase by phase for `auto`.
+- `CLAUDE.md` and `AGENTS.md`: the core loop flow names `iter-NNN.stream.jsonl` under
+  `.ralph/logs/<run>/<phase>/`, the retro paragraph names `.ralph/logs/` where it names
+  `.ralph/metrics/`, and the `metrics` row says it summarises a run, phase by phase for `auto`.
 
 ## 5. Testing
 
@@ -198,15 +221,17 @@ The argument may be a run directory, a phase subdirectory, or a `metrics.jsonl` 
   `<run>/build/iter-001.stream.jsonl` under `.ralph/logs/`. `fix` writes under `fix/`.
 - **`RALPH_RUN_DIR`.** With the variable set, a loop writes into `$RALPH_RUN_DIR/<section>/` and
   creates no other run directory.
+- `test/test_helper.bash` unsets `RALPH_RUN_DIR` beside `DEVCONTAINER`.
 - **Appending.** A second run into the same phase subdirectory numbers its first record and stream
-  file one past the highest existing `iteration`.
+  file one past the highest existing `iteration` or stream file number.
 - **Nested counts.** A mock backend that commits twice in a nested repository and once in the
   workspace yields `commits: 3` and a two-entry `repos` array with the right per-repository counts.
 - **New repository.** A repository created and committed in during the pass counts its commits
   against the empty tree.
 - **No movement.** A pass that moves no repository records `repos: []` and zero scalars.
-- **Rollup.** A fixture run with `auto.json` and three phase subdirectories prints one row per
-  phase in lifecycle order, the right `EXIT` values, a `Totals:` line over all records, and a
+- **Rollup.** A fixture run whose `auto.json` lists all five loop phases, with three phase
+  subdirectories, prints five rows in lifecycle order, the `state` of each phase without a
+  folder, the right `EXIT` values, a `Totals:` line over all records, and a
   `Repos:` line.
 - **Old records.** A record without `repos` still summarises, and adds nothing to `Repos:`.
 - **Old run.** A run directory with a top-level `metrics.jsonl` prints the per-iteration table.
@@ -216,10 +241,15 @@ The argument may be a run directory, a phase subdirectory, or a `metrics.jsonl` 
 - `test/auto.bats`: an `auto` run creates one run directory with phase subdirectories and an
   `auto.json` listing every phase. `auto-state` gains `run=`. `--resume` reuses that directory, and
   the re-run phase appends to its subdirectory. `--resume` with the directory gone creates a new
-  one and prints the notice. `--no-metrics` creates no run directory.
+  one and prints the notice. `--no-metrics` creates no run directory. With `.ralph/logs` a regular
+  file, `auto` runs every phase and prints the warning.
 - `test/retro.bats`: a retro pass whose stream files land under `.ralph/logs/` passes
   `check_retro_pass`.
-- The existing tests that name `.ralph/metrics/` name `.ralph/logs/<run>/<section>/` instead.
+- Existing tests name `.ralph/logs/` where they name `.ralph/metrics/`. In `test/metrics.bats`,
+  'a nested-only commit records noop=false with zero commits' and 'first commit on a commitless
+  workspace records noop=false' now assert `commits: 1` and a one-entry `repos`. The retro prompt
+  test searches for `` `{{WORKSPACE}}/.ralph/logs/` ``. The tests that block the store touch
+  `.ralph/logs`.
 
 ## 6. Accepted risks
 
@@ -230,8 +260,8 @@ The argument may be a run directory, a phase subdirectory, or a `metrics.jsonl` 
   the commits reachable from the new `HEAD` and not from the old one. That is still the work that
   is now on `HEAD`.
 - **A resumed phase mixes attempts.** Appending folds a failed attempt's iterations into the same
-  phase row. The record of every attempt remains in `metrics.jsonl`, and the iteration numbers do
-  not restart, so the attempts can still be told apart.
+  phase row. Every stream file of every attempt remains. An iteration that failed before its
+  record leaves a stream file with no record, and that gap shows where an attempt stopped.
 - **Concurrent `auto` runs in one workspace** share nothing but `.ralph/logs/`. Their directory
   names differ by PID, as today.
 
