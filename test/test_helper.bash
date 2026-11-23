@@ -213,3 +213,17 @@ card_row() {
             gsub(/ +/, " "); sub(/^ /, ""); print; exit
         }' <<< "$text"
 }
+
+# Helper: run a command with stdin, stdout and stderr on a pseudo-terminal, as `run` does.
+# Sets $status and $output, with the terminal's carriage returns removed.
+run_on_tty() {
+    [[ "$(script --version 2>/dev/null)" == *util-linux* ]] \
+        || skip "script from util-linux is not on PATH"
+    local wrapper="$BATS_TEST_TMPDIR/tty-wrapper.sh"
+    printf '#!/usr/bin/env bash\ncd %q || exit 1\nexec' "$PWD" > "$wrapper"
+    printf ' %q' "$@" >> "$wrapper"
+    printf '\n' >> "$wrapper"
+    chmod +x "$wrapper"
+    run script -qefc "$wrapper" /dev/null
+    output=${output//$'\r'/}
+}
