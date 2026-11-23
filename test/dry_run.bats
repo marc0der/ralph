@@ -52,10 +52,11 @@ load test_helper
 }
 
 @test "plan --dry-run includes goal in prompt" {
+    echo 'goal=[{{GOAL}}]' > "$RALPH_CONFIG_DIR/prompts/plan.md"
     "$RALPH" init
     run "$RALPH" plan --dry-run -n 1 -g "Add REST endpoint"
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Add REST endpoint"* ]]
+    [[ "$output" == *"goal=[Add REST endpoint]"* ]]
 }
 
 # The remaining cases cover the two prompt placeholders. cmd_loop expands
@@ -87,23 +88,23 @@ load test_helper
 }
 
 @test "plan --dry-run expands both placeholders in one prompt" {
-    printf '%s\n' 'goal: {{GOAL}}' 'root: {{WORKSPACE}}' \
+    printf '%s\n' 'goal=[{{GOAL}}]' 'root: {{WORKSPACE}}' \
         > "$RALPH_CONFIG_DIR/prompts/plan.md"
     "$RALPH" init
     run "$RALPH" plan --dry-run -n 1 -g "Add REST endpoint"
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"goal: Add REST endpoint"* ]]
+    [[ "$output" == *"goal=[Add REST endpoint]"* ]]
     [[ "$output" == *"root: $TEST_DIR"* ]]
 }
 
 # {{GOAL}} expands first, so a goal may carry {{WORKSPACE}} and still reach the
 # agent as a real path — the documented way to name a spec below the root.
 @test "plan --dry-run expands {{WORKSPACE}} carried by the goal" {
-    echo 'goal: {{GOAL}}' > "$RALPH_CONFIG_DIR/prompts/plan.md"
+    echo 'goal=[{{GOAL}}]' > "$RALPH_CONFIG_DIR/prompts/plan.md"
     "$RALPH" init
     run "$RALPH" plan --dry-run -n 1 -g 'plan the work in {{WORKSPACE}}/specs/x.md'
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"goal: plan the work in $TEST_DIR/specs/x.md"* ]]
+    [[ "$output" == *"goal=[plan the work in $TEST_DIR/specs/x.md]"* ]]
 }
 
 # Both replacements are quoted. Unquoted, bash 5.2's patsub_replacement turns a
@@ -121,9 +122,9 @@ load test_helper
 }
 
 @test "plan --dry-run keeps an ampersand in the goal" {
-    echo 'goal: {{GOAL}}' > "$RALPH_CONFIG_DIR/prompts/plan.md"
+    echo 'goal=[{{GOAL}}]' > "$RALPH_CONFIG_DIR/prompts/plan.md"
     "$RALPH" init
     run "$RALPH" plan --dry-run -n 1 -g 'fix save & load'
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"goal: fix save & load"* ]]
+    [[ "$output" == *"goal=[fix save & load]"* ]]
 }
