@@ -2059,7 +2059,8 @@ print_run_rollup() {
             continue
         fi
         if [[ ! -d "$phase_dir" ]]; then
-            rows+=$'\n'$(printf '%s\t%s\t\t\t\t\t\t%s' "$phase" "$state" "$phase_exit")
+            # BSD column merges adjacent tabs, so an empty cell would shift EXIT left.
+            rows+=$'\n'$(printf '%s\t%s\t \t \t \t \t \t%s' "$phase" "$state" "$phase_exit")
             continue
         fi
         if [[ ! -s "$phase_dir/metrics.jsonl" ]]; then

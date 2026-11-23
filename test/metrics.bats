@@ -566,6 +566,29 @@ EOF
     [[ "$squeezed" == *"Repos: . 3 (+15/-1) · ./svc 3 (+20/-3)"* ]]
 }
 
+@test "a rollup row for a phase without a folder fills every cell for BSD column" {
+    mkdir -p .ralph/logs/r1/plan
+    printf '%s\n' '{"iteration":1,"mode":"plan","model":"sonnet","effort":null,"wall_s":5,"cost_usd":0.5,"tokens":{"output":40},"plan_items_completed":1,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false}}' \
+        > .ralph/logs/r1/plan/metrics.jsonl
+    cat > .ralph/logs/r1/auto.json <<'EOF'
+{"goal":"ship it","branch":"main","started":"2026-11-23T10:00:00Z","phases":[
+ {"phase":3,"name":"plan","state":"ran","exit":0,"started":null,"ended":null},
+ {"phase":4,"name":"build","state":"failed — exit 1","exit":1,"started":null,"ended":null},
+ {"phase":5,"name":"review","state":"skipped — no cycle base","exit":null,"started":null,"ended":null}]}
+EOF
+    mkdir -p "$TEST_DIR/column-shim"
+    printf '#!/usr/bin/env bash\nexec cat\n' > "$TEST_DIR/column-shim/column"
+    chmod +x "$TEST_DIR/column-shim/column"
+
+    PATH="$TEST_DIR/column-shim:$PATH" run "$RALPH" metrics .ralph/logs/r1
+    [[ "$status" -eq 0 ]]
+    local table
+    table=$(sed -n '/^PHASE/,/^$/p' <<<"$output" | sed '/^$/d')
+    [[ $(wc -l <<<"$table") -eq 4 ]]
+    [[ "$table" == *$'\nbuild\t'* ]]
+    awk -F '\t' 'NF != 8 { exit 1 } { for (i = 1; i <= NF; i++) if ($i == "") exit 1 }' <<<"$table"
+}
+
 @test "a phase folder without records prints 0 iterations, dashes and its auto.json exit" {
     mkdir -p .ralph/logs/r1/plan .ralph/logs/r1/build .ralph/logs/r1/retro
     printf '%s\n' '{"iteration":1,"mode":"plan","model":"sonnet","effort":null,"wall_s":5,"cost_usd":0.5,"tokens":{"output":40},"plan_items_completed":1,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false}}' \
