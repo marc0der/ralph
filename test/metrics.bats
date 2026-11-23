@@ -948,6 +948,59 @@ MOCK
     [[ $(jq -r '.git.repos[] | select(.repo == "./source/svc") | .files_changed' <<<"$line") == "2" ]]
 }
 
+@test "a replaced line counts one insertion and one deletion since the before-SHA" {
+    "$RALPH" init
+    printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
+    printf 'one\ntwo\n' > f.txt
+    git add f.txt
+    git commit -q -m "two lines"
+
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+printf 'one\nTWO\n' > f.txt
+git add f.txt
+git commit -q -m "replace a line"
+echo '{"type":"result","result":"done"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" build -n 1 --skip-push -y
+
+    local line
+    line=$(tail -1 "$(latest_metrics_file)")
+    [[ $(jq -c '.git.repos[] | select(.repo == ".") | [.files_changed, .insertions, .deletions]' <<<"$line") == "[1,1,1]" ]]
+    [[ $(jq -r '.git.deletions' <<<"$line") == "1" ]]
+}
+
+@test "a repository left on an unborn branch drops out of the repos list" {
+    "$RALPH" init
+    printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
+    echo "source/" >> .gitignore
+    mkdir -p source/svc
+    git -C source/svc init --quiet
+    git -C source/svc config user.email "nested@test.com"
+    git -C source/svc config user.name "Nested"
+    git -C source/svc commit --allow-empty -m "nested initial" --quiet
+
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+git -C source/svc checkout -q --orphan fresh
+echo '{"type":"result","result":"done"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" build -n 1 --skip-push -y
+
+    [[ $(git -C source/svc symbolic-ref HEAD) == "refs/heads/fresh" ]]
+    local line
+    line=$(tail -1 "$(latest_metrics_file)")
+    [[ $(jq -r '[.git.repos[] | select(.repo == "./source/svc")] | length' <<<"$line") == "0" ]]
+}
+
 @test "a repository created during the pass counts from the empty tree" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
