@@ -2020,6 +2020,31 @@ print_tsv_table() {
     fi
 }
 
+run_phase_dirs() {
+    local run="$1" phase
+    for phase in plan build review fix retro; do
+        if [[ -d "$run/$phase" ]]; then
+            echo "$run/$phase"
+        fi
+    done
+}
+
+print_run_rollup() {
+    local run="$1" phase_dir rows
+    echo "Run: $run"
+    echo ""
+    rows=$({
+        printf 'PHASE\tMODEL/EFFORT\tITERS\tWALL\tCOST\tOUT_TOK\tCOMMITS\tEXIT\n'
+        while IFS= read -r phase_dir; do
+            jq -rs --arg phase "${phase_dir##*/}" '
+                first as $first
+                | [$phase, "\($first.model)/\($first.effort // "default")", length, "-", "-", "-", "-", "-"]
+                | @tsv' "$phase_dir/metrics.jsonl"
+        done < <(run_phase_dirs "$run")
+    })
+    print_tsv_table <<<"$rows"
+}
+
 cmd_metrics() {
     reject_quiet metrics "$@"
     migrate_run_store
@@ -2030,6 +2055,10 @@ cmd_metrics() {
     if [[ -z "$file" ]]; then
         # shellcheck disable=SC2012  # newest-by-mtime needs ls; paths are ralph-generated (no odd filenames)
         file=$(ls -1t "$ARCHIVE_DIR"/logs/*/*/metrics.jsonl 2>/dev/null | head -1 || true)
+    fi
+    if [[ -d "$file" ]] && (( $(run_phase_dirs "$file" | wc -l) >= 2 )); then
+        print_run_rollup "$file"
+        return 0
     fi
     if [[ -z "$file" || ! -f "$file" ]]; then
         echo "No metrics found under $ARCHIVE_DIR/logs/." >&2
