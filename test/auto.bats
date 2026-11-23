@@ -793,6 +793,42 @@ MOCK
     jq -e '[.phases[:6][].exit] | all(. == 0)' "$json"
 }
 
+@test "--resume keeps the first goal, branch, start time and the earlier auto.json entries" {
+    create_committing_backend
+    MOCK_RETRO_EXIT=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push -g "the goal"
+    [[ "$status" -eq 1 ]]
+
+    local -a runs=(.ralph/logs/*/)
+    local json="${runs[0]}auto.json"
+    jq '.goal = "first goal" | .branch = "first-branch" | .started = "2001-02-03T04:05:06Z"' "$json" > "$BATS_TEST_TMPDIR/first.json"
+    cp "$BATS_TEST_TMPDIR/first.json" "$json"
+
+    PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --resume --skip-push -g "second goal"
+    [[ "$status" -eq 0 ]]
+
+    [[ "$(jq -r '.goal, .branch, .started' "$json")" == $'first goal\nfirst-branch\n2001-02-03T04:05:06Z' ]]
+    [[ "$(jq -c '.phases[:6]' "$json")" == "$(jq -c '.phases[:6]' "$BATS_TEST_TMPDIR/first.json")" ]]
+    jq -e '.phases[6] | .name == "retro" and .state == "ran" and .exit == 0' "$json"
+}
+
+@test "--resume writes a fresh auto.json over a broken one" {
+    create_committing_backend
+    MOCK_RETRO_EXIT=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push -g "the goal"
+    [[ "$status" -eq 1 ]]
+
+    local -a runs=(.ralph/logs/*/)
+    local json="${runs[0]}auto.json"
+    echo '{"goal": ' > "$json"
+
+    run_auto --resume --skip-push
+    [[ "$status" -eq 0 ]]
+
+    [[ "$(jq -r '.goal' "$json")" == "the goal" ]]
+    [[ "$(jq -r '[.phases[].phase] | join(",")' "$json")" == "1,2,3,4,5,6,7" ]]
+    [[ "$(jq -r '.phases[0].state' "$json")" == "skipped — resumed at phase 7" ]]
+    jq -e '.phases[6] | .state == "ran" and .exit == 0' "$json"
+}
+
 @test "auto warns once and runs every phase when it cannot write auto.json" {
     create_committing_backend
     printf '#!/usr/bin/env bash\ncase "$*" in *auto.json.*) exit 1 ;; esac\nexec %q "$@"\n' \
