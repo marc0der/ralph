@@ -447,6 +447,28 @@ MOCK
     [[ "$squeezed" == *"Totals: 3 iterations · wall 1m15s"* ]]
 }
 
+@test "an auto run prints the (auto) header, its goal and a row per listed phase" {
+    mkdir -p .ralph/logs/r1/plan
+    printf '%s\n' '{"iteration":1,"mode":"plan","model":"sonnet","effort":null,"wall_s":5,"cost_usd":0.5,"tokens":{"output":40},"plan_items_completed":1,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false}}' \
+        > .ralph/logs/r1/plan/metrics.jsonl
+    cat > .ralph/logs/r1/auto.json <<'EOF'
+{"goal":"ship it","branch":"main","started":"2026-11-23T10:00:00Z","phases":[
+ {"phase":1,"name":"archive","state":"ran","exit":0,"started":null,"ended":null},
+ {"phase":2,"name":"init","state":"ran","exit":0,"started":null,"ended":null},
+ {"phase":3,"name":"plan","state":"ran","exit":0,"started":null,"ended":null},
+ {"phase":4,"name":"build","state":"failed — exit 1","exit":1,"started":null,"ended":null},
+ {"phase":5,"name":"review","state":"skipped — no open items","exit":null,"started":null,"ended":null}]}
+EOF
+
+    run "$RALPH" metrics .ralph/logs/r1
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "Run: .ralph/logs/r1 (auto)"$'\n'"Goal: ship it"$'\n'* ]]
+    local squeezed expected
+    squeezed=$(tr -s ' \t' ' ' <<<"$output")
+    expected=$'PHASE MODEL/EFFORT ITERS WALL COST OUT_TOK COMMITS EXIT\nplan sonnet/default 1 5s $0.5 40 1 0\nbuild failed — exit 1 1\nreview skipped — no open items -\n\nTotals: 1 iterations'
+    [[ "$squeezed" == *"$expected"* ]]
+}
+
 @test "a build over a lone old store moves it beside the new run" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
