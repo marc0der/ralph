@@ -3063,6 +3063,9 @@ cmd_auto() {
     # success, abort, rejected precondition, and interrupt. States seed to
     # 'not reached' so an abort leaves every later phase honestly unreached.
     local -a phase_state=('' 'not reached' 'not reached' 'not reached' 'not reached' 'not reached' 'not reached' 'not reached')
+    local -a phase_exit=('' '' '' '' '' '' '' '')
+    local -a phase_started=('' '' '' '' '' '' '' '')
+    local -a phase_ended=('' '' '' '' '' '' '' '')
     local auto_resume_notice=""
     local run_dir=""
     local recorded_run=""
@@ -3075,15 +3078,24 @@ cmd_auto() {
         if [[ -z $run_dir ]] || $auto_json_failed; then
             return 0
         fi
-        local tmp=""
+        local tmp="" i
+        local -a fields=()
+        for ((i = 1; i <= ${#RALPH_PHASES[@]}; i++)); do
+            fields+=("${phase_state[$i]}" "${phase_exit[$i]}" "${phase_started[$i]}" "${phase_ended[$i]}")
+        done
         if tmp=$(mktemp "$run_dir/auto.json.XXXXXX" 2>/dev/null) &&
             jq -n --arg goal "$goal" --arg branch "$auto_branch" --arg started "$auto_started" \
                 --arg names "${RALPH_PHASES[*]}" \
-                '($names | split(" ")) as $name
+                'def unset_to_null: if . == "" then null else . end;
+                 ($names | split(" ")) as $name
+                 | $ARGS.positional as $p
                  | {goal: $goal, branch: $branch, started: $started,
-                    phases: [$ARGS.positional | to_entries[]
-                             | {phase: (.key + 1), name: $name[.key], state: .value}]}' \
-                --args "${phase_state[@]:1}" > "$tmp" 2>/dev/null &&
+                    phases: [range(0; $p | length; 4) as $i
+                             | {phase: ($i / 4 + 1), name: $name[$i / 4], state: $p[$i],
+                                exit: ($p[$i + 1] | unset_to_null | if . then tonumber else . end),
+                                started: ($p[$i + 2] | unset_to_null),
+                                ended: ($p[$i + 3] | unset_to_null)}]}' \
+                --args "${fields[@]}" > "$tmp" 2>/dev/null &&
             mv "$tmp" "$run_dir/auto.json" 2>/dev/null; then
             return 0
         fi
@@ -3294,11 +3306,14 @@ cmd_auto() {
         esac
 
         child_exit=0
+        phase_started[phase_num]=$(utc_now)
         case $phase in
             archive|init) "$RALPH_SELF" "$phase" ;;
             plan)         "$RALPH_SELF" "$phase" -g "$goal" "${child_flags[@]}" -y ;;
             *)            "$RALPH_SELF" "$phase" "${child_flags[@]}" -y ;;
         esac || child_exit=$?
+        phase_ended[phase_num]=$(utc_now)
+        phase_exit[phase_num]=$child_exit
         if [[ $child_exit -ne 0 ]]; then
             phase_state[phase_num]="failed — exit $child_exit"
             write_auto_state "$phase_num" "$phase" "$child_exit"
