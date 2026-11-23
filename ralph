@@ -1758,10 +1758,16 @@ print_iteration_card() {
 }
 
 print_iteration_footer() {
-    local iteration="$1" max="$2" wall="$3" suffix="${4:-}"
+    local iteration="$1" max="$2" wall="$3" suffix="${4:-}" tools="${5:-}"
     card_style 1
+    local LC_ALL=$CARD_LOCALE
+    local text
+    text="── $iteration/$max done ── $(fmt_duration "$wall") wall$suffix"
+    if [[ -n "$tools" ]] && (( ${#text} + ${#tools} + 6 <= CARD_WIDTH )); then
+        text="$text · $tools"
+    fi
     echo ""
-    card_rule ─ "── $iteration/$max done ── $(fmt_duration "$wall") wall$suffix"
+    card_rule ─ "$text"
 }
 
 write_iteration_metrics() {
@@ -1849,8 +1855,8 @@ write_iteration_metrics() {
             plan_items_completed: $plan_done}' >> "$metrics_file"
 }
 
-# One-line human summary of the last metrics record (everything after the
-# wall-clock figure, which the caller prefixes via fmt_duration).
+# Human summary of the last metrics record, without its tool list (everything
+# after the wall-clock figure, which the caller prefixes via fmt_duration).
 metrics_summary_suffix() {
     local metrics_file="$1"
     tail -n 1 "$metrics_file" | jq -r '
@@ -1858,9 +1864,15 @@ metrics_summary_suffix() {
         + (if .turns then " · " + (.turns | tostring) + " turns" else "" end)
         + (if .cost_usd then " · $" + (((.cost_usd * 100 | round) / 100) | tostring) else "" end)
         + " · " + (.git.commits | tostring) + " commits (+" + (.git.insertions | tostring)
-        + "/-" + (.git.deletions | tostring) + ")"
-        + (if (.tools | length) > 0 then " · " + (.tools | to_entries | sort_by(-.value)
-            | map(.key + " " + (.value | tostring)) | join(", ")) else "" end)' 2>/dev/null || true
+        + "/-" + (.git.deletions | tostring) + ")"' 2>/dev/null || true
+}
+
+# The last metrics record's tool counts, busiest first; empty when it has none.
+metrics_tool_list() {
+    local metrics_file="$1"
+    tail -n 1 "$metrics_file" | jq -r '
+        if (.tools | length) > 0 then (.tools | to_entries | sort_by(-.value)
+            | map(.key + " " + (.value | tostring)) | join(", ")) else "" end' 2>/dev/null || true
 }
 
 cmd_metrics() {
@@ -2691,7 +2703,8 @@ cmd_loop() {
 
         if ! $dry_run; then
             print_iteration_footer "$iteration" "$max_iterations" "$((iter_end - iter_start))" \
-                "$($metrics_written && metrics_summary_suffix "$metrics_file")"
+                "$($metrics_written && metrics_summary_suffix "$metrics_file")" \
+                "$($metrics_written && metrics_tool_list "$metrics_file")"
         fi
 
         # Early exit. Build mode watches every git repository beneath the
