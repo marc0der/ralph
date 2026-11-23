@@ -82,6 +82,14 @@ def trim($n): if (. | length) > $n then .[0:$n] + "\u2026" else . end;
 def oneline: gsub("\\s+"; " ");
 '
 
+# Prepended to every `ralph metrics` jq program that formats a duration.
+JQ_FMTD='
+def fmtd: if . == null then "-"
+  elif . >= 3600 then "\(. / 3600 | floor)h\(. % 3600 / 60 | floor)m"
+  elif . >= 60 then "\(. / 60 | floor)m\(. % 60)s"
+  else "\(.)s" end;
+'
+
 # shellcheck disable=SC2034  # Variables are set here and consumed in cmd_loop
 backend_claude() {
     BACKEND_NAME="claude"
@@ -1985,11 +1993,7 @@ metrics_tool_list() {
 }
 
 print_metrics_totals() {
-    jq -rs '
-        def fmtd: if . == null then "-"
-          elif . >= 3600 then "\(. / 3600 | floor)h\(. % 3600 / 60 | floor)m"
-          elif . >= 60 then "\(. / 60 | floor)m\(. % 60)s"
-          else "\(.)s" end;
+    jq -rs "$JQ_FMTD"'
         (map(.wall_s) | add) as $wall
         | (map(.api_s // 0) | add) as $api
         | (map(.cost_usd // 0) | add) as $cost
@@ -2075,11 +2079,7 @@ cmd_metrics() {
     local table
     table=$({
         printf 'ITER\tWALL\tAPI\tTURNS\tCOST\tTOK_IN\tTOK_OUT\tCACHE_RD\tCOMMITS\t+/-\tPLAN\tTOP_TOOLS\n'
-        jq -r '
-            def fmtd: if . == null then "-"
-              elif . >= 3600 then "\(. / 3600 | floor)h\(. % 3600 / 60 | floor)m"
-              elif . >= 60 then "\(. / 60 | floor)m\(. % 60)s"
-              else "\(.)s" end;
+        jq -r "$JQ_FMTD"'
             [ .iteration,
               (.wall_s | fmtd),
               (.api_s | fmtd),
