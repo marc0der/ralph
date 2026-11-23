@@ -3137,7 +3137,7 @@ cmd_auto() {
     # 130 under its own trap and auto records the phase in flight, prints the
     # report and exits 130. A signal to auto alone defers until the child
     # returns (§5 known hazard, §13 fix).
-    trap 'phase_state[phase_num]="interrupted"; write_auto_state "$phase_num" "$phase" 130; auto_report; exit 130' SIGINT SIGTERM
+    trap 'phase_state[phase_num]="interrupted"; phase_exit[phase_num]=130; write_auto_state "$phase_num" "$phase" 130; auto_report; exit 130' SIGINT SIGTERM
 
     # Resume entry (§5). A plain run starts at phase 1 and clears any stale
     # state file. --resume re-enters at the recorded phase, floored at
