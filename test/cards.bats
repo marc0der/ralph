@@ -815,3 +815,14 @@ run_ralph_at_width() {
     [ "$status" -eq 0 ]
     [ "$(card_line_widths < <(grep '^.\[2m── 1/1 ── ' <<< "$output"))" -eq 120 ]
 }
+
+@test "terminal width cuts a footer longer than 40 columns to 40, ending in an ellipsis" {
+    "$RALPH" init
+    seed_open_item
+    create_streaming_backend
+    PATH="$TEST_DIR/bin:$PATH" run_ralph_at_width 120 40 build -n 1 -y --skip-push
+    [ "$status" -eq 0 ]
+    footer=$(grep '── 1/1 done ──' <<< "$output" | sed $'s/\e\\[[0-9;]*m//g')
+    [ "$(card_line_widths <<< "$footer")" -eq 40 ]
+    [[ "$footer" == *… ]]
+}
