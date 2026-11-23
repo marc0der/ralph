@@ -549,6 +549,59 @@ EOF
     [[ "$squeezed" == *"$expected"* ]]
 }
 
+@test "an old run directory with a top-level metrics.jsonl prints its per-iteration table" {
+    mkdir -p .ralph/logs/old
+    local git='"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false}'
+    {
+        printf '%s\n' "{\"iteration\":1,\"mode\":\"build\",\"backend\":\"claude\",\"model\":\"opus\",\"wall_s\":5,\"api_s\":4,\"turns\":3,\"cost_usd\":0.5,\"tokens\":{\"input\":10,\"output\":20,\"cache_read\":30},\"tools\":{\"Read\":2,\"Bash\":1},\"plan_items_completed\":1,$git}"
+        printf '%s\n' "{\"iteration\":2,\"mode\":\"build\",\"backend\":\"claude\",\"model\":\"opus\",\"wall_s\":7,\"api_s\":6,\"turns\":5,\"cost_usd\":1.5,\"tokens\":{\"input\":11,\"output\":21,\"cache_read\":31},\"tools\":{\"Edit\":4},\"plan_items_completed\":0,$git}"
+    } > .ralph/logs/old/metrics.jsonl
+
+    run "$RALPH" metrics .ralph/logs/old
+    [[ "$status" -eq 0 ]]
+    local squeezed expected
+    squeezed=$(tr -s ' \t' ' ' <<<"$output")
+    expected=$'ITER WALL API TURNS COST TOK_IN TOK_OUT CACHE_RD COMMITS +/- PLAN TOP_TOOLS\n1 5s 4s 3 $0.5 10 20 30 1 +2/-0 1 Read:2 Bash:1\n2 7s 6s 5 $1.5 11 21 31 1 +2/-0 0 Edit:4'
+    [[ "$squeezed" == *"Run: .ralph/logs/old/metrics.jsonl"* ]]
+    [[ "$squeezed" == *"$expected"* ]]
+    [[ "$squeezed" == *"Totals: 2 iterations"* ]]
+    [[ "$squeezed" != *"PHASE"* ]]
+}
+
+@test "a standalone build's run directory prints its build per-iteration table" {
+    "$RALPH" init
+    printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
+    create_committing_backend
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" build -n 1 --skip-push -y
+    local run_dir
+    run_dir=$(dirname "$(dirname "$(latest_metrics_file)")")
+
+    run "$RALPH" metrics "$run_dir"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Run: $run_dir/build/metrics.jsonl"* ]]
+    [[ "$output" == *"ITER"*"TOP_TOOLS"* ]]
+    [[ "$output" == *"Totals: 1 iterations"* ]]
+    [[ "$output" != *"PHASE"* ]]
+}
+
+@test "a standalone build's phase folder prints the same per-iteration table as its run" {
+    "$RALPH" init
+    printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
+    create_committing_backend
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" build -n 1 --skip-push -y
+    local phase_dir run_dir
+    phase_dir=$(dirname "$(latest_metrics_file)")
+    run_dir=$(dirname "$phase_dir")
+
+    run "$RALPH" metrics "$run_dir"
+    [[ "$status" -eq 0 ]]
+    local from_run="$output"
+    run "$RALPH" metrics "$phase_dir"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "$from_run" ]]
+    [[ "$output" == *"Totals: 1 iterations"* ]]
+}
+
 @test "a build over a lone old store moves it beside the new run" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
