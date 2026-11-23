@@ -335,3 +335,15 @@ load test_helper
     [[ "$output" != *"Mode:"* ]]
     [[ "$output" != *"━"* ]]
 }
+
+@test "clock_hhmm prints the local time of epoch 0" {
+    TZ=UTC run ralph_fn clock_hhmm 0
+    [ "$status" -eq 0 ]
+    [ "$output" = "00:00" ]
+}
+
+@test "clock_hhmm prints the local time of epoch 3660" {
+    TZ=UTC run ralph_fn clock_hhmm 3660
+    [ "$status" -eq 0 ]
+    [ "$output" = "01:01" ]
+}
