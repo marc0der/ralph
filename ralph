@@ -2093,8 +2093,14 @@ cmd_metrics() {
         file="$ARCHIVE_DIR/logs/${file#"$ARCHIVE_DIR/metrics/"}"
     fi
     if [[ -z "$file" ]]; then
+        local newest
         # shellcheck disable=SC2012  # newest-by-mtime needs ls; paths are ralph-generated (no odd filenames)
-        file=$(ls -1t "$ARCHIVE_DIR"/logs/*/*/metrics.jsonl 2>/dev/null | head -1 || true)
+        newest=$(ls -1t "$ARCHIVE_DIR"/logs/*/{auto.json,metrics.jsonl,iter-*.stream.jsonl} \
+            "$ARCHIVE_DIR"/logs/*/*/{auto.json,metrics.jsonl,iter-*.stream.jsonl} 2>/dev/null | head -1 || true)
+        if [[ -n "$newest" ]]; then
+            newest=${newest#"$ARCHIVE_DIR/logs/"}
+            file="$ARCHIVE_DIR/logs/${newest%%/*}"
+        fi
     fi
     if [[ -d "$file" ]] && { [[ -f "$file/auto.json" ]] || (( $(run_phase_dirs "$file" | wc -l) >= 2 )); }; then
         print_run_rollup "$file"
