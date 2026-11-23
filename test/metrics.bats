@@ -338,6 +338,27 @@ MOCK
     [[ "$output" != *"older"* ]]
 }
 
+@test "ralph metrics with no argument picks the newer run without calling ls" {
+    local name phase
+    for name in a-older b-newer; do
+        for phase in plan build; do
+            mkdir -p ".ralph/logs/$name/$phase"
+            printf '%s\n' '{"iteration":1,"mode":"build","backend":"claude","model":"opus","effort":null,"wall_s":5,"cost_usd":0.5,"tokens":{"output":40},"plan_items_completed":1,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false}}' \
+                > ".ralph/logs/$name/$phase/metrics.jsonl"
+        done
+    done
+    touch -t 202601010000 .ralph/logs/a-older/plan/metrics.jsonl .ralph/logs/a-older/build/metrics.jsonl
+    mkdir -p "$TEST_DIR/ls-shim"
+    printf '#!/usr/bin/env bash\nexit 1\n' > "$TEST_DIR/ls-shim/ls"
+    chmod +x "$TEST_DIR/ls-shim/ls"
+
+    PATH="$TEST_DIR/ls-shim:$PATH" run "$RALPH" metrics
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "Run: .ralph/logs/b-newer"$'\n'* ]]
+    [[ "$output" == *"PHASE"*"MODEL/EFFORT"* ]]
+    [[ "$output" != *"a-older"* ]]
+}
+
 @test "ralph metrics with no argument picks a run by its auto.json, stream files and top-level metrics.jsonl" {
     local name phase signal
     for name in a b; do
