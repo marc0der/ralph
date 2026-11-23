@@ -686,18 +686,7 @@ MOCK
     "$RALPH" init
     seed_open_item
     create_streaming_backend
-    local real_mkdir
-    real_mkdir=$(command -v mkdir)
-    {
-        printf '#!/usr/bin/env bash\nREAL_MKDIR=%q\n' "$real_mkdir"
-        cat <<'MOCK'
-for arg in "$@"; do
-    case "$arg" in */metrics/*) exit 0 ;; esac
-done
-exec "$REAL_MKDIR" "$@"
-MOCK
-    } > "$TEST_DIR/bin/mkdir"
-    chmod +x "$TEST_DIR/bin/mkdir"
+    create_metrics_mkdir_shim
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
     [ "$status" -eq 0 ]
     [[ "$stderr" == *"metrics capture failed for iteration 1"* ]]
