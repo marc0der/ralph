@@ -1995,20 +1995,20 @@ metrics_tool_list() {
 
 print_metrics_totals() {
     jq -rs "$JQ_FMTD"'
-        (map(.wall_s) | add) as $wall
-        | (map(.api_s // 0) | add) as $api
-        | (map(.cost_usd // 0) | add) as $cost
+        (map(.wall_s) | add // 0) as $wall
+        | (map(.api_s // 0) | add // 0) as $api
+        | (map(.cost_usd // 0) | add // 0) as $cost
         | ([.[] | .git.repos // [] | .[]] | group_by(.repo)
-            | map({repo: .[0].repo, commits: (map(.commits) | add),
-                   insertions: (map(.insertions) | add), deletions: (map(.deletions) | add)})) as $repos
+            | map({repo: .[0].repo, commits: (map(.commits) | add // 0),
+                   insertions: (map(.insertions) | add // 0), deletions: (map(.deletions) | add // 0)})) as $repos
         | ("Totals: \(length) iterations · wall \($wall | fmtd) · api \($api | fmtd)"
-          + " · turns \(map(.turns // 0) | add)"
+          + " · turns \(map(.turns // 0) | add // 0)"
           + " · cost $\(($cost * 100 | round) / 100)"
-          + " · tokens in \(map(.tokens.input // 0) | add) / out \(map(.tokens.output // 0) | add)"
-          + " (cache read \(map(.tokens.cache_read // 0) | add))"
-          + " · commits \(map(.git.commits) | add)"
-          + " (+\(map(.git.insertions) | add)/-\(map(.git.deletions) | add))"
-          + " · plan items \(map(.plan_items_completed) | add)"
+          + " · tokens in \(map(.tokens.input // 0) | add // 0) / out \(map(.tokens.output // 0) | add // 0)"
+          + " (cache read \(map(.tokens.cache_read // 0) | add // 0))"
+          + " · commits \(map(.git.commits) | add // 0)"
+          + " (+\(map(.git.insertions) | add // 0)/-\(map(.git.deletions) | add // 0))"
+          + " · plan items \(map(.plan_items_completed) | add // 0)"
           + " · noop iterations \([.[] | select(.git.noop)] | length)"),
           (if ($repos | length) >= 2
            then "Repos: " + ($repos | map("\(.repo) \(.commits) (+\(.insertions)/-\(.deletions))") | join(" · "))
@@ -2106,14 +2106,20 @@ cmd_metrics() {
         print_run_rollup "$file"
         return 0
     fi
-    if [[ -d "$file" ]]; then
-        if [[ -f "$file/metrics.jsonl" ]]; then
-            file="$file/metrics.jsonl"
-        elif (( $(run_phase_dirs "$file" | wc -l) == 1 )); then
-            file="$(run_phase_dirs "$file")/metrics.jsonl"
-        fi
+    if [[ -d "$file" && ! -f "$file/metrics.jsonl" ]] && (( $(run_phase_dirs "$file" | wc -l) == 1 )); then
+        file=$(run_phase_dirs "$file")
     fi
-    if [[ -z "$file" || ! -f "$file" ]]; then
+    local records=""
+    if [[ -f "$file" ]]; then
+        records=$file
+    elif [[ -d "$file" && -f "$file/metrics.jsonl" ]]; then
+        file="$file/metrics.jsonl"
+        records=$file
+    elif [[ -d "$file" ]] && compgen -G "$file/iter-*.stream.jsonl" >/dev/null; then
+        file="$file/metrics.jsonl"
+        records=/dev/null
+    fi
+    if [[ -z "$records" ]]; then
         echo "No metrics found under $ARCHIVE_DIR/logs/." >&2
         echo "Usage: ralph metrics [path]" >&2
         exit 1
@@ -2122,7 +2128,7 @@ cmd_metrics() {
     echo "Run: $file"
     jq -rs 'map(select(has("section"))) | first // empty
         | "Config: \(.config // "built-in (no config file)") [\(.section)]"
-          + " backend=\(.backend) model=\(.model) effort=\(.effort // "default")"' "$file"
+          + " backend=\(.backend) model=\(.model) effort=\(.effort // "default")"' "$records"
     echo ""
 
     local table
@@ -2139,12 +2145,12 @@ cmd_metrics() {
               .plan_items_completed,
               ((.tools // {}) | to_entries | sort_by(-.value) | .[0:3]
                 | map("\(.key):\(.value)") | join(" ") | if . == "" then "-" else . end)
-            ] | @tsv' "$file"
+            ] | @tsv' "$records"
     })
     print_tsv_table <<<"$table"
 
     echo ""
-    print_metrics_totals "$file"
+    print_metrics_totals "$records"
 }
 
 cmd_loop() {
