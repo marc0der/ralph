@@ -237,6 +237,16 @@ seed_resume_state() {
     [[ "$output" == *"Config: ./ralph.yaml (local) [fix]"*"effort=low"* ]]
 }
 
+@test "each phase that runs prints one run card title" {
+    create_committing_backend
+    run_auto --skip-push --no-metrics
+    [[ "$status" -eq 0 ]]
+    local section
+    for section in plan build review fix retro; do
+        [ "$(grep -c "^━━ ralph $section ━" <<< "$output")" -eq 1 ]
+    done
+}
+
 # --- Abort, not-reached, child exit in the report ---------------------------
 
 @test "a failing phase aborts and reports later phases as not reached" {
