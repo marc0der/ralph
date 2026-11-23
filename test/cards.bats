@@ -356,7 +356,7 @@ load test_helper
     [ -z "$output" ]
 }
 
-@test "a dry-run build prints no Mode line and no rule on stdout" {
+@test "a dry-run build prints no Mode line and no run card rule on stdout" {
     "$RALPH" init
     seed_open_item
     run --separate-stderr "$RALPH" build --dry-run
@@ -743,7 +743,7 @@ MOCK
     [[ "$(grep '^── 2/2 done ── ' <<<"$output")" =~ ^'── 2/2 done ── '[0-9]+'s wall ──' ]]
 }
 
-# A mock claude whose tool names ($1 tools of $2 characters) widen the footer.
+# A mock claude that calls $1 tools; $2 sets the digit count of each tool name.
 create_wide_tool_backend() {
     local count="$1" length="$2"
     create_streaming_backend
