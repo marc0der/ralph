@@ -350,6 +350,44 @@ MOCK
     [[ ! -e .ralph/logs ]]
 }
 
+@test "two stores merge and keep each clash" {
+    mkdir -p .ralph/metrics/r1 .ralph/metrics/r2 .ralph/logs/r1
+    printf '%s\n' '{"iteration":1,"from":"old"}' > .ralph/metrics/r1/metrics.jsonl
+    printf '%s\n' '{"iteration":2}' > .ralph/metrics/r2/metrics.jsonl
+    printf '%s\n' '{"iteration":3,"from":"new"}' > .ralph/logs/r1/metrics.jsonl
+
+    run "$RALPH" metrics
+    [[ "$output" == *"Warning: kept .ralph/metrics/r1; .ralph/logs/r1 already exists."* ]]
+    [[ "$output" != *"kept .ralph/metrics/r2"* ]]
+    [[ -f .ralph/logs/r2/metrics.jsonl ]]
+    [[ ! -e .ralph/metrics/r2 ]]
+    [[ -f .ralph/metrics/r1/metrics.jsonl ]]
+    [[ "$(cat .ralph/logs/r1/metrics.jsonl)" == *'"from":"new"'* ]]
+}
+
+@test "a merge with no clash removes the emptied old store" {
+    mkdir -p .ralph/metrics/r2 .ralph/logs/r1
+    printf '%s\n' '{"iteration":2}' > .ralph/metrics/r2/metrics.jsonl
+    printf '%s\n' hidden > .ralph/metrics/.hidden
+
+    run "$RALPH" metrics
+    [[ "$output" != *"Warning"* ]]
+    [[ -f .ralph/logs/r2/metrics.jsonl ]]
+    [[ -f .ralph/logs/.hidden ]]
+    [[ ! -e .ralph/metrics ]]
+}
+
+@test "a merge into a file at .ralph/logs warns for each entry" {
+    mkdir -p .ralph/metrics/r1
+    printf '%s\n' '{"iteration":1}' > .ralph/metrics/r1/metrics.jsonl
+    touch .ralph/logs
+
+    run "$RALPH" metrics
+    [[ "$output" == *"Warning: cannot move .ralph/metrics/r1 to .ralph/logs/."* ]]
+    [[ -f .ralph/metrics/r1/metrics.jsonl ]]
+    [[ -f .ralph/logs ]]
+}
+
 @test "metrics failure does not fail the loop" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
