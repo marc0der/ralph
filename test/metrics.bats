@@ -399,6 +399,32 @@ MOCK
     [[ "$output" == *"Totals: 1 iterations"* ]]
 }
 
+@test "Repos line sums each repository over every record that names it" {
+    mkdir -p .ralph/logs/r1/build
+    local base='"mode":"build","backend":"claude","model":"opus","wall_s":5,"plan_items_completed":1'
+    {
+        printf '%s\n' "{\"iteration\":1,$base,\"git\":{\"commits\":1,\"files_changed\":1,\"insertions\":10,\"deletions\":1,\"noop\":false}}"
+        printf '%s\n' "{\"iteration\":2,$base,\"git\":{\"commits\":2,\"files_changed\":1,\"insertions\":20,\"deletions\":3,\"noop\":false,\"repos\":[{\"repo\":\"./svc\",\"commits\":2,\"files_changed\":1,\"insertions\":20,\"deletions\":3}]}}"
+        printf '%s\n' "{\"iteration\":3,$base,\"git\":{\"commits\":4,\"files_changed\":2,\"insertions\":70,\"deletions\":9,\"noop\":false,\"repos\":[{\"repo\":\".\",\"commits\":1,\"files_changed\":1,\"insertions\":30,\"deletions\":4},{\"repo\":\"./svc\",\"commits\":3,\"files_changed\":1,\"insertions\":40,\"deletions\":5}]}}"
+    } > .ralph/logs/r1/build/metrics.jsonl
+
+    run "$RALPH" metrics .ralph/logs/r1/build/metrics.jsonl
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Totals: 3 iterations"* ]]
+    [[ "$output" == *"Repos: . 1 (+30/-4) · ./svc 5 (+60/-8)"* ]]
+}
+
+@test "Repos line is absent when the records name one repository" {
+    mkdir -p .ralph/logs/r1/build
+    printf '%s\n' '{"iteration":1,"mode":"build","backend":"claude","model":"opus","wall_s":5,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false,"repos":[{"repo":".","commits":1,"files_changed":1,"insertions":2,"deletions":0}]},"plan_items_completed":1}' \
+        > .ralph/logs/r1/build/metrics.jsonl
+
+    run "$RALPH" metrics .ralph/logs/r1/build/metrics.jsonl
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Totals: 1 iterations"* ]]
+    [[ "$output" != *"Repos:"* ]]
+}
+
 @test "a build over a lone old store moves it beside the new run" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
