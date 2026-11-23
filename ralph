@@ -1660,6 +1660,30 @@ print_card_rows() {
     done
 }
 
+print_run_card() {
+    local config_file="$1" section="$2" model="$4" effort="$5"
+    local quiet="${12}" branch="${13}" prompt_file="${14}"
+    local source_label S=$'\x1f'
+
+    source_label=$(config_source_label "$config_file")
+    [[ "$source_label" == "(local)" ]] && source_label="./$config_file $source_label"
+    [[ "$source_label" == "(central)" ]] && source_label="$config_file $source_label"
+    local quiet_label=off
+    $quiet && quiet_label=on
+
+    card_style 2
+    {
+        card_rule ━ "━━ ralph $section"
+        print_card_rows \
+            "backend${S}$BACKEND_NAME${S}model${S}$model${S}effort${S}${effort:-default}" \
+            "config${S}$source_label [$section]" \
+            "branch${S}$branch" \
+            "prompt${S}$prompt_file" \
+            "quiet${S}$quiet_label"
+        card_rule ━ ""
+    } >&2
+}
+
 # --- Metrics capture ---
 # Each non-dry-run iteration appends one JSON line to
 # .ralph/metrics/<branch>-<run>/metrics.jsonl and retains the raw backend
@@ -2076,6 +2100,10 @@ cmd_loop() {
     print_config_block "$config_file" "$section" "$mode" "$model" "$effort" \
         "$max_iterations" "$hard_override" "$headroom_pct" "$noop_patience" \
         "$skip_push" "$metrics_label" "$quiet"
+    print_run_card "$config_file" "$section" "$mode" "$model" "$effort" \
+        "$max_iterations" "$hard_override" "$headroom_pct" "$noop_patience" \
+        "$skip_push" "$metrics_label" "$quiet" "$current_branch" "$prompt_file" \
+        "$metrics_file"
 
     # Permission handling:
     #   Backends run non-interactively and cannot prompt for tool approval,

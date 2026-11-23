@@ -202,3 +202,14 @@ create_fake_yq() {
     printf '#!/usr/bin/env bash\necho "%s"\n' "$1" > "$TEST_DIR/bin/yq"
     chmod +x "$TEST_DIR/bin/yq"
 }
+
+# Helper: print the LABEL row of the run card titled TITLE found in TEXT, spaces squeezed.
+card_row() {
+    local label="$1" text="$2" title="$3"
+    awk -v label="$label" -v title="━━ ralph $title " '
+        !inside { if (index($0, title) == 1) inside = 1; next }
+        substr($0, 1, 1) == "━" { exit }
+        substr($0, 3, length(label) + 1) == label " " {
+            gsub(/ +/, " "); sub(/^ /, ""); print; exit
+        }' <<< "$text"
+}

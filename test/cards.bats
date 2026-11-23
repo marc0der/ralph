@@ -158,3 +158,82 @@ load test_helper
     [ "${lines[0]}" = "  metrics  on    file.jsonl" ]
     [ "${lines[1]}" = "  quiet    " ]
 }
+
+@test "run card prints once per dry run between a titled top rule and a full bottom rule" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run
+    [ "$status" -eq 0 ]
+    [ "$(grep -c '^━━ ralph build ━' <<< "$stderr")" -eq 1 ]
+    [ "$(grep '^━━ ralph build ━' <<< "$stderr" | wc -m)" -eq 121 ]
+    [ "$(grep -c '^━\{120\}$' <<< "$stderr")" -eq 1 ]
+}
+
+@test "run card prints the backend row with model and effort" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run
+    [ "$status" -eq 0 ]
+    [ "$(card_row backend "$stderr" build)" = "backend claude model opus effort default" ]
+    run --separate-stderr "$RALPH" build --dry-run -e high
+    [ "$(card_row backend "$stderr" build)" = "backend claude model opus effort high" ]
+}
+
+@test "run card prints under --quiet and names the quiet row" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run
+    [ "$(card_row quiet "$stderr" build)" = "quiet off" ]
+    run --separate-stderr "$RALPH" build --dry-run -q
+    [ "$status" -eq 0 ]
+    [ "$(card_row quiet "$stderr" build)" = "quiet on" ]
+}
+
+@test "run card prints the branch and prompt rows" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run
+    [ "$status" -eq 0 ]
+    [ "$(card_row branch "$stderr" build)" = "branch $(git branch --show-current)" ]
+    [ "$(card_row prompt "$stderr" build)" = "prompt $RALPH_CONFIG_DIR/prompts/build.md" ]
+}
+
+@test "run card titles a fix run with its section" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" fix --dry-run
+    [ "$status" -eq 0 ]
+    [ "$(card_row backend "$stderr" fix)" = "backend claude model opus effort default" ]
+}
+
+@test "run card names the built-in config source with its section" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run
+    [ "$(card_row config "$stderr" build)" = "config built-in (no config file) [build]" ]
+}
+
+@test "run card names the local and central config sources with their section" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_open_item
+    printf 'build:\n  effort: high\n' > "$RALPH_CONFIG_DIR/config.yaml"
+    run --separate-stderr "$RALPH" build --dry-run
+    [ "$status" -eq 0 ]
+    [ "$(card_row config "$stderr" build)" = "config $RALPH_CONFIG_DIR/config.yaml (central) [build]" ]
+    printf 'build:\n  quiet: true\n' > ralph.yaml
+    run --separate-stderr "$RALPH" build --dry-run
+    [ "$status" -eq 0 ]
+    [ "$(card_row config "$stderr" build)" = "config ./ralph.yaml (local) [build]" ]
+    [ "$(card_row quiet "$stderr" build)" = "quiet on" ]
+}
+
+@test "card_row returns the row of the named card only" {
+    text=$'━━ ralph plan ━━\n  quiet  off\n━━━━\n━━ ralph build ━━\n  quiet  on\n━━━━'
+    run card_row quiet "$text" build
+    [ "$output" = "quiet on" ]
+    run card_row quiet "$text" plan
+    [ "$output" = "quiet off" ]
+    run card_row branch "$text" build
+    [ -z "$output" ]
+}
