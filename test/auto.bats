@@ -661,6 +661,7 @@ seed_resume_state() {
 
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"lifecycle metrics disabled"* ]]
+    [[ "$output" != *"cannot write"* ]]
     [[ "$output" == *"7 retro     ran"* ]]
 }
 
@@ -706,4 +707,85 @@ seed_resume_state() {
     [[ "${#runs[@]}" -eq 1 ]]
     [[ "${runs[0]}" != "${before[0]}" ]]
     [[ -f "${runs[0]}retro/iter-001.stream.jsonl" ]]
+}
+
+# --- auto.json (specs/023-run-logs-and-metrics.md §3) ------------------------
+
+@test "a lifecycle writes auto.json listing the seven phases in order" {
+    create_committing_backend
+    run_auto --skip-push
+    [[ "$status" -eq 0 ]]
+
+    local -a runs=(.ralph/logs/*/)
+    local json="${runs[0]}auto.json"
+    [[ "$(jq -r '.goal' "$json")" == "the goal" ]]
+    [[ "$(jq -r '.branch' "$json")" == "$(git branch --show-current)" ]]
+    jq -e '.started | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' "$json"
+    [[ "$(jq -r '[.phases[] | "\(.phase) \(.name)"] | join(",")' "$json")" \
+        == "1 archive,2 init,3 plan,4 build,5 review,6 fix,7 retro" ]]
+    [[ "$(jq -r '.phases[2].state' "$json")" == "ran" ]]
+    [[ "$(jq -r '[.phases[].state] | unique | join(",")' "$json")" == "ran" ]]
+}
+
+@test "auto.json holds the finished phases and the unreached ones while a phase runs" {
+    create_committing_backend
+    mv "$TEST_DIR/bin/claude" "$TEST_DIR/bin/claude.real"
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+prompt=\$(cat)
+if echo "\$prompt" | grep -qi 'plan prompt'; then
+    cp .ralph/logs/*/auto.json "$BATS_TEST_TMPDIR/during-plan.json"
+fi
+echo "\$prompt" | "$TEST_DIR/bin/claude.real" "\$@"
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    run_auto --skip-push
+    [[ "$status" -eq 0 ]]
+
+    [[ "$(jq -r '[.phases[].state] | join(",")' "$BATS_TEST_TMPDIR/during-plan.json")" \
+        == "ran,ran,not reached,not reached,not reached,not reached,not reached" ]]
+}
+
+@test "auto.json records the failed phase and the unreached ones after an abort" {
+    create_committing_backend
+    MOCK_RETRO_EXIT=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push -g "the goal"
+    [[ "$status" -eq 1 ]]
+
+    local -a runs=(.ralph/logs/*/)
+    [[ "$(jq -r '[.phases[].state] | join(",")' "${runs[0]}auto.json")" \
+        == "ran,ran,ran,ran,ran,ran,failed — exit 1" ]]
+}
+
+@test "auto.json records the reason a phase was skipped" {
+    create_committing_backend
+    MOCK_REVIEW_NOOP=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push -g "the goal"
+    [[ "$status" -eq 0 ]]
+
+    local -a runs=(.ralph/logs/*/)
+    [[ "$(jq -r '.phases[5] | "\(.name): \(.state)"' "${runs[0]}auto.json")" == "fix: skipped — no open items" ]]
+    [[ "$(jq -r '.phases[6].state' "${runs[0]}auto.json")" == "ran" ]]
+}
+
+@test "auto warns once and runs every phase when it cannot write auto.json" {
+    create_committing_backend
+    printf '#!/usr/bin/env bash\ncase "$*" in *auto.json.*) exit 1 ;; esac\nexec %q "$@"\n' \
+        "$(command -v mktemp)" > "$TEST_DIR/bin/mktemp"
+    chmod +x "$TEST_DIR/bin/mktemp"
+
+    run_auto --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"7 retro     ran"* ]]
+    [[ "$(grep -c 'Warning: cannot write .*auto.json; lifecycle metrics disabled' <<<"$output")" -eq 1 ]]
+
+    local -a runs=(.ralph/logs/*/)
+    [[ ! -e "${runs[0]}auto.json" ]]
+    [[ -f "${runs[0]}retro/metrics.jsonl" ]]
+}
+
+@test "--no-metrics writes no auto.json" {
+    create_committing_backend
+    run_auto --skip-push --no-metrics
+    [[ "$status" -eq 0 ]]
+    [[ -z "$(find . -name auto.json -not -path './.git/*')" ]]
 }
