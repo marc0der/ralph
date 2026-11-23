@@ -114,6 +114,14 @@ seed_cycle_base() {
     printf '. %s\n' "$(git rev-parse -q --verify HEAD || echo -)" > .ralph/cycle-base
 }
 
+# Helper: add a bare repository as origin and leave HEAD on a fresh branch.
+add_bare_origin() {
+    git init --bare --quiet "$TEST_DIR/remote.git"
+    git remote add origin "$TEST_DIR/remote.git"
+    # A host's global pre-push hook can refuse a push of main or master.
+    git checkout --quiet -b push-branch
+}
+
 # Helper: phase-aware, committing mock backend. Unlike create_streaming_backend
 # it can move the plan and HEAD, which a lifecycle test needs: build's noop exit
 # watches HEAD, and plan/review converge on the plan's hash. It reads the prompt
