@@ -127,7 +127,7 @@ ralph build -m sonnet          # use a different model
 
 A run shows the agent work as it happens: one line per tool call and per message. Add `-q` for one line per pass. (Codex and Copilot show only the path to the raw output.) Each pass opens with an iteration card, a divider naming the backend, model, effort and times above a line saying what the pass works on, and closes with a footer of its wall time and metric figures. Colour shows only on a terminal, and setting `NO_COLOR` turns it off.
 
-Every run also keeps a record under `.ralph/metrics/`: how long each pass took, what it cost, and what it committed. Run `ralph metrics` to see the latest run as a table. Cost and token counts are recorded for the `claude` backend only.
+Every run also keeps a record under `.ralph/logs/`: how long each pass took, what it cost, and what it committed. Run `ralph metrics` to see the latest run as a table. `auto` keeps one run for the whole lifecycle, and `ralph metrics` shows it phase by phase. Cost and token counts are recorded for the `claude` backend only.
 
 ### When something goes wrong
 
@@ -195,7 +195,7 @@ The file holds up to six sections: `defaults`, `plan`, `build`, `fix`, `review` 
 | `init`              | Create `IMPLEMENTATION_PLAN.md`, `PROGRESS.md` and `specs/`. `--prompts` also copies the prompts, `--config` copies the config file to `ralph.yaml` |
 | `archive`           | Move the plan and progress log to `.ralph/<timestamp>/` |
 | `clean`             | Delete the plan and progress log |
-| `metrics`           | Summarise the latest run's metrics, or a given `metrics.jsonl` |
+| `metrics`           | Summarise the latest run under `.ralph/logs/`, or a given run, phase folder or `metrics.jsonl` |
 | `version`           | Print the version |
 
 ### Options (plan, build, fix, review, retro and auto)
@@ -210,7 +210,7 @@ The file holds up to six sections: `defaults`, `plan`, `build`, `fix`, `review` 
 | `--skip-push`        | Don't push after each build pass. Plan, review and retro never push |
 | `--push`             | Push after each build pass, overriding `skip_push: true` |
 | `--dry-run`          | Show what would run, without running it |
-| `--no-metrics`       | Don't record metrics under `.ralph/metrics/` |
+| `--no-metrics`       | Don't record metrics under `.ralph/logs/` |
 | `--metrics`          | Record metrics, overriding `metrics: false` |
 | `-q`, `--quiet`      | Don't stream the agent's activity live |
 | `--verbose`          | Stream the agent's activity live, overriding `quiet: true` |
@@ -230,7 +230,7 @@ The file holds up to six sections: `defaults`, `plan`, `build`, `fix`, `review` 
 | `PROMPT_*.md`            | Optional project-local prompts |
 | `ralph.yaml`             | Optional project-local config file. Gitignored by `ralph init` |
 | `config.yaml`            | The central config file under `~/.config/ralph/`, written by `install.sh` |
-| `.ralph/`                | Archives, metrics, `auto` state, and `learnings.md` with its undo file `learnings.prev.md`. Gitignored by `ralph init` |
+| `.ralph/`                | Archives, run logs in `logs/`, `auto` state, and `learnings.md` with its undo file `learnings.prev.md`. Gitignored by `ralph init` |
 
 ### Environment
 
