@@ -39,6 +39,12 @@ These environment variables are passed into the container when set on the host: 
 
 If neither GitHub token is set, ralph asks `gh auth token` on the host. Modern `gh` keeps its token in the OS keyring, which the container can't reach through the `~/.config/gh` mount. If `gh` is installed but logged out, ralph warns you and starts the sandbox without GitHub authentication.
 
+## Timezone
+
+The sandbox keeps the `TZ` the host exported when its image was built. If the host exported no `TZ`, the sandbox uses UTC. The agent's `date` command reads this zone, so it sets the time in each `PROGRESS.md` heading.
+
+To change the zone, export `TZ` on the host and run `ralph sandbox --rebuild`.
+
 ## SSH agent socket cannot be mounted
 
 `ralph sandbox` can fail with an error like this:
