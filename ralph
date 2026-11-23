@@ -44,6 +44,7 @@ RALPH_TEMP_STREAM=""
 
 # Card width and colour codes, set per stream by card_style (specs/026-richer-banners.md §3).
 CARD_WIDTH=120
+CARD_LOCALE=""
 CARD_DIM=""
 CARD_BOLD=""
 CARD_LABEL=""
@@ -1550,6 +1551,14 @@ card_style() {
     local fd="$1" cols=""
     CARD_WIDTH=120
     CARD_DIM="" CARD_BOLD="" CARD_LABEL="" CARD_OFF=""
+    CARD_LOCALE=""
+    local candidate probe
+    for candidate in C.UTF-8 en_US.UTF-8 UTF-8; do
+        if ( exec 2>/dev/null; LC_ALL=C; LC_ALL=$candidate; probe="…"; [[ ${#probe} -eq 1 ]] ); then
+            CARD_LOCALE=$candidate
+            break
+        fi
+    done
     [[ -t $fd ]] || return 0
     if [[ ${COLUMNS:-} =~ ^[1-9][0-9]*$ ]]; then
         cols=$COLUMNS
@@ -1566,12 +1575,17 @@ card_style() {
 }
 
 truncate_line() {
-    local text="$1" max="$2"
+    local text="$1" max="$2" ellipsis="${3:-...}"
     if [[ ${#text} -gt $max ]]; then
-        echo "${text:0:$((max - 3))}..."
+        echo "${text:0:$((max - ${#ellipsis}))}$ellipsis"
     else
         echo "$text"
     fi
+}
+
+card_fit() {
+    local LC_ALL=$CARD_LOCALE
+    truncate_line "$1" "$CARD_WIDTH" "…"
 }
 
 # --- Metrics capture ---
