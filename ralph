@@ -1757,6 +1757,13 @@ print_iteration_card() {
     fi
 }
 
+print_iteration_footer() {
+    local iteration="$1" max="$2" wall="$3" suffix="${4:-}"
+    card_style 1
+    echo ""
+    card_rule ─ "── $iteration/$max done ── $(fmt_duration "$wall") wall$suffix"
+}
+
 write_iteration_metrics() {
     local metrics_file="$1" raw_file="$2" mode="$3" branch="$4" backend="$5" model="$6"
     local iteration="$7" started="$8" ended="$9" head_before="${10}" head_after="${11}" plan_done_before="${12}"
@@ -2242,6 +2249,7 @@ cmd_loop() {
         local iter_start
         iter_start=$(date +%s)
         [[ $iteration -eq 1 ]] && run_start=$iter_start
+        local iter_end=$iter_start metrics_written=false
         print_iteration_card "$iteration" "$max_iterations" "$model" "$effort" \
             "$((iter_start - run_start))" "$iter_start" "$(iteration_headline "$mode" "$goal")"
 
@@ -2569,6 +2577,7 @@ cmd_loop() {
             fi
 
             echo "$jq_output"
+            iter_end=$(date +%s) || iter_end=$iter_start
 
             # Unconditional: change detection must survive --no-metrics, so this
             # cannot live inside the metrics block below.
@@ -2601,10 +2610,9 @@ cmd_loop() {
             # Record iteration metrics; a failure here warns but never
             # interrupts the loop.
             if $metrics_enabled; then
-                local iter_end head_after_m
-                # Fallbacks keep the never-interrupt-the-loop contract even if
-                # date or git fail mid-run (worst case: zero-length iteration).
-                iter_end=$(date +%s) || iter_end=$iter_start
+                local head_after_m
+                # The fallback keeps the never-interrupt-the-loop contract even if
+                # git fails mid-run.
                 head_after_m=$(git rev-parse -q --verify HEAD 2>/dev/null || echo -)
                 # An empty raw_file reaches jq as an empty filename, which it
                 # fails to open: `jq -cs` exits 2 under its own 2>/dev/null,
@@ -2618,8 +2626,7 @@ cmd_loop() {
                     "$current_branch" "$BACKEND_NAME" "$model" "$iteration" \
                     "$iter_start" "$iter_end" "$head_before" "$head_after_m" \
                     "$plan_done_before" "$noop_override" "$effort" "$config_file" "$section"; then
-                    echo ""
-                    truncate_line "Metrics: $(fmt_duration $((iter_end - iter_start))) wall$(metrics_summary_suffix "$metrics_file")" "$line_width"
+                    metrics_written=true
                 else
                     echo "Warning: metrics capture failed for iteration $iteration" >&2
                 fi
@@ -2680,6 +2687,11 @@ cmd_loop() {
                     fi
                 fi
             fi
+        fi
+
+        if ! $dry_run; then
+            print_iteration_footer "$iteration" "$max_iterations" "$((iter_end - iter_start))" \
+                "$($metrics_written && metrics_summary_suffix "$metrics_file")"
         fi
 
         # Early exit. Build mode watches every git repository beneath the

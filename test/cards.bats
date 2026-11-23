@@ -560,3 +560,111 @@ MOCK
     [ "$status" -eq 0 ]
     [[ "$output" == *"Review filed 0 findings. Reviewed 1 specs and "* ]]
 }
+
+@test "footer holds the metric figures with metrics on" {
+    "$RALPH" init
+    seed_open_item
+    create_streaming_backend
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n── 1/1 done ── '[0-9]*"s wall · 1s api · 3 turns · \$0.02 · 0 commits (+0/-0) · Bash 1 ──"* ]]
+    [[ "$output" != *"Metrics: "* ]]
+}
+
+@test "footer is one line of exactly 120 characters" {
+    "$RALPH" init
+    seed_open_item
+    create_streaming_backend
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" build -n 1 --skip-push > out.txt 2> /dev/null
+    line=$(grep '^── 1/1 done ── ' out.txt)
+    [ "${#line}" -eq 120 ]
+    [ "$(grep -c 'done ──' out.txt)" -eq 1 ]
+}
+
+@test "footer holds the wall time only with --no-metrics" {
+    "$RALPH" init
+    seed_open_item
+    create_streaming_backend
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ $'\n── 1/1 done ── '[0-9]+'s wall ──' ]]
+    [[ "$output" != *" api"* ]]
+}
+
+@test "footer prints under --quiet" {
+    "$RALPH" init
+    seed_open_item
+    create_streaming_backend
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics --quiet
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n── 1/1 done ── '* ]]
+}
+
+@test "footer closes every iteration of a two-iteration run" {
+    "$RALPH" init
+    seed_open_item
+    create_streaming_backend
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 2 --skip-push --no-metrics
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n── 1/2 done ── '*$'\n── 2/2 done ── '* ]]
+}
+
+@test "footer is absent from a failed iteration" {
+    "$RALPH" init
+    seed_open_item
+    create_streaming_backend
+    MOCK_EXIT=3 PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
+    [ "$status" -eq 3 ]
+    [[ "$output" != *" done ── "* ]]
+}
+
+@test "footer is absent from a dry-run iteration" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run -n 1
+    [ "$status" -eq 0 ]
+    [[ "$output" != *" done ── "* ]]
+}
+
+@test "footer is absent when the push fails" {
+    "$RALPH" init
+    seed_open_item
+    git remote add origin "$TEST_DIR/missing.git"
+    git commit -q --allow-empty -m init
+    create_streaming_backend
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --no-metrics
+    [ "$status" -eq 1 ]
+    [[ "$output" != *" done ── "* ]]
+}
+
+@test "footer holds the wall time only when the metrics record is not written" {
+    "$RALPH" init
+    seed_open_item
+    create_streaming_backend
+    local real_mkdir
+    real_mkdir=$(command -v mkdir)
+    {
+        printf '#!/usr/bin/env bash\nREAL_MKDIR=%q\n' "$real_mkdir"
+        cat <<'MOCK'
+for arg in "$@"; do
+    case "$arg" in */metrics/*) exit 0 ;; esac
+done
+exec "$REAL_MKDIR" "$@"
+MOCK
+    } > "$TEST_DIR/bin/mkdir"
+    chmod +x "$TEST_DIR/bin/mkdir"
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
+    [ "$status" -eq 0 ]
+    [[ "$stderr" == *"metrics capture failed for iteration 1"* ]]
+    [[ "$output" =~ $'\n── 1/1 done ── '[0-9]+'s wall ──' ]]
+    [[ "$output" != *" api"* ]]
+}
+
+@test "footer wall time grows with a slow backend" {
+    "$RALPH" init
+    seed_open_item
+    create_streaming_backend
+    MOCK_DELAY=1 PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ $'\n── 1/1 done ── '([2-9]|[0-9]{2,})'s wall ──' ]]
+}
