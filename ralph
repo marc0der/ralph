@@ -806,35 +806,6 @@ warn_dropped_config_keys() {
     echo "Warning: -b $cli_backend overrides config backend '$config_backend' for $section; dropped ${joined%, }." >&2
 }
 
-# specs/019-phase-config.md §10. Printed under --quiet and --dry-run too, so every
-# run records the settings it resolved.
-print_config_block() {
-    local config_file="$1" section="$2" mode="$3" model="$4" effort="$5"
-    local iterations="$6" iterations_fixed="$7" headroom_pct="$8" noop_patience="$9"
-    local skip_push="${10}" metrics="${11}" quiet="${12}"
-    local source_label
-
-    source_label=$(config_source_label "$config_file")
-    [[ "$source_label" == "(local)" ]] && source_label="./$config_file $source_label"
-    [[ "$source_label" == "(central)" ]] && source_label="$config_file $source_label"
-
-    [[ "$mode" == "build" ]] && ! $iterations_fixed && iterations="auto($iterations)"
-    local tuning="iterations=$iterations"
-    if [[ "$mode" == "build" ]]; then
-        local push=on
-        $skip_push && push=off
-        tuning+=" headroom=$headroom_pct% patience=$noop_patience push=$push"
-    fi
-    local quiet_label=off
-    $quiet && quiet_label=on
-
-    {
-        echo "Config: $source_label [$section]"
-        echo "  backend=$BACKEND_NAME model=$model effort=${effort:-default}"
-        echo "  $tuning metrics=$metrics quiet=$quiet_label"
-    } >&2
-}
-
 # specs/019-phase-config.md §8. Checks every section, not only the one the run
 # reads, so a typo in review fails a build. Prints every error, then exits 1.
 validate_config() {
@@ -2097,9 +2068,6 @@ cmd_loop() {
     local metrics_label=off
     $metrics_enabled && metrics_label=on
     $dry_run && metrics_label="off (dry-run)"
-    print_config_block "$config_file" "$section" "$mode" "$model" "$effort" \
-        "$max_iterations" "$hard_override" "$headroom_pct" "$noop_patience" \
-        "$skip_push" "$metrics_label" "$quiet"
     print_run_card "$config_file" "$section" "$mode" "$model" "$effort" \
         "$max_iterations" "$hard_override" "$headroom_pct" "$noop_patience" \
         "$skip_push" "$metrics_label" "$quiet" "$current_branch" "$prompt_file" \
