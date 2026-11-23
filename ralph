@@ -971,8 +971,12 @@ have_superseded_items() {
 }
 
 # The template's exemplar heading carries the literal YYYY-MM-DD, so it never matches.
+count_progress_entries() {
+    grep -cE '^### \[[0-9]{4}-[0-9]{2}-[0-9]{2}' PROGRESS.md 2>/dev/null || true
+}
+
 have_progress_entries() {
-    grep -qE '^### \[[0-9]{4}-[0-9]{2}-[0-9]{2}' PROGRESS.md 2>/dev/null
+    [[ "$(count_progress_entries)" -gt 0 ]]
 }
 
 # A base with nothing open or superseded left is a built cycle never archived.
@@ -1736,6 +1740,10 @@ iteration_headline() {
             cited=$(plural "$cited" "cited spec" "cited specs")
         fi
         echo "▶ reviewing $(plural "$(count_plan_items '^- \[x\]')" "shipped item" "shipped items") against $cited"
+    elif [[ "$mode" == "retro" ]]; then
+        local learnings
+        learnings=$(learnings_bullets "$LEARNINGS_FILE" | grep -c '^' || true)
+        echo "▶ distilling $(plural "$(count_progress_entries)" "PROGRESS.md entry" "PROGRESS.md entries") · $(plural "$learnings" "learning" "learnings") on file"
     fi
 }
 
