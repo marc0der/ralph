@@ -404,6 +404,14 @@ load test_helper
     [[ "$output" != *"**"* ]]
 }
 
+@test "headline keeps bold markers inside the title" {
+    "$RALPH" init
+    printf -- '- [ ] **Ignore **/tmp paths**\n' >> IMPLEMENTATION_PLAN.md
+    run --separate-stderr "$RALPH" build --dry-run -n 1
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n▶ next: Ignore **/tmp paths\n'* ]]
+}
+
 @test "headline never takes its title from the exemplar entry" {
     "$RALPH" init
     printf -- '- [ ] **Real task**\n' >> IMPLEMENTATION_PLAN.md

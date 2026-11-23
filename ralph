@@ -1721,7 +1721,7 @@ iteration_headline() {
     if [[ "$mode" == "build" ]]; then
         if [[ -f IMPLEMENTATION_PLAN.md ]]; then
             title=$(plan_items_body | awk '!found && /^- \[ \]/ {
-                sub(/^- \[ \] */, ""); gsub(/\*\*/, ""); t = $0; found = 1
+                sub(/^- \[ \] */, ""); sub(/^\*\*/, ""); sub(/\*\*[[:space:]]*$/, ""); t = $0; found = 1
             } END { print t }')
         fi
         if [[ -n "$title" ]]; then
