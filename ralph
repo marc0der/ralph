@@ -951,6 +951,10 @@ cited_specs() {
     }' | LC_ALL=C sort -u
 }
 
+count_cited_specs() {
+    cited_specs | grep -c '^' || true
+}
+
 # Plan predicates shared by require_open_items, require_fresh_cycle,
 # require_review_preconditions and auto's guards, so every caller asks "can
 # this mode run?" the same way.
@@ -1699,6 +1703,14 @@ clock_hhmm() {
     date -d "@$1" +%H:%M 2>/dev/null || date -r "$1" +%H:%M
 }
 
+plural() {
+    if [[ "$1" -eq 1 ]]; then
+        echo "$1 $2"
+    else
+        echo "$1 $3"
+    fi
+}
+
 # The plain headline of the iteration card; empty for a mode with none yet.
 iteration_headline() {
     local mode="$1" goal="$2" title=""
@@ -1715,6 +1727,15 @@ iteration_headline() {
         fi
     elif [[ "$mode" == "plan" ]]; then
         echo "▶ goal: $(printf '%s' "$goal" | tr -s '[:space:]' ' ')"
+    elif [[ "$mode" == "review" ]]; then
+        local cited
+        cited=$(count_cited_specs)
+        if [[ "$cited" -eq 0 ]]; then
+            cited="no cited specs"
+        else
+            cited=$(plural "$cited" "cited spec" "cited specs")
+        fi
+        echo "▶ reviewing $(plural "$(count_plan_items '^- \[x\]')" "shipped item" "shipped items") against $cited"
     fi
 }
 
@@ -2689,7 +2710,7 @@ cmd_loop() {
     if [[ "$mode" == "review" ]] && ! $dry_run; then
         local findings specs changed
         findings=$(count_plan_items '^- \[ \]')
-        specs=$(cited_specs | grep -c '^' || true)
+        specs=$(count_cited_specs)
         changed=$(cycle_changed_files | grep -c '^' || true)
         echo -e "\nReview filed $findings findings. Reviewed $specs specs and $changed changed files."
     fi
