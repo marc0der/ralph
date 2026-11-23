@@ -1719,13 +1719,21 @@ new_run_dir() {
     echo "$ARCHIVE_DIR/logs/${branch//\//-}-$(date +%Y%m%d-%H%M%S)-$$"
 }
 
-# Print the highest iteration a phase folder already records, else 0. A missing
-# or broken metrics.jsonl counts as 0, so a reused folder never stops a run.
+# Print the highest iteration a phase folder already uses, in a record or in a
+# stream file name, else 0. A missing or broken metrics.jsonl counts as 0, so a
+# reused folder never stops a run.
 phase_iteration_offset() {
-    local metrics_file="$1/metrics.jsonl" highest
+    local phase_dir="$1" highest stream number
     highest=$(jq -s '[.[] | objects | .iteration | select(type == "number")] | max // 0 | floor' \
-        "$metrics_file" 2>/dev/null) || highest=0
+        "$phase_dir/metrics.jsonl" 2>/dev/null) || highest=0
     [[ "$highest" =~ ^[0-9]+$ ]] || highest=0
+    for stream in "$phase_dir"/iter-*.stream.jsonl; do
+        [[ "${stream##*/}" =~ ^iter-([0-9]+)\.stream\.jsonl$ ]] || continue
+        number=$((10#${BASH_REMATCH[1]}))
+        if (( number > highest )); then
+            highest=$number
+        fi
+    done
     echo "$highest"
 }
 
