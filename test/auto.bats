@@ -615,6 +615,16 @@ seed_resume_state() {
     [[ -f .ralph/logs/r1/metrics.jsonl ]]
 }
 
+@test "auto --dry-run over a lone old store leaves it in place" {
+    mkdir -p .ralph/metrics/r1
+    printf '%s\n' '{"iteration":1}' > .ralph/metrics/r1/metrics.jsonl
+
+    run_auto --dry-run
+    [[ "$status" -eq 0 ]]
+    [[ -f .ralph/metrics/r1/metrics.jsonl ]]
+    [[ ! -e .ralph/logs ]]
+}
+
 @test "auto without --quiet shows Backend command: lines" {
     create_committing_backend
     run_auto --skip-push --no-metrics
@@ -765,6 +775,28 @@ MOCK
     local -a runs=(.ralph/logs/*/)
     [[ "$(jq -r '.phases[5] | "\(.name): \(.state)"' "${runs[0]}auto.json")" == "fix: skipped — no open items" ]]
     [[ "$(jq -r '.phases[6].state' "${runs[0]}auto.json")" == "ran" ]]
+}
+
+@test "auto.json records a phase 3 refusal over a dirty specs/" {
+    create_committing_backend
+    mkdir -p specs
+    echo "draft" > specs/x.md
+    MOCK_REVIEW_NOOP=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push -g "the goal"
+    [[ "$status" -eq 1 ]]
+
+    local -a runs=(.ralph/logs/*/)
+    [[ "$(jq -r '.phases[2] | "\(.name): \(.state)"' "${runs[0]}auto.json")" \
+        == "plan: refused — specs/ has uncommitted changes" ]]
+}
+
+@test "auto.json records init as ran when its plan template is missing" {
+    create_committing_backend
+    rm -f "$RALPH_CONFIG_DIR/templates/IMPLEMENTATION_PLAN.md"
+    run_auto --skip-push
+    [[ "$status" -eq 1 ]]
+
+    local -a runs=(.ralph/logs/*/)
+    jq -e '.phases[1] | .name == "init" and .state == "ran" and .exit == 0' "${runs[0]}auto.json"
 }
 
 @test "auto.json records the exit and times of each phase that ran, and null for one that did not" {
