@@ -1663,7 +1663,8 @@ print_card_rows() {
 print_run_card() {
     local config_file="$1" section="$2" mode="$3" model="$4" effort="$5"
     local iterations="$6" iterations_fixed="$7" headroom_pct="$8" noop_patience="$9"
-    local skip_push="${10}" quiet="${12}" branch="${13}" prompt_file="${14}"
+    local skip_push="${10}" metrics_label="${11}" quiet="${12}" branch="${13}"
+    local prompt_file="${14}" metrics_file="${15}"
     local source_label S=$'\x1f'
 
     source_label=$(config_source_label "$config_file")
@@ -1680,16 +1681,18 @@ print_run_card() {
         iterations_row+="${S}headroom${S}$headroom_pct%${S}patience${S}$noop_patience${S}push${S}$push"
     fi
 
+    local metrics_row="metrics${S}$metrics_label"
+    [[ "$metrics_label" == "on" ]] && metrics_row+="${S}${S}$metrics_file"
+
+    local rows=("backend${S}$BACKEND_NAME${S}model${S}$model${S}effort${S}${effort:-default}")
+    (( ${#BACKEND_EXTRA_ARGS[@]} )) && rows+=("extra args${S}${BACKEND_EXTRA_ARGS[*]}")
+    rows+=("config${S}$source_label [$section]" "branch${S}$branch" "prompt${S}$prompt_file"
+        "$iterations_row" "$metrics_row" "quiet${S}$quiet_label")
+
     card_style 2
     {
         card_rule ━ "━━ ralph $section"
-        print_card_rows \
-            "backend${S}$BACKEND_NAME${S}model${S}$model${S}effort${S}${effort:-default}" \
-            "config${S}$source_label [$section]" \
-            "branch${S}$branch" \
-            "prompt${S}$prompt_file" \
-            "$iterations_row" \
-            "quiet${S}$quiet_label"
+        print_card_rows "${rows[@]}"
         card_rule ━ ""
     } >&2
 }
