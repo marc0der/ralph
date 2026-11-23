@@ -1959,6 +1959,9 @@ cmd_metrics() {
     reject_quiet metrics "$@"
     migrate_run_store
     local file="${1:-}"
+    if [[ "$file" == "$ARCHIVE_DIR/metrics/"* ]]; then
+        file="$ARCHIVE_DIR/logs/${file#"$ARCHIVE_DIR/metrics/"}"
+    fi
     if [[ -z "$file" ]]; then
         # shellcheck disable=SC2012  # newest-by-mtime needs ls; paths are ralph-generated (no odd filenames)
         file=$(ls -1t "$ARCHIVE_DIR"/logs/*/*/metrics.jsonl 2>/dev/null | head -1 || true)
@@ -2219,6 +2222,7 @@ cmd_loop() {
     ($dry_run || $no_metrics) && metrics_enabled=false
     local metrics_dir="" metrics_file="" iteration_offset=0
     if $metrics_enabled; then
+        migrate_run_store
         [[ -d "$run_dir" ]] || run_dir=$(new_run_dir "$current_branch")
         metrics_dir="$run_dir/$section"
         metrics_file="$metrics_dir/metrics.jsonl"
@@ -3041,6 +3045,8 @@ cmd_auto() {
         done
         return 0
     fi
+
+    migrate_run_store
 
     # Phase loop (§3, §4). Each phase is a child of RALPH_SELF so a cmd_loop
     # failure path (a non-zero backend, a jq failure, a rejected push) becomes
