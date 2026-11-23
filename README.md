@@ -125,7 +125,7 @@ ralph build -m sonnet          # use a different model
 
 ### Watching a run
 
-A run shows the agent work as it happens: one line per tool call and per message. Add `-q` for one line per pass. (Codex and Copilot show only the path to the raw output.)
+A run shows the agent work as it happens: one line per tool call and per message. Add `-q` for one line per pass. (Codex and Copilot show only the path to the raw output.) Each pass opens with an iteration card, a divider naming the backend, model, effort and times above a line saying what the pass works on, and closes with a footer of its wall time and metric figures. Colour shows only on a terminal, and setting `NO_COLOR` turns it off.
 
 Every run also keeps a record under `.ralph/metrics/`: how long each pass took, what it cost, and what it committed. Run `ralph metrics` to see the latest run as a table. Cost and token counts are recorded for the `claude` backend only.
 
@@ -170,7 +170,7 @@ The file holds up to six sections: `defaults`, `plan`, `build`, `fix`, `review` 
 | `noop_patience` | positive integer                        | build, fix       | `2`                          | none |
 | `skip_push`     | boolean                                 | build, fix       | `false`                      | `--skip-push` / `--push` |
 
-`defaults` takes only the keys whose phases read "all". `iterations` turns self-sizing off, so a section that sets it can't also set `headroom_pct` or `noop_patience`. Every run prints a `Config:` block naming the file, the section and the values it used.
+`defaults` takes only the keys whose phases read "all". `iterations` turns self-sizing off, so a section that sets it can't also set `headroom_pct` or `noop_patience`. Every run prints a run card to stderr naming the file, the section and the values it used.
 
 **Commit style.** The build prompt asks for small [Conventional Commits](https://www.conventionalcommits.org/), with only the relevant files staged. The planner edits specs but commits nothing. When the plan run ends, Ralph commits the planner's spec changes as one `docs(specs)` commit per repository. The plan file, progress log and `.ralph/` are never committed. Edit `PROMPT_build.md` to change this.
 
