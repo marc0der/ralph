@@ -165,6 +165,35 @@ MOCK
     [[ -f .ralph/logs/given/build/iter-002.stream.jsonl ]]
 }
 
+@test "a lone stream file numbers the next record one past it" {
+    "$RALPH" init
+    printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
+    create_committing_backend
+    mkdir -p .ralph/logs/given/build
+    : > .ralph/logs/given/build/iter-005.stream.jsonl
+
+    RALPH_RUN_DIR=.ralph/logs/given PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
+    [[ "$status" -eq 0 ]]
+
+    [[ "$(jq -r '.iteration' .ralph/logs/given/build/metrics.jsonl)" == "6" ]]
+    [[ -f .ralph/logs/given/build/iter-006.stream.jsonl ]]
+}
+
+@test "a record above the stream numbers wins, and leading zeros stay decimal" {
+    "$RALPH" init
+    printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
+    create_committing_backend
+    mkdir -p .ralph/logs/given/build
+    echo '{"iteration":12}' > .ralph/logs/given/build/metrics.jsonl
+    : > .ralph/logs/given/build/iter-008.stream.jsonl
+
+    RALPH_RUN_DIR=.ralph/logs/given PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
+    [[ "$status" -eq 0 ]]
+
+    [[ "$(jq -r '.iteration' .ralph/logs/given/build/metrics.jsonl | paste -sd,)" == "12,13" ]]
+    [[ -f .ralph/logs/given/build/iter-013.stream.jsonl ]]
+}
+
 @test "noop iteration is recorded with noop=true and zero commits" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
