@@ -505,6 +505,50 @@ EOF
     [[ "$squeezed" == *"Repos: . 3 (+15/-1) · ./svc 3 (+20/-3)"* ]]
 }
 
+@test "a phase folder without records prints 0 iterations, dashes and its auto.json exit" {
+    mkdir -p .ralph/logs/r1/plan .ralph/logs/r1/build .ralph/logs/r1/retro
+    printf '%s\n' '{"iteration":1,"mode":"plan","model":"sonnet","effort":null,"wall_s":5,"cost_usd":0.5,"tokens":{"output":40},"plan_items_completed":1,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false}}' \
+        > .ralph/logs/r1/plan/metrics.jsonl
+    : > .ralph/logs/r1/build/metrics.jsonl
+    printf '%s\n' '{"type":"result"}' > .ralph/logs/r1/retro/iter-001.stream.jsonl
+    cat > .ralph/logs/r1/auto.json <<'EOF'
+{"goal":"ship it","branch":"main","started":"2026-11-23T10:00:00Z","phases":[
+ {"phase":3,"name":"plan","state":"ran","exit":0,"started":null,"ended":null},
+ {"phase":4,"name":"build","state":"failed — exit 2","exit":2,"started":null,"ended":null},
+ {"phase":7,"name":"retro","state":"failed — exit 1","exit":1,"started":null,"ended":null}]}
+EOF
+
+    run "$RALPH" metrics .ralph/logs/r1
+    [[ "$status" -eq 0 ]]
+    local squeezed expected
+    squeezed=$(tr -s ' \t' ' ' <<<"$output")
+    expected=$'PHASE MODEL/EFFORT ITERS WALL COST OUT_TOK COMMITS EXIT\nplan sonnet/default 1 5s $0.5 40 1 0\nbuild - 0 - - - - 2\nretro - 0 - - - - 1\n\nTotals: 1 iterations'
+    [[ "$squeezed" == *"$expected"* ]]
+}
+
+@test "a phase prints dashes for COST and OUT_TOK only when no record has a value" {
+    mkdir -p .ralph/logs/r1/plan .ralph/logs/r1/build .ralph/logs/r1/review
+    local tail='"mode":"build","backend":"claude","plan_items_completed":1'
+    local git='"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false}'
+    {
+        printf '%s\n' "{\"iteration\":1,\"model\":\"opus\",\"effort\":\"high\",\"wall_s\":5,\"cost_usd\":0.5,\"tokens\":{\"output\":40},$tail,$git}"
+        printf '%s\n' "{\"iteration\":2,\"model\":\"opus\",\"effort\":\"high\",\"wall_s\":5,\"cost_usd\":null,\"tokens\":null,$tail,$git}"
+    } > .ralph/logs/r1/plan/metrics.jsonl
+    {
+        printf '%s\n' "{\"iteration\":1,\"model\":\"opus\",\"effort\":\"high\",\"wall_s\":5,\"cost_usd\":null,\"tokens\":null,$tail,$git}"
+        printf '%s\n' "{\"iteration\":2,\"model\":\"opus\",\"effort\":\"high\",\"wall_s\":5,$tail,$git}"
+    } > .ralph/logs/r1/build/metrics.jsonl
+    printf '%s\n' "{\"iteration\":1,\"model\":\"opus\",\"effort\":\"high\",\"wall_s\":5,\"cost_usd\":0,\"tokens\":{\"output\":0},$tail,$git}" \
+        > .ralph/logs/r1/review/metrics.jsonl
+
+    run "$RALPH" metrics .ralph/logs/r1
+    [[ "$status" -eq 0 ]]
+    local squeezed expected
+    squeezed=$(tr -s ' \t' ' ' <<<"$output")
+    expected=$'PHASE MODEL/EFFORT ITERS WALL COST OUT_TOK COMMITS EXIT\nplan opus/high 2 10s $0.5 40 2 -\nbuild opus/high 2 10s - - 2 -\nreview opus/high 1 5s $0 0 1 -'
+    [[ "$squeezed" == *"$expected"* ]]
+}
+
 @test "a build over a lone old store moves it beside the new run" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
