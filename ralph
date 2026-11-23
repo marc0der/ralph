@@ -1719,6 +1719,20 @@ new_run_dir() {
     echo "$ARCHIVE_DIR/logs/${branch//\//-}-$(date +%Y%m%d-%H%M%S)-$$"
 }
 
+# Move the store that predates .ralph/logs/. A failed move only warns, so it
+# never stops the command that called it.
+migrate_run_store() {
+    [[ -d "$ARCHIVE_DIR/metrics" ]] || return 0
+    if [[ ! -e "$ARCHIVE_DIR/logs" ]]; then
+        if mv "$ARCHIVE_DIR/metrics" "$ARCHIVE_DIR/logs" 2>/dev/null; then
+            echo "Moved .ralph/metrics/ to .ralph/logs/." >&2
+        else
+            echo "Warning: cannot move .ralph/metrics/ to .ralph/logs/." >&2
+        fi
+    fi
+    return 0
+}
+
 # Print the highest iteration a phase folder already uses, in a record or in a
 # stream file name, else 0. A missing or broken metrics.jsonl counts as 0, so a
 # reused folder never stops a run.
@@ -1932,6 +1946,7 @@ metrics_tool_list() {
 
 cmd_metrics() {
     reject_quiet metrics "$@"
+    migrate_run_store
     local file="${1:-}"
     if [[ -z "$file" ]]; then
         # shellcheck disable=SC2012  # newest-by-mtime needs ls; paths are ralph-generated (no odd filenames)
