@@ -1517,7 +1517,6 @@ check_retro_pass() {
     fi
 }
 
-# shellcheck disable=SC2034 # the card printers read these globals
 card_style() {
     local fd="$1" cols=""
     CARD_WIDTH=120
@@ -1700,11 +1699,31 @@ clock_hhmm() {
     date -d "@$1" +%H:%M 2>/dev/null || date -r "$1" +%H:%M
 }
 
+# The plain headline of the iteration card; empty for a mode with none yet.
+iteration_headline() {
+    local mode="$1" title=""
+    if [[ "$mode" == "build" ]]; then
+        if [[ -f IMPLEMENTATION_PLAN.md ]]; then
+            title=$(plan_items_body | awk '!found && /^- \[ \]/ {
+                sub(/^- \[ \] */, ""); gsub(/\*\*/, ""); t = $0; found = 1
+            } END { print t }')
+        fi
+        if [[ -n "$title" ]]; then
+            echo "▶ next: $title"
+        else
+            echo "▶ next: no open item"
+        fi
+    fi
+}
+
 print_iteration_card() {
-    local iteration="$1" max="$2" model="$3" effort="$4" elapsed="$5" started="$6"
+    local iteration="$1" max="$2" model="$3" effort="$4" elapsed="$5" started="$6" headline="${7:-}"
     card_style 1
     echo ""
     card_rule ─ "── $iteration/$max ── $BACKEND_NAME · $model · ${effort:-default} ── $(fmt_duration "$elapsed") ── $(clock_hhmm "$started")"
+    if [[ -n "$headline" ]]; then
+        echo "${CARD_BOLD}$(card_fit "$headline")${CARD_OFF}"
+    fi
 }
 
 write_iteration_metrics() {
@@ -2193,7 +2212,7 @@ cmd_loop() {
         iter_start=$(date +%s)
         [[ $iteration -eq 1 ]] && run_start=$iter_start
         print_iteration_card "$iteration" "$max_iterations" "$model" "$effort" \
-            "$((iter_start - run_start))" "$iter_start"
+            "$((iter_start - run_start))" "$iter_start" "$(iteration_headline "$mode" "$goal")"
 
         # Snapshot HEAD to detect noops. Plan and review commit nothing during a
         # pass, so they fingerprint the artifacts they may change instead.
