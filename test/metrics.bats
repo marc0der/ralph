@@ -566,6 +566,22 @@ EOF
     [[ "$squeezed" == *"$expected"* ]]
 }
 
+@test "an auto run whose plan folder holds only a stream file closes with Totals: 0 iterations" {
+    mkdir -p .ralph/logs/r1/plan
+    printf '%s\n' '{"type":"result"}' > .ralph/logs/r1/plan/iter-001.stream.jsonl
+    cat > .ralph/logs/r1/auto.json <<'EOF'
+{"goal":"ship it","branch":"main","started":"2026-11-23T10:00:00Z","phases":[
+ {"phase":3,"name":"plan","state":"failed — exit 1","exit":1,"started":null,"ended":null}]}
+EOF
+
+    run "$RALPH" metrics .ralph/logs/r1
+    [[ "$status" -eq 0 ]]
+    local squeezed expected
+    squeezed=$(tr -s ' \t' ' ' <<<"$output")
+    expected=$'PHASE MODEL/EFFORT ITERS WALL COST OUT_TOK COMMITS EXIT\nplan - 0 - - - - 1\n\nTotals: 0 iterations · wall 0s · api 0s · turns 0 · cost $0'
+    [[ "$squeezed" == *"$expected"* ]]
+}
+
 @test "a phase prints dashes for COST and OUT_TOK only when no record has a value" {
     mkdir -p .ralph/logs/r1/plan .ralph/logs/r1/build .ralph/logs/r1/review
     local tail='"mode":"build","backend":"claude","plan_items_completed":1'

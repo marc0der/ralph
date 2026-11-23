@@ -2079,9 +2079,11 @@ print_run_rollup() {
             | @tsv' "$phase_dir/metrics.jsonl")
     done
     print_tsv_table <<<"$rows"
+    echo ""
     if (( ${#metrics_files[@]} > 0 )); then
-        echo ""
         print_metrics_totals "${metrics_files[@]}"
+    else
+        print_metrics_totals /dev/null
     fi
 }
 
