@@ -269,7 +269,7 @@ Usage:
   ralph init [--prompts] [--config]
   ralph clean
   ralph archive
-  ralph metrics [file]
+  ralph metrics [path]
   ralph version
 
 Modes:
@@ -284,7 +284,7 @@ Modes:
   init           Initialise workspace (PROGRESS.md, IMPLEMENTATION_PLAN.md, specs/)
   clean          Delete IMPLEMENTATION_PLAN.md and PROGRESS.md
   archive        Move IMPLEMENTATION_PLAN.md and PROGRESS.md to .ralph/<timestamp>/
-  metrics        Summarise a run's loop metrics (latest run, or a given metrics.jsonl)
+  metrics        Summarise a run's loop metrics (latest run, or a given run, phase folder or metrics.jsonl)
 
 Sandbox options:
       --rebuild        Rebuild the container image from scratch
@@ -2100,9 +2100,16 @@ cmd_metrics() {
         print_run_rollup "$file"
         return 0
     fi
+    if [[ -d "$file" ]]; then
+        if [[ -f "$file/metrics.jsonl" ]]; then
+            file="$file/metrics.jsonl"
+        elif (( $(run_phase_dirs "$file" | wc -l) == 1 )); then
+            file="$(run_phase_dirs "$file")/metrics.jsonl"
+        fi
+    fi
     if [[ -z "$file" || ! -f "$file" ]]; then
         echo "No metrics found under $ARCHIVE_DIR/logs/." >&2
-        echo "Usage: ralph metrics [path/to/metrics.jsonl]" >&2
+        echo "Usage: ralph metrics [path]" >&2
         exit 1
     fi
 
