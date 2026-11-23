@@ -327,6 +327,29 @@ MOCK
     [[ "$output" == *"No metrics found"* ]]
 }
 
+@test "a lone old store moves to .ralph/logs" {
+    mkdir -p .ralph/metrics/r1
+    printf '%s\n' '{"iteration":1}' > .ralph/metrics/r1/metrics.jsonl
+
+    run "$RALPH" metrics
+    [[ "$output" == *"Moved .ralph/metrics/ to .ralph/logs/."* ]]
+    [[ -f .ralph/logs/r1/metrics.jsonl ]]
+    [[ ! -e .ralph/metrics ]]
+}
+
+@test "a failed move of the old store warns and keeps it" {
+    mkdir -p .ralph/metrics/r1 "$TEST_DIR/bin"
+    printf '%s\n' '{"iteration":1}' > .ralph/metrics/r1/metrics.jsonl
+    printf '#!/usr/bin/env bash\nexit 1\n' > "$TEST_DIR/bin/mv"
+    chmod +x "$TEST_DIR/bin/mv"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" metrics
+    [[ "$output" == *"Warning: cannot move .ralph/metrics/ to .ralph/logs/."* ]]
+    [[ "$output" != *"Moved .ralph/metrics/"* ]]
+    [[ -f .ralph/metrics/r1/metrics.jsonl ]]
+    [[ ! -e .ralph/logs ]]
+}
+
 @test "metrics failure does not fail the loop" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
