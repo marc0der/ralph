@@ -2062,14 +2062,19 @@ print_run_rollup() {
             rows+=$'\n'$(printf '%s\t%s\t\t\t\t\t\t%s' "$phase" "$state" "$phase_exit")
             continue
         fi
+        if [[ ! -s "$phase_dir/metrics.jsonl" ]]; then
+            rows+=$'\n'$(printf '%s\t-\t0\t-\t-\t-\t-\t%s' "$phase" "$phase_exit")
+            continue
+        fi
         metrics_files+=("$phase_dir/metrics.jsonl")
         rows+=$'\n'$(jq -rs --arg phase "$phase" --arg exit "$phase_exit" "$JQ_FMTD"'
             first as $first
-            | (map(.cost_usd // 0) | add) as $cost
+            | [.[] | .cost_usd // empty] as $costs
+            | [.[] | .tokens.output // empty] as $out_tokens
             | [$phase, "\($first.model)/\($first.effort // "default")", length,
                (map(.wall_s) | add | fmtd),
-               "$\(($cost * 100 | round) / 100)",
-               (map(.tokens.output // 0) | add),
+               (if ($costs | length) > 0 then "$\((($costs | add) * 100 | round) / 100)" else "-" end),
+               (if ($out_tokens | length) > 0 then ($out_tokens | add) else "-" end),
                (map(.git.commits) | add), $exit]
             | @tsv' "$phase_dir/metrics.jsonl")
     done
