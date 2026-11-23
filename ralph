@@ -1908,9 +1908,7 @@ write_iteration_metrics() {
     repos=$(repo_git_counts "$state_before" "$state_after" | jq -cs '.') || repos='[]'
     [[ "$repos" == "[]" ]] || noop=false
 
-    # The workspace HEAD cannot describe every iteration: plan and review never
-    # commit, and a build may commit only inside a nested repository. The caller
-    # passes the verdict it computed instead.
+    # Plan, review and retro commit nothing, so the caller passes its own noop verdict.
     if [[ -n "$noop_override" ]]; then
         noop=$noop_override
     fi
