@@ -721,6 +721,14 @@ MOCK
     [[ "$output" == *$'\e[2m── 1/1 ── claude'* ]]
 }
 
+@test "terminal divider holds an escape code with NO_COLOR unset" {
+    "$RALPH" init
+    seed_open_item
+    run_on_tty env -u NO_COLOR TERM=xterm "$RALPH" build --dry-run -n 1 -y
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\e[2m── 1/1 ── claude'* ]]
+}
+
 @test "terminal run off a terminal prints no escape code on either stream" {
     create_streaming_backend
     "$RALPH" init
