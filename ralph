@@ -1588,6 +1588,21 @@ card_fit() {
     truncate_line "$1" "$CARD_WIDTH" "…"
 }
 
+card_rule() {
+    local LC_ALL=$CARD_LOCALE
+    local char="$1" text="$2" line fill
+    if [[ -z $text ]]; then
+        printf -v fill '%*s' "$CARD_WIDTH" ''
+        line=${fill// /$char}
+    elif line="$text $char$char"; (( ${#line} > CARD_WIDTH )); then
+        line=$(card_fit "$line")
+    else
+        printf -v fill '%*s' $(( CARD_WIDTH - ${#text} - 1 )) ''
+        line="$text ${fill// /$char}"
+    fi
+    printf '%s%s%s\n' "$CARD_DIM" "$line" "$CARD_OFF"
+}
+
 # --- Metrics capture ---
 # Each non-dry-run iteration appends one JSON line to
 # .ralph/metrics/<branch>-<run>/metrics.jsonl and retains the raw backend
