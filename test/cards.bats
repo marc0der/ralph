@@ -758,3 +758,60 @@ MOCK
     grep -q '━━ ralph build' stderr.txt
     [[ "$(<stderr.txt)" != *$'\e'* ]]
 }
+
+# Run ralph on a terminal of the first argument's columns, with COLUMNS set to the second or unset.
+run_ralph_at_width() {
+    local cols="$1" columns="$2"
+    shift 2
+    local cmd
+    cmd="stty cols $cols; $(printf '%q ' "$RALPH" "$@")"
+    if [[ -n $columns ]]; then
+        NO_COLOR='' TERM=xterm COLUMNS=$columns run_on_tty bash -c "$cmd"
+    else
+        NO_COLOR='' TERM=xterm run_on_tty env -u COLUMNS bash -c "$cmd"
+    fi
+}
+
+@test "terminal width COLUMNS=60 keeps every card line within 60" {
+    "$RALPH" init
+    seed_open_item
+    run_ralph_at_width 120 60 build --dry-run -n 1 -y
+    [ "$status" -eq 0 ]
+    mapfile -t widths < <(card_line_widths <<< "$output")
+    [ "${#widths[@]}" -ge 5 ]
+    [ "$(printf '%s\n' "${widths[@]}" | sort -n | tail -1)" -eq 60 ]
+}
+
+@test "terminal width COLUMNS=60 beats a 70-column terminal" {
+    "$RALPH" init
+    seed_open_item
+    run_ralph_at_width 70 60 build --dry-run -n 1 -y
+    [ "$status" -eq 0 ]
+    mapfile -t widths < <(card_line_widths <<< "$output")
+    [ "${#widths[@]}" -ge 5 ]
+    [ "$(printf '%s\n' "${widths[@]}" | sort -n | tail -1)" -eq 60 ]
+}
+
+@test "terminal width without COLUMNS follows a 70-column terminal" {
+    "$RALPH" init
+    seed_open_item
+    run_ralph_at_width 70 '' build --dry-run -n 1 -y
+    [ "$status" -eq 0 ]
+    [ "$(card_line_widths < <(grep '^.\[2m── 1/1 ── ' <<< "$output"))" -eq 70 ]
+}
+
+@test "terminal width without COLUMNS is 120 on a 0-column terminal" {
+    "$RALPH" init
+    seed_open_item
+    run_ralph_at_width 0 '' build --dry-run -n 1 -y
+    [ "$status" -eq 0 ]
+    [ "$(card_line_widths < <(grep '^.\[2m── 1/1 ── ' <<< "$output"))" -eq 120 ]
+}
+
+@test "terminal width COLUMNS=200 caps the divider at 120" {
+    "$RALPH" init
+    seed_open_item
+    run_ralph_at_width 80 200 build --dry-run -n 1 -y
+    [ "$status" -eq 0 ]
+    [ "$(card_line_widths < <(grep '^.\[2m── 1/1 ── ' <<< "$output"))" -eq 120 ]
+}
