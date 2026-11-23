@@ -775,6 +775,15 @@ MOCK
     [[ "$(<stderr.txt)" != *$'\e'* ]]
 }
 
+@test "terminal colour makes the headline bold and colours the labels" {
+    "$RALPH" init
+    seed_open_item
+    NO_COLOR='' TERM=xterm run_on_tty "$RALPH" build --dry-run -n 1 -y
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\e[1m▶ next: '* ]]
+    [[ "$output" == *$'\e[36mbackend'* ]]
+}
+
 # Run ralph on a terminal of the first argument's columns, with COLUMNS set to the second or unset.
 run_ralph_at_width() {
     local cols="$1" columns="$2"
@@ -830,6 +839,34 @@ run_ralph_at_width() {
     run_ralph_at_width 80 200 build --dry-run -n 1 -y
     [ "$status" -eq 0 ]
     [ "$(card_line_widths < <(grep '^.\[2m── 1/1 ── ' <<< "$output"))" -eq 120 ]
+}
+
+@test "terminal width COLUMNS=0 falls back to the terminal" {
+    "$RALPH" init
+    seed_open_item
+    run_ralph_at_width 70 0 build --dry-run -n 1 -y
+    [ "$status" -eq 0 ]
+    [ "$(card_line_widths < <(grep '^.\[2m── 1/1 ── ' <<< "$output"))" -eq 70 ]
+}
+
+@test "terminal width caps a wide terminal at 120" {
+    "$RALPH" init
+    seed_open_item
+    run_ralph_at_width 200 '' build --dry-run -n 1 -y
+    [ "$status" -eq 0 ]
+    [ "$(card_line_widths < <(grep '^.\[2m── 1/1 ── ' <<< "$output"))" -eq 120 ]
+}
+
+@test "terminal width reads each stream from its own terminal" {
+    "$RALPH" init
+    seed_open_item
+    NO_COLOR='' TERM=xterm run_on_tty env -u COLUMNS bash -c \
+        "stty cols 70; $(printf '%q' "$RALPH") build --dry-run -n 1 -y < /dev/null > stdout.txt"
+    [ "$status" -eq 0 ]
+    mapfile -t widths < <(card_line_widths < <(grep '━' <<< "$output"))
+    [ "${#widths[@]}" -eq 2 ]
+    [ "${widths[0]}" -eq 70 ]
+    [ "${widths[1]}" -eq 70 ]
 }
 
 @test "terminal width cuts a footer longer than 40 columns to 40, ending in an ellipsis" {
