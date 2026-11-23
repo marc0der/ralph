@@ -1566,14 +1566,20 @@ card_fit() (
     truncate_line "$1" "$CARD_WIDTH" "…"
 )
 
+card_rule_fits() (
+    LC_ALL=$CARD_LOCALE
+    local line="$1 ──"
+    (( ${#line} <= CARD_WIDTH ))
+)
+
 card_rule() (
     LC_ALL=$CARD_LOCALE
     local char="$1" text="$2" line fill
     if [[ -z $text ]]; then
         printf -v fill '%*s' "$CARD_WIDTH" ''
         line=${fill// /$char}
-    elif line="$text $char$char"; (( ${#line} > CARD_WIDTH )); then
-        line=$(card_fit "$line")
+    elif ! card_rule_fits "$text"; then
+        line=$(card_fit "$text $char$char")
     else
         printf -v fill '%*s' $(( CARD_WIDTH - ${#text} - 1 )) ''
         line="$text ${fill// /$char}"
@@ -1763,7 +1769,7 @@ print_iteration_footer() (
     LC_ALL=$CARD_LOCALE
     local text
     text="── $iteration/$max done ── $(fmt_duration "$wall") wall$suffix"
-    if [[ -n "$tools" ]] && (( ${#text} + ${#tools} + 6 <= CARD_WIDTH )); then
+    if [[ -n "$tools" ]] && card_rule_fits "$text · $tools"; then
         text="$text · $tools"
     fi
     echo ""
