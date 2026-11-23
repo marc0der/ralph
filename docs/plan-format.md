@@ -39,7 +39,7 @@ Only open items count towards the number of build passes.
 
 ## Who may change what
 
-`plan` writes and reorders items freely. Once `build` starts, items are fixed: a build pass may only tick a box, mark an item `- [~]`, or add a new item at the end. If an item turns out to be wrong, the agent marks it `- [~]`, explains why in `PROGRESS.md`, and moves on. The next `plan` run writes the replacement.
+`plan` adds, changes and reorders items, but only to close a gap: missing work, or an open item that the goal, the code, a spec or a rule proves wrong. Choosing a different option that also works is not a gap. Once `build` starts, items are fixed: a build pass may only tick a box, mark an item `- [~]`, or add a new item at the end. If an item turns out to be wrong, the agent marks it `- [~]`, explains why in `PROGRESS.md`, and moves on. The next `plan` run writes the replacement.
 
 `review` only adds items. It never re-opens a shipped one: if shipped code falls short of its spec, that becomes a new item. Each finding starts with its severity:
 

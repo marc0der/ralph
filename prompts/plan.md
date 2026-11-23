@@ -39,6 +39,8 @@ Look for:
 
 **Never assume something is missing.** Confirm with a code search before flagging it. A confirmed gap between a spec and the code becomes a plan item. Work that no spec covers needs a spec first: author one at `specs/FILENAME.md`, then write items to implement it.
 
+**A gap is missing work or a wrong open item.** An open item is wrong when a source proves it fails. The sources are the goal, the code, the specs, the project rules and the rules in Phase 3. A choice between workable options is not a gap. Wording that no rule forbids is not a gap.
+
 Your analysis is working material, not output. Only items reach `IMPLEMENTATION_PLAN.md`. Never record the searches you ran, the state you observed, or the evidence you gathered.
 
 ## Phase 3: Output
@@ -104,8 +106,8 @@ A project that names a full-verification command gets one **verification item** 
 
 ### Editing rules
 
-- Refine any open item freely. Keep every revision inside the limits above.
-- Insert a new item at its correct position. Position is priority.
+- Change an open item only to close a gap. Keep every revision inside the limits above.
+- Insert a new item only to close a gap. Insert it at its correct position. Position is priority.
 - Reorder open items when you discover a dependency.
 - Never move an item marked `[x]` or `[~]`.
 - Place new and reordered items below closed items when priority allows. A dependency may force an open item above a closed one. The closed item stays where it is.
@@ -160,6 +162,7 @@ You have no human to ask. Resolve every open question yourself.
 
 - Investigate first. Most questions are answerable from the code.
 - If a question remains, choose the safer option and record the decision in the relevant spec. State the assumption you made.
+- A decision a spec records is not an open question. Never replace it with another workable option.
 - Never write a question into `IMPLEMENTATION_PLAN.md`.
 
 ## Convergence
