@@ -30,11 +30,6 @@ on_iteration() {
     printf '%s\n' "$*" > "$TEST_DIR/script/$n"
 }
 
-add_bare_origin() {
-    git init --bare --quiet "$TEST_DIR/remote.git"
-    git remote add origin "$TEST_DIR/remote.git"
-}
-
 # Count the commits on HEAD in repository $1 (default: the workspace).
 commit_count() {
     git -C "${1:-.}" rev-list --count HEAD

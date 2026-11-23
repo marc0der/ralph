@@ -632,9 +632,7 @@ run_retro_with_config() {
     "$RALPH" init
     seed_open_item
     create_committing_backend
-    git init --bare --quiet "$TEST_DIR/remote.git"
-    git remote add origin "$TEST_DIR/remote.git"
-    git checkout --quiet -b push-branch
+    add_bare_origin
     local head
     head=$(git rev-parse HEAD)
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" fix -n 1 --no-metrics

@@ -1670,13 +1670,6 @@ MOCK
     [[ "$output" != *"No commit on the workspace branch"* ]]
 }
 
-add_bare_origin() {
-    git init --bare --quiet "$TEST_DIR/remote.git"
-    git remote add origin "$TEST_DIR/remote.git"
-    # A host's global pre-push hook can refuse a push of main or master.
-    git checkout --quiet -b push-branch
-}
-
 @test "a workspace with a bare origin still pushes" {
     "$RALPH" init
     seed_open_item
