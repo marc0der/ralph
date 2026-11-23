@@ -2,15 +2,6 @@
 
 load test_helper
 
-# Source ralph's functions without its main dispatch, as resolve_prompt.bats does.
-ralph_fn() {
-    (
-        export RALPH_CONFIG_DIR
-        eval "$(sed '/^# Main dispatch/,$d' "$RALPH")"
-        "$@"
-    )
-}
-
 # Helper: print PATH with each yq directory replaced by a copy of it, as symlinks, minus yq.
 path_without_yq() {
     local dir entry shadow dirs=()

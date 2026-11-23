@@ -7,6 +7,15 @@ export RALPH="$BATS_TEST_DIRNAME/../ralph"
 # flips that branch — unset it so every test sees the same host-side defaults.
 unset DEVCONTAINER
 
+# Source ralph's functions without its main dispatch, as resolve_prompt.bats does.
+ralph_fn() {
+    (
+        export RALPH_CONFIG_DIR
+        eval "$(sed '/^# Main dispatch/,$d' "$RALPH")"
+        "$@"
+    )
+}
+
 setup() {
     # bats leaves stdin attached: ralph's `[[ -t 0 ]]` guard would prompt and block.
     exec </dev/null
