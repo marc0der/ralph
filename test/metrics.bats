@@ -469,6 +469,42 @@ EOF
     [[ "$squeezed" == *"$expected"* ]]
 }
 
+@test "an auto run prints the five-phase rollup" {
+    mkdir -p .ralph/logs/r1/plan .ralph/logs/r1/build .ralph/logs/r1/retro
+    local tail='"mode":"build","backend":"claude","plan_items_completed":1'
+    local nogit='"git":{"commits":0,"files_changed":0,"insertions":0,"deletions":0,"noop":true,"repos":[]}'
+    local root='{"repo":".","commits":1,"files_changed":1,"insertions":10,"deletions":1}'
+    local svc='{"repo":"./svc","commits":3,"files_changed":2,"insertions":20,"deletions":3}'
+    local root2='{"repo":".","commits":2,"files_changed":1,"insertions":5,"deletions":0}'
+    printf '%s\n' "{\"iteration\":1,\"model\":\"sonnet\",\"effort\":null,\"wall_s\":5,\"cost_usd\":0.5,\"tokens\":{\"output\":40},$tail,$nogit}" \
+        > .ralph/logs/r1/plan/metrics.jsonl
+    {
+        printf '%s\n' "{\"iteration\":1,\"model\":\"opus\",\"effort\":\"high\",\"wall_s\":5,\"cost_usd\":1.234,\"tokens\":{\"output\":100},$tail,\"git\":{\"commits\":4,\"files_changed\":3,\"insertions\":30,\"deletions\":4,\"noop\":false,\"repos\":[$root,$svc]}}"
+        printf '%s\n' "{\"iteration\":2,\"model\":\"opus\",\"effort\":\"high\",\"wall_s\":65,\"cost_usd\":2.5,\"tokens\":{\"output\":250},$tail,\"git\":{\"commits\":2,\"files_changed\":1,\"insertions\":5,\"deletions\":0,\"noop\":false,\"repos\":[$root2]}}"
+    } > .ralph/logs/r1/build/metrics.jsonl
+    printf '%s\n' "{\"iteration\":1,\"model\":\"sonnet\",\"effort\":\"low\",\"wall_s\":5,\"cost_usd\":0.25,\"tokens\":{\"output\":10},$tail,$nogit}" \
+        > .ralph/logs/r1/retro/metrics.jsonl
+    cat > .ralph/logs/r1/auto.json <<'EOF'
+{"goal":"ship it","branch":"main","started":"2026-11-23T10:00:00Z","phases":[
+ {"phase":1,"name":"archive","state":"ran","exit":0,"started":"2026-11-23T10:00:00Z","ended":"2026-11-23T10:00:01Z"},
+ {"phase":2,"name":"init","state":"ran","exit":0,"started":"2026-11-23T10:00:01Z","ended":"2026-11-23T10:00:02Z"},
+ {"phase":3,"name":"plan","state":"ran","exit":0,"started":"2026-11-23T10:00:02Z","ended":"2026-11-23T10:00:07Z"},
+ {"phase":4,"name":"build","state":"ran","exit":0,"started":"2026-11-23T10:00:07Z","ended":"2026-11-23T10:01:17Z"},
+ {"phase":5,"name":"review","state":"skipped — no cycle base","exit":null,"started":null,"ended":null},
+ {"phase":6,"name":"fix","state":"skipped — no open items","exit":null,"started":null,"ended":null},
+ {"phase":7,"name":"retro","state":"failed — exit 1","exit":1,"started":"2026-11-23T10:01:17Z","ended":"2026-11-23T10:01:22Z"}]}
+EOF
+
+    run "$RALPH" metrics .ralph/logs/r1
+    [[ "$status" -eq 0 ]]
+    local squeezed expected
+    squeezed=$(tr -s ' \t' ' ' <<<"$output")
+    expected=$'PHASE MODEL/EFFORT ITERS WALL COST OUT_TOK COMMITS EXIT\nplan sonnet/default 1 5s $0.5 40 0 0\nbuild opus/high 2 1m10s $3.73 350 6 0\nreview skipped — no cycle base -\nfix skipped — no open items -\nretro sonnet/low 1 5s $0.25 10 0 1\n\nTotals: 4 iterations · wall 1m20s'
+    [[ "$squeezed" == *"$expected"* ]]
+    [[ "$squeezed" == *"commits 6 (+35/-4)"* ]]
+    [[ "$squeezed" == *"Repos: . 3 (+15/-1) · ./svc 3 (+20/-3)"* ]]
+}
+
 @test "a build over a lone old store moves it beside the new run" {
     "$RALPH" init
     printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
