@@ -1850,21 +1850,49 @@ print_iteration_footer() (
     card_rule ─ "$text"
 )
 
-write_iteration_metrics() {
-    local metrics_file="$1" raw_file="$2" mode="$3" branch="$4" backend="$5" model="$6"
-    local iteration="$7" started="$8" ended="$9" head_before="${10}" head_after="${11}" plan_done_before="${12}"
-    local noop_override="${13:-}" effort="${14:-}" config_file="${15:-}" section="${16:-$3}"
-
-    local commits=0 stat="" files="" ins="" del="" noop=true
-    if [[ "$head_before" != "$head_after" ]]; then
-        noop=false
-        commits=$(git rev-list --count "$head_before..$head_after" 2>/dev/null || echo 0)
-        stat=$(git diff --shortstat "$head_before" "$head_after" 2>/dev/null || true)
+# Print one JSON object per repository of the after-listing whose HEAD moved:
+# its commit count and diff stat since the before-listing. A repository that
+# was commitless or absent before counts from the empty tree.
+repo_git_counts() {
+    local before="$1" after="$2"
+    local line before_line repo sha before_sha base commits stat files ins del
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        repo=${line% *}
+        sha=${line##* }
+        [[ "$sha" != "-" ]] || continue
+        before_sha=-
+        while IFS= read -r before_line; do
+            [[ "${before_line% *}" == "$repo" ]] && before_sha=${before_line##* }
+        done <<< "$before"
+        [[ "$before_sha" != "$sha" ]] || continue
+        if [[ "$before_sha" == "-" ]]; then
+            commits=$(git -C "$repo" rev-list --count "$sha" 2>/dev/null || echo 0)
+            base=$(git -C "$repo" hash-object -t tree /dev/null 2>/dev/null || true)
+        else
+            commits=$(git -C "$repo" rev-list --count "$before_sha..$sha" 2>/dev/null || echo 0)
+            base=$before_sha
+        fi
+        stat=$(git -C "$repo" diff --shortstat "$base" "$sha" 2>/dev/null || true)
         files=$(sed -nE 's/.* ([0-9]+) files? changed.*/\1/p' <<<"$stat")
         ins=$(sed -nE 's/.* ([0-9]+) insertions?\(\+\).*/\1/p' <<<"$stat")
         del=$(sed -nE 's/.* ([0-9]+) deletions?\(-\).*/\1/p' <<<"$stat")
-    fi
-    files=${files:-0}; ins=${ins:-0}; del=${del:-0}
+        jq -cn --arg repo "$repo" --argjson commits "$commits" \
+            --argjson files "${files:-0}" --argjson insertions "${ins:-0}" \
+            --argjson deletions "${del:-0}" \
+            '{repo: $repo, commits: $commits, files_changed: $files,
+              insertions: $insertions, deletions: $deletions}'
+    done <<< "$after"
+}
+
+write_iteration_metrics() {
+    local metrics_file="$1" raw_file="$2" mode="$3" branch="$4" backend="$5" model="$6"
+    local iteration="$7" started="$8" ended="$9" state_before="${10}" state_after="${11}" plan_done_before="${12}"
+    local noop_override="${13:-}" effort="${14:-}" config_file="${15:-}" section="${16:-$3}"
+
+    local repos noop=true
+    repos=$(repo_git_counts "$state_before" "$state_after" | jq -cs '.') || repos='[]'
+    [[ "$repos" == "[]" ]] || noop=false
 
     # The workspace HEAD cannot describe every iteration: plan and review never
     # commit, and a build may commit only inside a nested repository. The caller
@@ -1921,8 +1949,7 @@ write_iteration_metrics() {
         --arg started "$(iso_utc "$started")" \
         --arg ended "$(iso_utc "$ended")" \
         --argjson wall_s "$(( ended - started ))" \
-        --argjson commits "$commits" --argjson files "$files" \
-        --argjson insertions "$ins" --argjson deletions "$del" \
+        --argjson repos "$repos" \
         --argjson noop "$noop" --argjson plan_done "$plan_delta" \
         --argjson backend_summary "$backend_summary" \
         '{iteration: $iteration, mode: $mode, branch: $branch, backend: $backend,
@@ -1930,8 +1957,11 @@ write_iteration_metrics() {
           config: (if $config == "" then null else $config end), section: $section,
           started: $started, ended: $ended, wall_s: $wall_s}
          + $backend_summary
-         + {git: {commits: $commits, files_changed: $files,
-                  insertions: $insertions, deletions: $deletions, noop: $noop},
+         + {git: {commits: ($repos | map(.commits) | add // 0),
+                  files_changed: ($repos | map(.files_changed) | add // 0),
+                  insertions: ($repos | map(.insertions) | add // 0),
+                  deletions: ($repos | map(.deletions) | add // 0),
+                  noop: $noop, repos: $repos},
             plan_items_completed: $plan_done}' >> "$metrics_file"
 }
 
@@ -2357,9 +2387,8 @@ cmd_loop() {
 
         # Snapshot HEAD to detect noops. Plan and review commit nothing during a
         # pass, so they fingerprint the artifacts they may change instead.
-        local head_before plan_state_before="" plan_state_after=""
+        local plan_state_before="" plan_state_after=""
         local state_before="" state_after=""
-        head_before=$(git rev-parse -q --verify HEAD 2>/dev/null || echo -)
         state_before=$(repo_state)
         if mode_converges_on_plan "$mode"; then
             plan_state_before=$(plan_state_hash)
@@ -2712,10 +2741,6 @@ cmd_loop() {
             # Record iteration metrics; a failure here warns but never
             # interrupts the loop.
             if $metrics_enabled; then
-                local head_after_m
-                # The fallback keeps the never-interrupt-the-loop contract even if
-                # git fails mid-run.
-                head_after_m=$(git rev-parse -q --verify HEAD 2>/dev/null || echo -)
                 # An empty raw_file reaches jq as an empty filename, which it
                 # fails to open: `jq -cs` exits 2 under its own 2>/dev/null,
                 # backend_summary degrades to `{}`, and the record is written
@@ -2726,7 +2751,7 @@ cmd_loop() {
                 # the filter turns into an explicit set of nulls.
                 if write_iteration_metrics "$metrics_file" "${raw_file:-/dev/null}" "$mode" \
                     "$current_branch" "$BACKEND_NAME" "$model" "$((iteration_offset + iteration))" \
-                    "$iter_start" "$iter_end" "$head_before" "$head_after_m" \
+                    "$iter_start" "$iter_end" "$state_before" "$state_after" \
                     "$plan_done_before" "$noop_override" "$effort" "$config_file" "$section"; then
                     metrics_written=true
                 else
