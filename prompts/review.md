@@ -194,6 +194,8 @@ Append exactly one entry to `{{WORKSPACE}}/PROGRESS.md`. Follow the template def
 - **Unresolved** — spec contradictions and questions you could not settle from the tree.
 - `No cited specs this cycle.` when the anchor set is empty.
 
+Run `date '+%Y-%m-%d %H:%M'` as the last command before you append the entry, and copy its output exactly into the entry heading.
+
 Record a preference, or a finding that failed its test, nowhere. Repeat the coverage line in your final message. Nothing else you notice goes only to the final message.
 
 ## Language
