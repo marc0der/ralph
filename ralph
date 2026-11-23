@@ -1984,6 +1984,33 @@ metrics_tool_list() {
             | map(.key + " " + (.value | tostring)) | join(", ")) else "" end' 2>/dev/null || true
 }
 
+print_metrics_totals() {
+    jq -rs '
+        def fmtd: if . == null then "-"
+          elif . >= 3600 then "\(. / 3600 | floor)h\(. % 3600 / 60 | floor)m"
+          elif . >= 60 then "\(. / 60 | floor)m\(. % 60)s"
+          else "\(.)s" end;
+        (map(.wall_s) | add) as $wall
+        | (map(.api_s // 0) | add) as $api
+        | (map(.cost_usd // 0) | add) as $cost
+        | ([.[] | .git.repos // [] | .[]] | group_by(.repo)
+            | map({repo: .[0].repo, commits: (map(.commits) | add),
+                   insertions: (map(.insertions) | add), deletions: (map(.deletions) | add)})) as $repos
+        | ("Totals: \(length) iterations · wall \($wall | fmtd) · api \($api | fmtd)"
+          + " · turns \(map(.turns // 0) | add)"
+          + " · cost $\(($cost * 100 | round) / 100)"
+          + " · tokens in \(map(.tokens.input // 0) | add) / out \(map(.tokens.output // 0) | add)"
+          + " (cache read \(map(.tokens.cache_read // 0) | add))"
+          + " · commits \(map(.git.commits) | add)"
+          + " (+\(map(.git.insertions) | add)/-\(map(.git.deletions) | add))"
+          + " · plan items \(map(.plan_items_completed) | add)"
+          + " · noop iterations \([.[] | select(.git.noop)] | length)"),
+          (if ($repos | length) >= 2
+           then "Repos: " + ($repos | map("\(.repo) \(.commits) (+\(.insertions)/-\(.deletions))") | join(" · "))
+           else empty end)
+        ' "$@"
+}
+
 cmd_metrics() {
     reject_quiet metrics "$@"
     migrate_run_store
@@ -2034,24 +2061,7 @@ cmd_metrics() {
     fi
 
     echo ""
-    jq -rs '
-        def fmtd: if . == null then "-"
-          elif . >= 3600 then "\(. / 3600 | floor)h\(. % 3600 / 60 | floor)m"
-          elif . >= 60 then "\(. / 60 | floor)m\(. % 60)s"
-          else "\(.)s" end;
-        (map(.wall_s) | add) as $wall
-        | (map(.api_s // 0) | add) as $api
-        | (map(.cost_usd // 0) | add) as $cost
-        | "Totals: \(length) iterations · wall \($wall | fmtd) · api \($api | fmtd)"
-          + " · turns \(map(.turns // 0) | add)"
-          + " · cost $\(($cost * 100 | round) / 100)"
-          + " · tokens in \(map(.tokens.input // 0) | add) / out \(map(.tokens.output // 0) | add)"
-          + " (cache read \(map(.tokens.cache_read // 0) | add))"
-          + " · commits \(map(.git.commits) | add)"
-          + " (+\(map(.git.insertions) | add)/-\(map(.git.deletions) | add))"
-          + " · plan items \(map(.plan_items_completed) | add)"
-          + " · noop iterations \([.[] | select(.git.noop)] | length)"
-        ' "$file"
+    print_metrics_totals "$file"
 }
 
 cmd_loop() {
