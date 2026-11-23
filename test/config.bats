@@ -353,7 +353,7 @@ run_retro_with_config() {
     require_yq_or_skip
     run_build_with_config 'build:\n  backend: codex\n  model: gpt-x\n  effort: ultra\n  extra_args: [--foo, bar]\n'
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Model:   gpt-x"* ]]
+    [[ "$(card_row backend "$stderr" build)" == *" model gpt-x effort "* ]]
     [[ "$output" == *"Would run: codex exec "*" --model gpt-x -c model_reasoning_effort=ultra --foo bar <prompt>"* ]]
 }
 
@@ -362,7 +362,7 @@ run_retro_with_config() {
     printf 'defaults:\n  model: haiku\n' > "$RALPH_CONFIG_DIR/config.yaml"
     run_build_with_config 'build:\n  effort: low\n'
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Model:   opus"* ]]
+    [[ "$(card_row backend "$stderr" build)" == *" model opus effort "* ]]
     [[ "$output" != *"haiku"* ]]
 }
 
@@ -398,7 +398,7 @@ run_retro_with_config() {
     run --separate-stderr "$RALPH" build --dry-run -n 1 -b pi -m my-model
     [[ "$status" -eq 0 ]]
     [[ "$stderr" == *"for build; dropped extra_args '--foo bar'."* ]]
-    [[ "$output" == *"Model:   my-model"* ]]
+    [[ "$(card_row backend "$stderr" build)" == *" model my-model effort "* ]]
     [[ "$output" != *"--foo"* ]]
 }
 
@@ -414,7 +414,7 @@ run_retro_with_config() {
     run --separate-stderr "$RALPH" build --dry-run -n 1 -b codex
     [[ "$status" -eq 0 ]]
     [[ "$stderr" != *"Warning: -b"* ]]
-    [[ "$output" == *"Model:   gpt-x"* ]]
+    [[ "$(card_row backend "$stderr" build)" == *" model gpt-x effort "* ]]
 }
 
 @test "a section that changes backend uses no defaults tied key and prints no warning" {
@@ -529,7 +529,7 @@ run_retro_with_config() {
     printf 'plan:\n  iterations: 2\n' > ralph.yaml
     run --separate-stderr "$RALPH" plan --dry-run -g goal
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Max:     2 iterations"* ]]
+    [[ "$(card_row iterations "$stderr" plan)" == "iterations 2" ]]
     [[ "$stderr" == *"iterations=2 metrics="* ]]
 }
 
@@ -541,7 +541,7 @@ run_retro_with_config() {
     printf 'build:\n  iterations: 3\n' > ralph.yaml
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build --skip-push --no-metrics
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Max:     3 iterations"* ]]
+    [[ "$(card_row iterations "$stderr" build)" == "iterations 3 "* ]]
     [[ "$output" == *"ITERATION 3 / 3"* ]]
     [[ "$output" != *"No changes detected"* ]]
     [[ "$stderr" == *"iterations=3 headroom=20% patience=2"* ]]
@@ -554,7 +554,7 @@ run_retro_with_config() {
     printf 'build:\n  iterations: 3\n' > ralph.yaml
     run "$RALPH" build --dry-run -n 5
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Max:     5 iterations"* ]]
+    [[ "$(card_row iterations "$output" build)" == "iterations 5 "* ]]
 }
 
 @test "headroom_pct sizes the build count" {
@@ -564,11 +564,11 @@ run_retro_with_config() {
     printf 'build:\n  headroom_pct: 50\n' > ralph.yaml
     run --separate-stderr "$RALPH" build --dry-run
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Max:     6 iterations"* ]]
+    [[ "$(card_row iterations "$stderr" build)" == "iterations auto(6) "* ]]
     [[ "$stderr" == *"iterations=auto(6) headroom=50% patience=2"* ]]
     printf 'build:\n  headroom_pct: 0\n' > ralph.yaml
     run "$RALPH" build --dry-run
-    [[ "$output" == *"Max:     4 iterations"* ]]
+    [[ "$(card_row iterations "$output" build)" == "iterations auto(4) "* ]]
 }
 
 @test "calculate_build_iterations rounds the headroom up" {
@@ -601,7 +601,8 @@ run_retro_with_config() {
     seed_open_item
     run --separate-stderr "$RALPH" fix --dry-run
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Mode:    build"* ]]
+    [[ "$stderr" == *"━━ ralph fix "* ]]
+    [[ "$(card_row prompt "$stderr" fix)" == "prompt "*"/build.md" ]]
     [[ "$stderr" == *"Config: built-in (no config file) [fix]"* ]]
     [[ "$stderr" == *"iterations=auto(2) headroom=20% patience=2 push=on"* ]]
 }
@@ -613,10 +614,10 @@ run_retro_with_config() {
     printf 'build:\n  iterations: 3\nfix:\n  iterations: 5\n  effort: low\n' > ralph.yaml
     run --separate-stderr "$RALPH" fix --dry-run
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Max:     5 iterations"* ]]
+    [[ "$(card_row iterations "$stderr" fix)" == "iterations 5 "* ]]
     [[ "$stderr" == *"effort=low"* ]]
     run "$RALPH" build --dry-run
-    [[ "$output" == *"Max:     3 iterations"* ]]
+    [[ "$(card_row iterations "$output" build)" == "iterations 3 "* ]]
 }
 
 @test "fix uses the build prompt, writes .ralph/cycle-base and pushes" {

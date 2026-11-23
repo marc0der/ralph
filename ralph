@@ -2093,19 +2093,6 @@ cmd_loop() {
     fi
 
     local line_width=120
-    local bar
-    bar=$(printf '━%.0s' $(seq 1 "$line_width"))
-
-    echo "$bar"
-    echo "Mode:    $mode"
-    echo "Backend: $BACKEND_NAME"
-    truncate_line "Prompt:  $prompt_file" "$line_width"
-    echo "Branch:  $current_branch"
-    echo "Model:   $model"
-    echo "Max:     $max_iterations iterations"
-    [[ -n "$goal" ]] && truncate_line "Goal:    $goal" "$line_width"
-    $metrics_enabled && truncate_line "Metrics: $metrics_file" "$line_width"
-    echo "$bar"
 
     local metrics_label=off
     $metrics_enabled && metrics_label=on

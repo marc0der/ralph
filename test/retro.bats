@@ -81,7 +81,7 @@ setup_artifact_pass() {
     [[ ! -e IMPLEMENTATION_PLAN.md ]]
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Mode:    retro"* ]]
+    [[ "$output" == *"━━ ralph retro "* ]]
     [[ "$output" == *"Completed 1 iterations."* ]]
 }
 

@@ -326,3 +326,12 @@ load test_helper
     run card_row branch "$text" build
     [ -z "$output" ]
 }
+
+@test "a dry-run build prints no Mode line and no rule on stdout" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Mode:"* ]]
+    [[ "$output" != *"━"* ]]
+}
