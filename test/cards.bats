@@ -521,6 +521,36 @@ MOCK
     [[ "$output" == *$'\n▶ reviewing 1 shipped item against no cited specs\n'* ]]
 }
 
+@test "headline in retro counts entries and learnings on file" {
+    "$RALPH" init
+    seed_progress_entry
+    seed_progress_entry
+    mkdir -p .ralph
+    printf '# Learnings\n\n## Tooling\n- One (confirmed 2026-11-14)\n- Two (confirmed 2026-11-14)\n\n## Codebase\n- Three (confirmed 2026-11-14)\n' > .ralph/learnings.md
+    run --separate-stderr "$RALPH" retro --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n▶ distilling 2 PROGRESS.md entries · 3 learnings on file\n'* ]]
+}
+
+@test "headline in retro uses the singular for one entry and one learning" {
+    "$RALPH" init
+    seed_progress_entry
+    mkdir -p .ralph
+    printf '# Learnings\n\n## Tooling\n- One (confirmed 2026-11-14)\n' > .ralph/learnings.md
+    run --separate-stderr "$RALPH" retro --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n▶ distilling 1 PROGRESS.md entry · 1 learning on file\n'* ]]
+}
+
+@test "headline in retro says 0 learnings without a learnings file" {
+    "$RALPH" init
+    seed_progress_entry
+    seed_progress_entry
+    run --separate-stderr "$RALPH" retro --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n▶ distilling 2 PROGRESS.md entries · 0 learnings on file\n'* ]]
+}
+
 @test "review keeps its Review filed line on the shared spec count" {
     "$RALPH" init
     seed_shipped_item
