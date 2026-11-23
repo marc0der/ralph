@@ -54,7 +54,7 @@ Review audits the cycle's work against these nine kinds of defect. Meet every ki
 **Never edit a file in `specs/`.** The specs are the decision record and the plan items point at them. A review finding may cite a spec clause itself: a Critical does. The route below applies to such an item exactly as it does to any other. If the spec contradicts the item, or the item cannot be implemented as written:
 
 1. Mark the item `- [~]` in `{{WORKSPACE}}/IMPLEMENTATION_PLAN.md`. Change nothing else about it.
-2. Record the contradiction in `{{WORKSPACE}}/PROGRESS.md`, with enough detail for the next planning run to resolve it.
+2. Record the contradiction in `{{WORKSPACE}}/PROGRESS.md`, with enough detail for the next planning run to resolve it. Run `date '+%Y-%m-%d %H:%M'` as the last command before you write the entry, and copy its output exactly into the entry heading.
 3. Continue with the next incomplete item.
 
 ## Phase 3: Verify
@@ -73,7 +73,7 @@ Once tests pass:
    - **Never move an item.** Appended items go at the end of the list, even when they seem urgent.
    - An appended item follows the same schema and the same limits as every other item: six fields, at most 150 words, at most 8 steps. Copy the shape from the `## Entry Format` section of the file.
    - **Never add a heading.** The file holds `# Implementation Plan`, `## Entry Format`, and `## Items`, and nothing else.
-2. Append an entry to `{{WORKSPACE}}/PROGRESS.md` following the template defined in its header (append-only — never edit previous entries)
+2. Append an entry to `{{WORKSPACE}}/PROGRESS.md` following the template defined in its header (append-only — never edit previous entries). Run `date '+%Y-%m-%d %H:%M'` as the last command before the append, and copy its output exactly into the entry heading.
 3. Commit the changes. Rules for this iteration:
 
    **Where to commit** — the repository rules:
