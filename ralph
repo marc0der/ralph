@@ -2035,18 +2035,25 @@ run_phase_dirs() {
 
 print_run_rollup() {
     local run="$1" phase_dir rows
+    local -a metrics_files=()
     echo "Run: $run"
     echo ""
-    rows=$({
-        printf 'PHASE\tMODEL/EFFORT\tITERS\tWALL\tCOST\tOUT_TOK\tCOMMITS\tEXIT\n'
-        while IFS= read -r phase_dir; do
-            jq -rs --arg phase "${phase_dir##*/}" '
-                first as $first
-                | [$phase, "\($first.model)/\($first.effort // "default")", length, "-", "-", "-", "-", "-"]
-                | @tsv' "$phase_dir/metrics.jsonl"
-        done < <(run_phase_dirs "$run")
-    })
+    rows=$'PHASE\tMODEL/EFFORT\tITERS\tWALL\tCOST\tOUT_TOK\tCOMMITS\tEXIT'
+    while IFS= read -r phase_dir; do
+        metrics_files+=("$phase_dir/metrics.jsonl")
+        rows+=$'\n'$(jq -rs --arg phase "${phase_dir##*/}" "$JQ_FMTD"'
+            first as $first
+            | (map(.cost_usd // 0) | add) as $cost
+            | [$phase, "\($first.model)/\($first.effort // "default")", length,
+               (map(.wall_s) | add | fmtd),
+               "$\(($cost * 100 | round) / 100)",
+               (map(.tokens.output // 0) | add),
+               (map(.git.commits) | add), "-"]
+            | @tsv' "$phase_dir/metrics.jsonl")
+    done < <(run_phase_dirs "$run")
     print_tsv_table <<<"$rows"
+    echo ""
+    print_metrics_totals "${metrics_files[@]}"
 }
 
 cmd_metrics() {
