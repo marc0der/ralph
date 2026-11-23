@@ -148,6 +148,20 @@ MOCK
     [[ "$(cat "$TEST_DIR/backend-env")" == "unset" ]]
 }
 
+@test "RALPH_RUN_DIR naming a missing path falls back to one new run" {
+    "$RALPH" init
+    printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
+    create_committing_backend
+
+    RALPH_RUN_DIR=.ralph/logs/missing PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
+    [[ "$status" -eq 0 ]]
+
+    [[ ! -e .ralph/logs/missing ]]
+    local runs=(.ralph/logs/*)
+    [[ ${#runs[@]} -eq 1 ]]
+    [[ -f "${runs[0]}/build/metrics.jsonl" ]]
+}
+
 @test "a second run into one phase folder continues the record and stream numbers" {
     "$RALPH" init
     printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
@@ -192,6 +206,20 @@ MOCK
 
     [[ "$(jq -r '.iteration' .ralph/logs/given/build/metrics.jsonl | paste -sd,)" == "12,13" ]]
     [[ -f .ralph/logs/given/build/iter-013.stream.jsonl ]]
+}
+
+@test "the highest record, not the last, numbers the next record in a folder without stream files" {
+    "$RALPH" init
+    printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
+    create_committing_backend
+    mkdir -p .ralph/logs/given/build
+    printf '%s\n' '{"iteration":3}' '{"iteration":1}' > .ralph/logs/given/build/metrics.jsonl
+
+    RALPH_RUN_DIR=.ralph/logs/given PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
+    [[ "$status" -eq 0 ]]
+
+    [[ "$(jq -r '.iteration' .ralph/logs/given/build/metrics.jsonl | paste -sd,)" == "3,1,4" ]]
+    [[ -f .ralph/logs/given/build/iter-004.stream.jsonl ]]
 }
 
 @test "noop iteration is recorded with noop=true and zero commits" {
@@ -520,6 +548,24 @@ MOCK
     [[ "$squeezed" == *"Totals: 3 iterations · wall 1m15s"* ]]
 }
 
+@test "a rollup row names the model of the phase's first record" {
+    mkdir -p .ralph/logs/r1/build .ralph/logs/r1/plan
+    local tail='"mode":"build","backend":"claude","effort":"high","wall_s":5,"plan_items_completed":1'
+    local git='"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false}'
+    {
+        printf '%s\n' "{\"iteration\":1,\"model\":\"a\",$tail,$git}"
+        printf '%s\n' "{\"iteration\":2,\"model\":\"b\",$tail,$git}"
+    } > .ralph/logs/r1/build/metrics.jsonl
+    printf '%s\n' "{\"iteration\":1,\"model\":\"sonnet\",$tail,$git}" > .ralph/logs/r1/plan/metrics.jsonl
+
+    run "$RALPH" metrics .ralph/logs/r1
+    [[ "$status" -eq 0 ]]
+    local squeezed
+    squeezed=$(tr -s ' \t' ' ' <<<"$output")
+    [[ "$squeezed" == *$'\nbuild a/high 2 '* ]]
+    [[ "$squeezed" != *"b/high"* ]]
+}
+
 @test "an auto run prints the (auto) header, its goal and a row per listed phase" {
     mkdir -p .ralph/logs/r1/plan
     printf '%s\n' '{"iteration":1,"mode":"plan","model":"sonnet","effort":null,"wall_s":5,"cost_usd":0.5,"tokens":{"output":40},"plan_items_completed":1,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false}}' \
@@ -777,6 +823,28 @@ EOF
     [[ "$output" != *"Moved .ralph/metrics/"* ]]
     [[ -f .ralph/metrics/r1/metrics.jsonl ]]
     [[ ! -e .ralph/logs ]]
+}
+
+@test "a build over a lone old store whose move fails still writes its record" {
+    "$RALPH" init
+    printf -- '- [ ] one\n' > IMPLEMENTATION_PLAN.md
+    create_noop_backend
+    mkdir -p .ralph/metrics/r1
+    printf '%s\n' '{"iteration":1}' > .ralph/metrics/r1/metrics.jsonl
+    cat > "$TEST_DIR/bin/mv" <<MOCK
+#!/usr/bin/env bash
+[[ "\$*" == *.ralph/metrics* ]] && exit 1
+exec $(command -v mv) "\$@"
+MOCK
+    chmod +x "$TEST_DIR/bin/mv"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Warning: cannot move .ralph/metrics/ to .ralph/logs/."* ]]
+    [[ -f .ralph/metrics/r1/metrics.jsonl ]]
+    local builds=(.ralph/logs/*/build)
+    [[ ${#builds[@]} -eq 1 ]]
+    [[ $(wc -l < "${builds[0]}/metrics.jsonl") -eq 1 ]]
 }
 
 @test "metrics failure does not fail the loop" {
