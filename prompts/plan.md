@@ -24,7 +24,7 @@ Gather context by reading these sources. If your harness supports subagents, use
 - **Application source** — read build files and source code to understand structure, dependencies, and architecture
 - **Tests** — read test sources to understand existing coverage and test patterns
 
-Never read the output of earlier passes. It lives in `{{WORKSPACE}}/.ralph/metrics/` and in your harness's session files.
+Never read the output of earlier passes. It lives in `{{WORKSPACE}}/.ralph/logs/` and in your harness's session files.
 
 ## Phase 2: Analyse
 
