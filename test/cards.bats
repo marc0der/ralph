@@ -713,6 +713,27 @@ MOCK
     [[ "$line" != *Tool* ]]
 }
 
+@test "footer drops the tool list one character past the width" {
+    local tools92 tools93
+    tools92=$(printf 'x%.0s' {1..92})
+    tools93=$(printf 'x%.0s' {1..93})
+    run ralph_fn eval "LC_ALL=C print_iteration_footer 1 1 0 '' $tools92"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"0s wall · $tools92 ──"* ]]
+    run ralph_fn eval "LC_ALL=C print_iteration_footer 1 1 0 '' $tools93"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"0s wall ──"* ]]
+    [[ "$output" != *x* ]]
+}
+
+@test "footer closes a plan pass that converges" {
+    "$RALPH" init
+    create_streaming_backend
+    PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" plan -g "the goal" --no-metrics
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n── 1/6 done ── '* ]]
+}
+
 @test "terminal divider holds an escape code with colour allowed" {
     "$RALPH" init
     seed_open_item
