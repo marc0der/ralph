@@ -159,6 +159,15 @@ load test_helper
     [ "${lines[1]}" = "  quiet    " ]
 }
 
+@test "print_card_rows aligns a multibyte cell like an ASCII cell under LC_ALL=C" {
+    S=$'\x1f'
+    run ralph_fn eval "LC_ALL=C card_style 1
+        LC_ALL=C print_card_rows 'model${S}opüs${S}effort${S}high' 'model${S}opus${S}effort${S}high'"
+    [ "$status" -eq 0 ]
+    [ "${lines[0]}" = "  model  opüs  effort  high" ]
+    [ "${lines[1]}" = "  model  opus  effort  high" ]
+}
+
 @test "run card prints once per dry run between a titled top rule and a full bottom rule" {
     "$RALPH" init
     seed_open_item
@@ -167,6 +176,26 @@ load test_helper
     [ "$(grep -c '^━━ ralph build ━' <<< "$stderr")" -eq 1 ]
     [ "$(grep '^━━ ralph build ━' <<< "$stderr" | wc -m)" -eq 121 ]
     [ "$(grep -c '^━\{120\}$' <<< "$stderr")" -eq 1 ]
+}
+
+@test "run card prints before the outside-container warning" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run
+    [ "$status" -eq 0 ]
+    title_line=$(grep -n -m1 '^━━ ralph build ━' <<< "$stderr" | cut -d: -f1)
+    warning_line=$(grep -n -m1 'WARNING: Running' <<< "$stderr" | cut -d: -f1)
+    [ -n "$title_line" ]
+    [ -n "$warning_line" ]
+    [ "$title_line" -lt "$warning_line" ]
+}
+
+@test "run card prints no goal in a plan dry run" {
+    "$RALPH" init
+    run --separate-stderr "$RALPH" plan --dry-run -n 1 -g "Add REST endpoint"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Add REST endpoint"* ]]
+    [[ "$stderr" != *"Add REST endpoint"* ]]
 }
 
 @test "run card prints the backend row with model and effort" {
@@ -464,6 +493,14 @@ MOCK
     [[ "$output" == *"▶ next: Task"* ]]
 }
 
+@test "headline in fix names the first open item" {
+    "$RALPH" init
+    printf -- '- [ ] **First fix**\n- [ ] **Second fix**\n' >> IMPLEMENTATION_PLAN.md
+    run --separate-stderr "$RALPH" fix --dry-run -n 1
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n▶ next: First fix\n'* ]]
+}
+
 @test "headline is cut to the card width with an ellipsis" {
     "$RALPH" init
     printf -- '- [ ] **%s**\n' "$(printf 'w%.0s' {1..150})" >> IMPLEMENTATION_PLAN.md
@@ -504,7 +541,7 @@ MOCK
 
 @test "headline in review counts shipped items and cited specs" {
     "$RALPH" init
-    printf -- '- [x] **One**\n  Spec: specs/a.md item 1\n- [x] **Two**\n  Spec: specs/a.md item 2\n- [x] **Three**\n  Spec: specs/b.md §1\n' >> IMPLEMENTATION_PLAN.md
+    printf -- '- [x] **One**\n  Spec: specs/a.md item 1\n- [x] **Two**\n  Spec: specs/a.md item 2\n- [x] **Three**\n  Spec: specs/b.md §1\n- [~] **Four**\n  Spec: specs/b.md §2\n' >> IMPLEMENTATION_PLAN.md
     seed_cycle_base
     run --separate-stderr "$RALPH" review --dry-run
     [ "$status" -eq 0 ]
