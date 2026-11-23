@@ -1896,8 +1896,7 @@ write_iteration_metrics() {
 
     # The workspace HEAD cannot describe every iteration: plan and review never
     # commit, and a build may commit only inside a nested repository. The caller
-    # passes the verdict it computed instead. The counts above stay
-    # workspace-only.
+    # passes the verdict it computed instead.
     if [[ -n "$noop_override" ]]; then
         noop=$noop_override
     fi
