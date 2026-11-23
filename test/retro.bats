@@ -980,6 +980,10 @@ PASS
     [[ "$(grep -cxF 'PROMPT_retro.md' "$BATS_TEST_DIRNAME/../.gitignore")" -eq 1 ]]
 }
 
+@test "the build prompt reads the heading time from date" {
+    [[ "$(grep -cF "date '+%Y-%m-%d %H:%M'" "$BATS_TEST_DIRNAME/../prompts/build.md")" -eq 2 ]]
+}
+
 @test "plan, build and review prompts point at the learnings file" {
     local prompt
     for prompt in plan build review; do
