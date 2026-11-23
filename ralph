@@ -3069,9 +3069,24 @@ cmd_auto() {
     local auto_resume_notice=""
     local run_dir=""
     local recorded_run=""
+    local auto_goal=$goal
     local auto_started=""
     local auto_branch=""
+    local auto_json_kept="[]"
     local auto_json_failed=false
+    # A resume keeps the first goal, branch and start time, and the entries of
+    # the phases it passes over. A missing or broken file keeps nothing.
+    keep_earlier_auto_json() {
+        local old="$run_dir/auto.json" value
+        [[ -f $old ]] || return 0
+        value=$(jq -je '.goal | select(type == "string")' "$old" 2>/dev/null) && auto_goal=$value
+        value=$(jq -je '.branch | select(type == "string")' "$old" 2>/dev/null) && auto_branch=$value
+        value=$(jq -je '.started | select(type == "string")' "$old" 2>/dev/null) && auto_started=$value
+        value=$(jq -ce --argjson start "$start_phase" \
+            '[.phases[]? | select(type == "object" and (.phase | type) == "number" and .phase < $start)]' \
+            "$old" 2>/dev/null) && auto_json_kept=$value
+        return 0
+    }
     # Rewritten through a temp file and mv, so a reader never sees half a file
     # (specs/023-run-logs-and-metrics.md §3). A failed write only warns, once.
     write_auto_json() {
@@ -3084,8 +3099,8 @@ cmd_auto() {
             fields+=("${phase_state[$i]}" "${phase_exit[$i]}" "${phase_started[$i]}" "${phase_ended[$i]}")
         done
         if tmp=$(mktemp "$run_dir/auto.json.XXXXXX" 2>/dev/null) &&
-            jq -n --arg goal "$goal" --arg branch "$auto_branch" --arg started "$auto_started" \
-                --arg names "${RALPH_PHASES[*]}" \
+            jq -n --arg goal "$auto_goal" --arg branch "$auto_branch" --arg started "$auto_started" \
+                --arg names "${RALPH_PHASES[*]}" --argjson kept "$auto_json_kept" \
                 'def unset_to_null: if . == "" then null else . end;
                  ($names | split(" ")) as $name
                  | $ARGS.positional as $p
@@ -3094,7 +3109,9 @@ cmd_auto() {
                              | {phase: ($i / 4 + 1), name: $name[$i / 4], state: $p[$i],
                                 exit: ($p[$i + 1] | unset_to_null | if . then tonumber else . end),
                                 started: ($p[$i + 2] | unset_to_null),
-                                ended: ($p[$i + 3] | unset_to_null)}]}' \
+                                ended: ($p[$i + 3] | unset_to_null)}
+                             | . as $built
+                             | ($kept | map(select(.phase == $built.phase)) | .[0]) // $built]}' \
                 --args "${fields[@]}" > "$tmp" 2>/dev/null &&
             mv "$tmp" "$run_dir/auto.json" 2>/dev/null; then
             return 0
@@ -3219,6 +3236,7 @@ cmd_auto() {
         if $resume && [[ -d $recorded_run ]]; then
             run_dir=$recorded_run
             export RALPH_RUN_DIR="$run_dir"
+            keep_earlier_auto_json
         else
             if $resume; then
                 echo "Resumed into a new run directory; earlier phases are not in it." >&2
