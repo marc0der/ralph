@@ -156,9 +156,9 @@ The argument may be a run directory, a phase subdirectory, or a `metrics.jsonl` 
 - **No argument.** Ralph picks the run under `.ralph/logs/` whose `auto.json`, `metrics.jsonl` or
   stream file was modified most recently, and treats it as a run-directory argument.
 - **A run directory with `auto.json`.** Ralph prints the rollup. Its header gives the run path
-  with `(auto)` and the goal. The table has one row per phase from `plan` to `retro` that
-  `auto.json` lists, in lifecycle order, where a phase with no folder prints its `state` in place
-  of the numbers. Its columns are `PHASE`, `MODEL/EFFORT`, `ITERS`, `WALL`, `COST`, `OUT_TOK`, `COMMITS` and
+  with `(auto)` and the goal, as `Run: <run> (auto)` and `Goal: <goal>`. The table has one row
+  per phase from `plan` to `retro` that `auto.json` lists, in lifecycle order, where a phase with
+  no folder prints its `state` in place of the numbers. Its columns are `PHASE`, `MODEL/EFFORT`, `ITERS`, `WALL`, `COST`, `OUT_TOK`, `COMMITS` and
   `EXIT`. `MODEL/EFFORT` comes from the phase's first record and prints `default` for a null
   effort. `EXIT` comes from `auto.json`. `WALL` is the sum of the phase's `wall_s` values, as in
   `Totals:`. A phase folder with no records prints `0` in `ITERS` and `-` in every other column
@@ -171,7 +171,7 @@ The argument may be a run directory, a phase subdirectory, or a `metrics.jsonl` 
 - **The `Repos:` line.** After `Totals:`, Ralph prints `Repos:` with one
   `<repo> <commits> (+<ins>/-<del>)` group per repository, summed over the records it read, when
   those records name more than one repository. Records without `repos` contribute nothing to the
-  line.
+  line. The groups follow `repo_state` order and are joined by ` · `, as in `Totals:`.
 - **Old runs.** A run directory that holds `metrics.jsonl` at its top level, and no phase
   subdirectory, is an old run. Ralph prints its per-iteration table.
 - `metrics_summary_suffix`, the one-line summary printed after each pass, reads the new scalar
@@ -190,7 +190,8 @@ store is enabled; in `cmd_auto` after the dry-run return and the container and g
   that name is already there. It removes `.ralph/metrics/` only when it is empty afterwards. For
   each entry it leaves behind, it prints
   `Warning: kept .ralph/metrics/<name>; .ralph/logs/<name> already exists.`
-- A failed move only warns. It never stops the command.
+- A failed move only warns, with `Warning: cannot move <path> to .ralph/logs/.`, where `<path>` is
+  `.ralph/metrics/` or the entry. It never stops the command.
 - In `cmd_metrics`, an argument that starts with `.ralph/metrics/` is read from the same path under
   `.ralph/logs/` after the move.
 
