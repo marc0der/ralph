@@ -668,3 +668,39 @@ MOCK
     [ "$status" -eq 0 ]
     [[ "$output" =~ $'\n── 1/1 done ── '([2-9]|[0-9]{2,})'s wall ──' ]]
 }
+
+# A mock claude whose tool names ($1 tools of $2 characters) widen the footer.
+create_wide_tool_backend() {
+    local count="$1" length="$2"
+    create_streaming_backend
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+for i in $(seq 1 COUNT); do
+    name=$(printf "Tool%0LENGTHd" "$i")
+    echo '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t'"$i"'","name":"'"$name"'","input":{}}]}}'
+done
+echo '{"type":"result","subtype":"success","duration_ms":1234,"duration_api_ms":1000,"num_turns":3,"result":"done here","session_id":"s1","total_cost_usd":0.02,"usage":{"input_tokens":100,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":50}}'
+MOCK
+    sed -i "s/COUNT/$count/; s/LENGTH/$length/" "$TEST_DIR/bin/claude"
+}
+
+@test "footer keeps a tool list that fits the width" {
+    "$RALPH" init
+    seed_open_item
+    create_wide_tool_backend 2 4
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" build -n 1 --skip-push > out.txt 2> /dev/null
+    line=$(grep '^── 1/1 done ── ' out.txt)
+    [[ "$line" == *" commits (+0/-0) · Tool0001 1, Tool0002 1 ──"* ]]
+}
+
+@test "footer drops a tool list that passes the width" {
+    "$RALPH" init
+    seed_open_item
+    create_wide_tool_backend 6 12
+    PATH="$TEST_DIR/bin:$PATH" "$RALPH" build -n 1 --skip-push > out.txt 2> /dev/null
+    line=$(grep '^── 1/1 done ── ' out.txt)
+    [ "${#line}" -eq 120 ]
+    [[ "$line" == *" commits (+0/-0) ──"* ]]
+    [[ "$line" != *Tool* ]]
+}
