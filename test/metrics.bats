@@ -682,6 +682,7 @@ EOF
     local header build_row header_prefix
     header=$(grep '^PHASE ' <<<"$output")
     build_row=$(grep '^build ' <<<"$output")
+    [[ "$header" == "PHASE  MODEL/EFFORT    ITERS  WALL  COST  OUT_TOK  COMMITS  EXIT" ]]
     header_prefix=${header%%EXIT*}
     [[ "${build_row:${#header_prefix}}" == "130" ]]
 }
