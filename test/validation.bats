@@ -460,7 +460,7 @@ create_nested_repo() {
     run "$RALPH" build --dry-run
     [[ "$status" -eq 0 ]]
     # 1 real item + 20% headroom = 2, not 4 (which would include the example).
-    [[ "$(card_row iterations "$output" build)" == "iterations auto(2) "* ]]
+    [[ "$(card_row iterations "$output" build)" == "iterations: auto(2) "* ]]
 }
 
 @test "build tolerates trailing whitespace on the Items heading" {
@@ -471,7 +471,7 @@ create_nested_repo() {
     printf -- '- [ ] **Real task**\n' >> IMPLEMENTATION_PLAN.md
     run "$RALPH" build --dry-run
     [[ "$status" -eq 0 ]]
-    [[ "$(card_row iterations "$output" build)" == "iterations auto(2) "* ]]
+    [[ "$(card_row iterations "$output" build)" == "iterations: auto(2) "* ]]
 }
 
 @test "build -n overrides calculated iterations" {
@@ -479,7 +479,7 @@ create_nested_repo() {
     touch PROGRESS.md
     run "$RALPH" build -n 10 --dry-run
     [[ "$status" -eq 0 ]]
-    [[ "$(card_row iterations "$output" build)" == "iterations 10 "* ]]
+    [[ "$(card_row iterations "$output" build)" == "iterations: 10 "* ]]
 }
 
 @test "build calculates iterations from plan with headroom" {
@@ -490,5 +490,5 @@ create_nested_repo() {
     touch PROGRESS.md
     run "$RALPH" build --dry-run
     [[ "$status" -eq 0 ]]
-    [[ "$(card_row iterations "$output" build)" == "iterations auto(6) "* ]]
+    [[ "$(card_row iterations "$output" build)" == "iterations: auto(6) "* ]]
 }

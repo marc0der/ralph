@@ -1601,15 +1601,31 @@ card_row_widths() (
     echo "${widths[*]}"
 )
 
+# Turns a label/value cell row into display units: "label:", value, then "label: value" per pair.
+card_units() {
+    local i out
+    local -a cells
+    IFS=$'\x1f' read -ra cells <<< "$1"$'\x1f'
+    out="${cells[0]:+${cells[0]}:}"$'\x1f'"${cells[1]}"
+    for (( i = 2; i < ${#cells[@]}; i += 2 )); do
+        out+=$'\x1f'"${cells[i]:+${cells[i]}: }${cells[i + 1]}"
+    done
+    printf '%s' "$out"
+}
+
 print_card_rows() (
     LC_ALL=$CARD_LOCALE
-    local row i len plain colored pad
-    local -a cells widths split_rows=()
-    read -ra widths <<< "$(card_row_widths "$@")"
-    for row in "$@"; do
-        IFS=$'\x1f' read -ra cells <<< "$row"$'\x1f'
-        len=$(( 2 + ${#cells[${#cells[@]} - 1]} ))
-        for (( i = 0; i < ${#cells[@]} - 1; i++ )); do
+    local row i j len plain colored pad
+    local -a rows=("$@") cells units widths unit_rows=() split_rows=()
+    for row in "${rows[@]}"; do
+        unit_rows+=("$(card_units "$row")")
+    done
+    read -ra widths <<< "$(card_row_widths "${unit_rows[@]}")"
+    for (( j = 0; j < ${#rows[@]}; j++ )); do
+        IFS=$'\x1f' read -ra cells <<< "${rows[j]}"$'\x1f'
+        IFS=$'\x1f' read -ra units <<< "${unit_rows[j]}"$'\x1f'
+        len=$(( 2 + ${#units[${#units[@]} - 1]} ))
+        for (( i = 0; i < ${#units[@]} - 1; i++ )); do
             len=$(( len + widths[i] ))
         done
         if (( ${#cells[@]} > 2 && len > CARD_WIDTH )); then
@@ -1617,23 +1633,30 @@ print_card_rows() (
                 split_rows+=("${cells[i]}"$'\x1f'"${cells[i + 1]}")
             done
         else
-            split_rows+=("$row")
+            split_rows+=("${rows[j]}")
         fi
     done
-    read -ra widths <<< "$(card_row_widths "${split_rows[@]}")"
+    unit_rows=()
     for row in "${split_rows[@]}"; do
-        IFS=$'\x1f' read -ra cells <<< "$row"$'\x1f'
+        unit_rows+=("$(card_units "$row")")
+    done
+    read -ra widths <<< "$(card_row_widths "${unit_rows[@]}")"
+    for (( j = 0; j < ${#split_rows[@]}; j++ )); do
+        IFS=$'\x1f' read -ra cells <<< "${split_rows[j]}"$'\x1f'
+        IFS=$'\x1f' read -ra units <<< "${unit_rows[j]}"$'\x1f'
         plain="  " colored="  "
-        for (( i = 0; i < ${#cells[@]}; i++ )); do
+        for (( i = 0; i < ${#units[@]}; i++ )); do
             pad=""
-            if (( i < ${#cells[@]} - 1 )); then
-                printf -v pad '%*s' $(( widths[i] - ${#cells[i]} )) ''
+            if (( i < ${#units[@]} - 1 )); then
+                printf -v pad '%*s' $(( widths[i] - ${#units[i]} )) ''
             fi
-            plain+="${cells[i]}$pad"
-            if (( i % 2 == 0 )); then
-                colored+="$CARD_LABEL${cells[i]}$CARD_OFF$pad"
+            plain+="${units[i]}$pad"
+            if (( i == 0 )); then
+                colored+="${units[0]:+$CARD_LABEL${units[0]}$CARD_OFF}$pad"
+            elif (( i >= 2 )) && [[ -n ${cells[2 * i - 2]} ]]; then
+                colored+="$CARD_LABEL${cells[2 * i - 2]}:$CARD_OFF ${cells[2 * i - 1]}$pad"
             else
-                colored+="${cells[i]}$pad"
+                colored+="${units[i]}$pad"
             fi
         done
         if (( ${#plain} > CARD_WIDTH )); then
