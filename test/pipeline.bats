@@ -1811,6 +1811,17 @@ MOCK
     [[ "$output" == *"[dry-run] Would run: git -C ./src/svc push origin nested-branch"*"[dry-run] Would run: git push origin "* ]]
 }
 
+@test "nested push dry run prints HEAD for a detached repository" {
+    "$RALPH" init
+    seed_open_item
+    nested_push_repo src/det
+    git -C src/det checkout --quiet --detach
+
+    run "$RALPH" build --dry-run -n 1
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"[dry-run] Would run: git -C ./src/det push origin HEAD"* ]]
+}
+
 @test "nested push honours --skip-push" {
     "$RALPH" init
     seed_open_item
