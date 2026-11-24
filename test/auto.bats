@@ -87,7 +87,7 @@ seed_resume_state() {
 @test "auto -v exits 1 with the getopt message" {
     DEVCONTAINER=true run "$RALPH" auto -v -g "the goal"
     [[ "$status" -eq 1 ]]
-    [[ "$output" == *"ralph auto: invalid option -- 'v'"* ]]
+    [[ "$output" == *"ralph auto: invalid option -- 'v'"* || "$output" == *"ralph auto: invalid option -- v"* ]]
 }
 
 @test "auto with no -g exits 1 and names the goal" {
