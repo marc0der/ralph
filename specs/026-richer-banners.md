@@ -86,20 +86,22 @@ does today. It prints before the outside-a-container warning. For a `build` run:
 
 ```
 ━━ ralph build ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  backend     claude          model     opus            effort  high
-  config      ./ralph.yaml (local) [build]
-  branch      feat/usage-limit-message
-  prompt      /home/marco/.config/ralph/prompts/build.md
-  iterations  auto(7)         headroom  20%             patience  2       push  on
-  metrics     on              .ralph/logs/feat-x-20261123-143200-4242/build/metrics.jsonl
-  quiet       off
+  backend:     claude   model: opus    effort: high
+  config:      ./ralph.yaml (local) [build]
+  branch:      feat/usage-limit-message
+  prompt:      /home/marco/.config/ralph/prompts/build.md
+  iterations:  auto(7)  headroom: 20%  patience: 2  push: on
+  metrics:     on       .ralph/logs/feat-x-20261123-143200-4242/build/metrics.jsonl
+  quiet:       off
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 - The top rule carries the title `ralph <mode>`: `plan`, `build`, `fix`, `review` or `retro`.
-- Labels align in one column. Values on the same row align in columns. A column is as wide as its
-  longest value on that card plus two spaces. When a row would pass the width, its values move to
-  one row each.
+- Each row starts with a label and a colon. These labels align in one column, so the first values
+  line up. A later pair on the same row prints as `label: value`, with the colon after the label.
+  Each value or pair after the first label is one cell, and cells align in columns across rows. A
+  column is as wide as its longest cell on that card plus two spaces. A row's last cell sets no
+  width. When a row would pass the width, its pairs move to one row each.
 - `config` prints the source as section 10 of spec 019 defines it: `./ralph.yaml (local)`, the
   central path with `(central)`, or `built-in (no config file)`. The section the run read follows
   in brackets.
@@ -189,7 +191,7 @@ Tests run off a terminal, so their output has no colour and a width of 120.
 
 **Run card**
 - A dry-run `build` prints one run card on stderr, and prints no `Mode:` header on stdout.
-- The run card names backend, model and effort on one row, and prints `effort  default` when unset.
+- The run card names backend, model and effort on one row, and prints `effort: default` when unset.
 - The run card prints under `--quiet`.
 - A section that sets `extra_args` prints an `extra args` row with them. A section that sets none
   prints no such row.
