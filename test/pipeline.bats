@@ -1405,6 +1405,29 @@ MOCK
     [[ "$output" == *"Completed 3 iterations"* ]]
 }
 
+@test "plan stops at the cap of 3 with no -n and no iterations" {
+    "$RALPH" init
+    mkdir -p "$TEST_DIR/bin"
+    # Appends an item on every pass, so only the cap can end the run.
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+CALL_LOG="$TEST_DIR/call_count"
+count=0
+[[ -f "\$CALL_LOG" ]] && count=\$(cat "\$CALL_LOG")
+count=\$((count + 1))
+echo "\$count" > "\$CALL_LOG"
+echo "- [ ] **Task \$count**" >> IMPLEMENTATION_PLAN.md
+echo '{"type":"result","result":"planning"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan --skip-push -g "the goal"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Completed 3 iterations"* ]]
+    [[ "$output" != *"Plan converged"* ]]
+    [[ "$(<"$TEST_DIR/call_count")" == "3" ]]
+}
+
 @test "plan counts a spec-only edit as progress" {
     "$RALPH" init
     mkdir -p "$TEST_DIR/bin"
