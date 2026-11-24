@@ -8,9 +8,9 @@ CONFIG_DIR="${RALPH_CONFIG_DIR:-$HOME/.config/ralph}"
 LOCAL_CONFIG_FILE="ralph.yaml"
 CONFIG_JSON=""
 
-# Safety-net cap for plan mode; a plan run normally ends on convergence,
-# well before this (build mode calculates its own count from the plan)
-PLAN_DEFAULT_CAP=6
+# Safety-net cap for plan mode; a plan run normally ends on convergence
+# (build mode calculates its own count from the plan)
+PLAN_DEFAULT_CAP=3
 
 ARTIFACTS=(IMPLEMENTATION_PLAN.md PROGRESS.md PROMPT_plan.md PROMPT_build.md PROMPT_review.md PROMPT_retro.md .ralph/cycle-base)
 ARCHIVE_DIR=".ralph"
@@ -306,7 +306,7 @@ Auto options:
   auto does not accept -n/--iterations; each phase resolves its own count
 
 Options:
-  -n, --iterations N   Max iterations (plan default: 6, build and fix: calculated
+  -n, --iterations N   Max iterations (plan default: 3, build and fix: calculated
                        from the plan). In build and fix this also disables the
                        noop exit; in plan mode it caps the run but
                        never disables the convergence exit. review and retro reject -n

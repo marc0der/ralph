@@ -507,7 +507,7 @@ run_retro_with_config() {
     [[ "$status" -eq 0 ]]
     [[ "$(card_row config "$stderr" plan)" == "config: built-in (no config file) [plan]" ]]
     [[ "$(card_row backend "$stderr" plan)" == "backend: claude model: opus effort: low" ]]
-    [[ "$(card_row iterations "$stderr" plan)" == "iterations: 6" ]]
+    [[ "$(card_row iterations "$stderr" plan)" == "iterations: 3" ]]
     [[ "$(card_row metrics "$stderr" plan)" == "metrics: off (dry-run)" ]]
     [[ "$(card_row quiet "$stderr" plan)" == "quiet: off" ]]
     seed_shipped_item
