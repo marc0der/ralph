@@ -131,7 +131,7 @@ Every run also keeps a record under `.ralph/logs/`: how long each pass took, wha
 
 ### When something goes wrong
 
-Just run the command again. All a pass needs is the plan and the progress log, so the next `build` carries on from wherever the last one stopped. If a push is rejected, pull and resolve the conflict yourself, then re-run.
+Just run the command again. All a pass needs is the plan and the progress log, so the next `build` carries on from wherever the last one stopped. If a push is rejected, Ralph names the repository whose push git rejected. Pull and resolve the conflict there yourself, then re-run.
 
 ## Sandbox and safety
 
@@ -170,7 +170,7 @@ The file holds up to six sections: `defaults`, `plan`, `build`, `fix`, `review` 
 | `noop_patience` | positive integer                        | build, fix       | `2`                          | none |
 | `skip_push`     | boolean                                 | build, fix       | `false`                      | `--skip-push` / `--push` |
 
-`defaults` takes only the keys whose phases read "all". `iterations` turns self-sizing off, so a section that sets it can't also set `headroom_pct` or `noop_patience`. Every run prints a run card to stderr naming the file, the section and the values it used.
+`skip_push` governs every repository the cycle moved, and the workspace. `defaults` takes only the keys whose phases read "all". `iterations` turns self-sizing off, so a section that sets it can't also set `headroom_pct` or `noop_patience`. Every run prints a run card to stderr naming the file, the section and the values it used.
 
 **Commit style.** The build prompt asks for small [Conventional Commits](https://www.conventionalcommits.org/), with only the relevant files staged. The planner edits specs but commits nothing. When the plan run ends, Ralph commits the planner's spec changes as one `docs(specs)` commit per repository. The plan file, progress log and `.ralph/` are never committed. Edit `PROMPT_build.md` to change this.
 
@@ -207,8 +207,8 @@ The file holds up to six sections: `defaults`, `plan`, `build`, `fix`, `review` 
 | `-m`, `--model`      | Model to use (default depends on the backend) |
 | `-b`, `--backend`    | `claude`, `codex`, `copilot` or `pi` (default: `claude`) |
 | `-e`, `--effort`     | Effort level, one the backend lists (default: the backend's own) |
-| `--skip-push`        | Don't push after each build pass. Plan, review and retro never push |
-| `--push`             | Push after each build pass, overriding `skip_push: true` |
+| `--skip-push`        | Skip the push of every repository the cycle moved, and the workspace, after each build pass. Plan, review and retro never push |
+| `--push`             | Push every repository the cycle moved, and the workspace, after each build pass, overriding `skip_push: true` |
 | `--dry-run`          | Show what would run, without running it |
 | `--no-metrics`       | Don't record metrics under `.ralph/logs/` |
 | `--metrics`          | Record metrics, overriding `metrics: false` |

@@ -314,9 +314,10 @@ Options:
   -m, --model MODEL    Model to use (default depends on backend)
   -b, --backend NAME   Backend to use: claude, codex, copilot, pi (default: claude)
   -e, --effort LEVEL   Effort level for the run (levels depend on backend)
-      --skip-push      Don't push after each build or fix iteration (plan, review and retro
-                       never push)
-      --push           Push after each build or fix iteration; overrides skip_push: true
+      --skip-push      Skip the push of every repository the cycle moved, and the workspace,
+                       after each build or fix iteration (plan, review and retro never push)
+      --push           Push every repository the cycle moved, and the workspace, after each
+                       build or fix iteration; overrides skip_push: true
       --dry-run        Print what would be executed without running
       --no-metrics     Don't record per-iteration metrics under .ralph/logs/
       --metrics        Record metrics; overrides metrics: false
