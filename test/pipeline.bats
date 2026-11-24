@@ -1792,3 +1792,28 @@ MOCK
     [ "$status" -eq 0 ]
     [[ "$(git --git-dir="$TEST_DIR/remotes/src/svc.git" rev-parse nested-branch)" == "$(git -C src/svc rev-parse HEAD)" ]]
 }
+
+@test "nested push dry run prints the nested line first" {
+    "$RALPH" init
+    seed_open_item
+    nested_push_repo src/svc
+
+    run "$RALPH" build --dry-run -n 1
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"[dry-run] Would run: git -C ./src/svc push origin nested-branch"*"[dry-run] Would run: git push origin "* ]]
+}
+
+@test "nested push honours --skip-push" {
+    "$RALPH" init
+    seed_open_item
+    nested_push_repo src/svc
+    create_nested_push_backend
+
+    MOCK_NESTED_REPOS="src/svc" PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push
+    [ "$status" -eq 0 ]
+    [[ -z "$(git --git-dir="$TEST_DIR/remotes/src/svc.git" for-each-ref refs/heads/nested-branch)" ]]
+
+    run "$RALPH" build --dry-run -n 1 --skip-push
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"git -C ./src/svc push"* ]]
+}
