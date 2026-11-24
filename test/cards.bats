@@ -219,6 +219,7 @@ load test_helper
 }
 
 @test "run card prints the branch and prompt rows" {
+    use_relative_config_dir
     "$RALPH" init
     seed_open_item
     run --separate-stderr "$RALPH" build --dry-run
@@ -244,6 +245,7 @@ load test_helper
 
 @test "run card names the local and central config sources with their section" {
     require_yq_or_skip
+    use_relative_config_dir
     "$RALPH" init
     seed_open_item
     printf 'build:\n  effort: high\n' > "$RALPH_CONFIG_DIR/config.yaml"

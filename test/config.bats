@@ -483,6 +483,7 @@ run_retro_with_config() {
 
 @test "the run card names the local and central sources" {
     require_yq_or_skip
+    use_relative_config_dir
     "$RALPH" init
     seed_open_item
     printf 'build:\n  effort: high\n' > "$RALPH_CONFIG_DIR/config.yaml"
@@ -605,6 +606,7 @@ run_retro_with_config() {
 }
 
 @test "fix --dry-run runs build mode under the fix section" {
+    use_relative_config_dir
     "$RALPH" init
     seed_open_item
     run --separate-stderr "$RALPH" fix --dry-run
@@ -710,6 +712,7 @@ run_retro_with_config() {
 
 @test "the shipped config.yaml validates and sets no backend-tied key" {
     require_yq_or_skip
+    use_relative_config_dir
     cp "$BATS_TEST_DIRNAME/../templates/config.yaml" "$RALPH_CONFIG_DIR/config.yaml"
     "$RALPH" init
     seed_open_item
@@ -740,6 +743,7 @@ dry_run_card_rows() {
 
 @test "the shipped config.yaml drifts from no built-in in plan, build, fix, review and retro" {
     require_yq_or_skip
+    use_relative_config_dir
     "$RALPH" init
     seed_shipped_item
     seed_cycle_base
