@@ -6,12 +6,7 @@ load test_helper
 # give it a bare origin under $TEST_DIR/remotes, and check out nested-branch.
 nested_push_repo() {
     local path="$1"
-    mkdir -p "$path"
-    git -C "$path" init --quiet
-    git -C "$path" config user.email "nested@test.com"
-    git -C "$path" config user.name "Nested"
-    git -C "$path" commit --allow-empty -m "nested initial" --quiet
-    echo "${path%%/*}/" >> .gitignore
+    nested_repo "$path"
     git init --bare --quiet "$TEST_DIR/remotes/$path.git"
     git -C "$path" remote add origin "$TEST_DIR/remotes/$path.git"
     git -C "$path" checkout --quiet -b nested-branch

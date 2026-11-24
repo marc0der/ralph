@@ -43,16 +43,6 @@ seed_committed_spec() {
     git commit -q -m "docs(specs): add existing"
 }
 
-# Create a repository at $1 with one commit, copied from nested_repos.bats.
-init_repo() {
-    local path="$1"
-    mkdir -p "$path"
-    git -C "$path" init --quiet
-    git -C "$path" config user.email "nested@test.com"
-    git -C "$path" config user.name "Nested"
-    git -C "$path" commit --allow-empty -m "nested initial" --quiet
-}
-
 run_plan() {
     PATH="$TEST_DIR/bin:$PATH" run "$RALPH" plan -g "the goal" "$@"
 }

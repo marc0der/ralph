@@ -26,24 +26,6 @@ teardown() {
     return 0
 }
 
-# Create a repository at $1 with one commit. $1 may sit outside the workspace.
-init_repo() {
-    local path="$1"
-    mkdir -p "$path"
-    git -C "$path" init --quiet
-    git -C "$path" config user.email "nested@test.com"
-    git -C "$path" config user.name "Nested"
-    git -C "$path" commit --allow-empty -m "nested initial" --quiet
-}
-
-# Create a nested repository at $1 with one commit, and gitignore its top
-# directory so the workspace repository never sees it.
-nested_repo() {
-    local path="$1"
-    init_repo "$path"
-    echo "${path%%/*}/" >> .gitignore
-}
-
 # Mock backend that commits into $TARGET_REPO on every iteration and touches
 # nothing in the workspace.
 create_nested_committing_backend() {
