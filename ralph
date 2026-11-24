@@ -1177,6 +1177,19 @@ write_cycle_base() {
     repo_state > "$CYCLE_BASE_FILE"
 }
 
+# List the nested repositories the cycle moved, deepest first, one path per line.
+# A repository the base does not list counts as moved; a missing base moves all.
+cycle_push_set() {
+    local line path slashes
+    while IFS= read -r line; do
+        path=${line% *}
+        [[ "$path" == "." || "${line##* }" == "-" ]] && continue
+        [[ -f "$CYCLE_BASE_FILE" ]] && grep -qxF -- "$line" "$CYCLE_BASE_FILE" && continue
+        slashes=${path//[^\/]/}
+        printf '%s\t%s\n' "${#slashes}" "$path"
+    done < <(repo_state) | LC_ALL=C sort -t$'\t' -k1,1nr -k2,2 | cut -f2-
+}
+
 # List the paths the cycle changed, relative to the workspace root, one per line.
 # A repository commitless at the base or created after it counts all its tracked files.
 cycle_changed_files() {
