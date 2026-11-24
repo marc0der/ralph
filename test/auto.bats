@@ -719,6 +719,26 @@ seed_resume_state() {
     [[ -f "${runs[0]}retro/iter-001.stream.jsonl" ]]
 }
 
+@test "--resume --no-metrics keeps the recorded run in .ralph/auto-state" {
+    create_committing_backend
+    MOCK_RETRO_EXIT=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push -g "the goal"
+    [[ "$status" -eq 1 ]]
+    local -a before=(.ralph/logs/*/)
+    grep -qx "run=${before[0]%/}" .ralph/auto-state
+
+    MOCK_RETRO_EXIT=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --resume --skip-push --no-metrics -g "the goal"
+    [[ "$status" -eq 1 ]]
+    grep -qx "run=${before[0]%/}" .ralph/auto-state
+
+    run_auto --resume --skip-push
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"Resumed into a new run directory"* ]]
+
+    local -a runs=(.ralph/logs/*/)
+    [[ "${#runs[@]}" -eq 1 ]]
+    [[ "${runs[0]}" == "${before[0]}" ]]
+}
+
 @test "an exported RALPH_RUN_DIR gets nothing from auto --no-metrics" {
     create_committing_backend
     local exported="$BATS_TEST_TMPDIR/exported"

@@ -2989,7 +2989,7 @@ write_auto_state() {
         echo "phase_name=$2"
         echo "child_exit=$3"
         echo "failed_at=$(utc_now)"
-        echo "run=${RALPH_RUN_DIR:-}"
+        echo "run=$4"
     } > "$AUTO_STATE_FILE"
 }
 
@@ -3156,7 +3156,7 @@ cmd_auto() {
     # 130 under its own trap and auto records the phase in flight, prints the
     # report and exits 130. A signal to auto alone defers until the child
     # returns (§5 known hazard, §13 fix).
-    trap 'phase_state[phase_num]="interrupted"; phase_exit[phase_num]=130; write_auto_state "$phase_num" "$phase" 130; auto_report; exit 130' SIGINT SIGTERM
+    trap 'phase_state[phase_num]="interrupted"; phase_exit[phase_num]=130; write_auto_state "$phase_num" "$phase" 130 "${run_dir:-$recorded_run}"; auto_report; exit 130' SIGINT SIGTERM
 
     # Resume entry (§5). A plain run starts at phase 1 and clears any stale
     # state file. --resume re-enters at the recorded phase, floored at
@@ -3305,7 +3305,7 @@ cmd_auto() {
                 local dirty_repo
                 if dirty_repo=$(have_dirty_specs); then
                     phase_state[phase_num]="refused — specs/ has uncommitted changes"
-                    write_auto_state "$phase_num" "$phase" 1
+                    write_auto_state "$phase_num" "$phase" 1 "${run_dir:-$recorded_run}"
                     echo "Error: specs/ has uncommitted changes in $dirty_repo." >&2
                     echo "Commit or stash them, then run 'ralph auto --resume'." >&2
                     auto_report
@@ -3314,7 +3314,7 @@ cmd_auto() {
                 local detached_repo
                 if detached_repo=$(have_detached_spec_repo); then
                     phase_state[phase_num]="refused — detached HEAD"
-                    write_auto_state "$phase_num" "$phase" 1
+                    write_auto_state "$phase_num" "$phase" 1 "${run_dir:-$recorded_run}"
                     echo "Error: $detached_repo is on a detached HEAD." >&2
                     echo "Check out a branch, then run 'ralph auto --resume'." >&2
                     auto_report
@@ -3353,7 +3353,7 @@ cmd_auto() {
         phase_exit[phase_num]=$child_exit
         if [[ $child_exit -ne 0 ]]; then
             phase_state[phase_num]="failed — exit $child_exit"
-            write_auto_state "$phase_num" "$phase" "$child_exit"
+            write_auto_state "$phase_num" "$phase" "$child_exit" "${run_dir:-$recorded_run}"
             echo "Re-run: $RALPH_SELF auto --resume" >&2
             auto_report
             exit 1
