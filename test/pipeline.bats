@@ -1908,3 +1908,10 @@ HOOK
     [[ "$output" == *"Push failed in ./src/svc:"* ]]
     [[ -z "$(git --git-dir="$TEST_DIR/remote.git" for-each-ref refs/heads/push-branch)" ]]
 }
+
+@test "build prompt forbids the agent push" {
+    local prompt
+    prompt="$(<"$BATS_TEST_DIRNAME/../prompts/build.md")"
+    [[ "$prompt" == *"Never run \`git push\`"* ]]
+    [[ "$prompt" != *'git -C <toplevel> push'* ]]
+}
