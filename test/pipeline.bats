@@ -1912,6 +1912,23 @@ HOOK
     [[ "$(git -C src/svc rev-parse --abbrev-ref '@{u}')" == "origin/nested-branch" ]]
 }
 
+@test "nested push prints git output unless --quiet" {
+    "$RALPH" init
+    seed_open_item
+    nested_push_repo src/svc
+    create_nested_push_backend
+
+    MOCK_NESTED_REPOS="src/svc" PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1
+    [ "$status" -eq 0 ]
+    # shellcheck disable=SC2154  # set by bats `run --separate-stderr`, not by this script
+    [[ "$stderr" == *"nested-branch -> nested-branch"* ]]
+
+    MOCK_NESTED_REPOS="src/svc" PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --quiet
+    [ "$status" -eq 0 ]
+    [[ "$(git --git-dir="$TEST_DIR/remotes/src/svc.git" rev-parse nested-branch)" == "$(git -C src/svc rev-parse HEAD)" ]]
+    [[ "$stderr" != *"nested-branch -> nested-branch"* ]]
+}
+
 @test "nested push stops on a rejected push" {
     "$RALPH" init
     seed_open_item
@@ -1925,6 +1942,7 @@ HOOK
     MOCK_NESTED_REPOS="src/svc" PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1
     [ "$status" -eq 1 ]
     [[ "$output" == *"Push failed in ./src/svc:"* ]]
+    [[ "$output" == *"pre-receive hook declined"* ]]
     [[ -z "$(git --git-dir="$TEST_DIR/remote.git" for-each-ref refs/heads/push-branch)" ]]
 }
 
