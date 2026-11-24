@@ -826,7 +826,7 @@ MOCK
     create_committing_backend
     local exported="$BATS_TEST_TMPDIR/exported"
     mkdir -p "$exported"
-    # shellcheck disable=SC2031
+    # shellcheck disable=SC2030,SC2031
     export RALPH_RUN_DIR="$exported"
 
     run_auto --skip-push
@@ -834,6 +834,22 @@ MOCK
 
     local -a runs=(.ralph/logs/*/)
     [[ "${#runs[@]}" -eq 1 ]]
+    [[ -z "$(ls -A "$exported")" ]]
+}
+
+@test "an exported RALPH_RUN_DIR gets nothing when auto cannot create the run folder" {
+    create_committing_backend
+    mkdir -p .ralph
+    touch .ralph/logs
+    local exported="$BATS_TEST_TMPDIR/exported"
+    mkdir -p "$exported"
+    # shellcheck disable=SC2031
+    export RALPH_RUN_DIR="$exported"
+
+    run_auto --skip-push
+    rm -f .ralph/logs
+
+    [[ "$status" -eq 0 ]]
     [[ -z "$(ls -A "$exported")" ]]
 }
 
