@@ -165,7 +165,7 @@ MOCK
     seed_open_item
     run "$RALPH" build -v
     [[ "$status" -eq 1 ]]
-    [[ "$output" == *"ralph: invalid option -- 'v'"* ]]
+    [[ "$output" == *"ralph: invalid option -- 'v'"* || "$output" == *"ralph: invalid option -- v"* ]]
 }
 
 # --- Pipeline failure: backend exits non-zero ---
