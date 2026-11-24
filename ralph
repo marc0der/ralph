@@ -2410,6 +2410,8 @@ cmd_loop() {
     quiet="${quiet:-false}"
 
     resolve_backend "$backend"
+    [[ -n "$model" ]] || model=$(resolve_phase_default "$section" model)
+    [[ -n "$effort" ]] || effort=$(resolve_phase_default "$section" effort)
     [[ -n "$effort" ]] && require_effort_level "$effort"
 
     if [[ -z "$model" ]]; then

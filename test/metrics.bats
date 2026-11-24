@@ -1193,7 +1193,7 @@ MOCK
     [[ $(jq -c '{mode, section, effort, config}' <<<"$line") == '{"mode":"build","section":"fix","effort":"high","config":"ralph.yaml"}' ]]
 }
 
-@test "metrics record null effort and config without a config file" {
+@test "metrics record the phase default effort and null config without a config file" {
     "$RALPH" init
     printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
     create_committing_backend
@@ -1203,7 +1203,7 @@ MOCK
 
     local line
     line=$(tail -1 "$(latest_metrics_file)")
-    [[ $(jq -c '{section, effort, config}' <<<"$line") == '{"section":"build","effort":null,"config":null}' ]]
+    [[ $(jq -c '{section, effort, config}' <<<"$line") == '{"section":"build","effort":"xhigh","config":null}' ]]
 }
 
 @test "ralph metrics shows effort, config and section in the run summary" {
