@@ -215,7 +215,8 @@ seed_resume_state() {
     # PROGRESS.md leaves phase 6's guard naming plan artifacts, not only the plan.
     create_committing_backend
     # Wrap the mock: after a build commit, drop PROGRESS.md so phase 6 guards out.
-    sed -i 's#git commit -q -m "mock build commit" >/dev/null 2>&1#&; rm -f PROGRESS.md#' "$TEST_DIR/bin/claude"
+    sed -i.bak 's#git commit -q -m "mock build commit" >/dev/null 2>&1#&; rm -f PROGRESS.md#' "$TEST_DIR/bin/claude"
+    rm -f "$TEST_DIR/bin/claude.bak"
     run_auto --skip-push --no-metrics
     [[ "$output" == *"6 fix       skipped — no plan artifacts"* ]]
 }

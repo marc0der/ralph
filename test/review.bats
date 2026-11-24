@@ -329,7 +329,8 @@ MOCK
     cat > "$TEST_DIR/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
 cat > /dev/null
-sed -i '0,/^- \[x\] \*\*Shipped two\*\*$/s//- [ ] **Shipped two**/' IMPLEMENTATION_PLAN.md
+sed -i.bak 's/^- \[x\] \*\*Shipped two\*\*$/- [ ] **Shipped two**/' IMPLEMENTATION_PLAN.md
+rm -f IMPLEMENTATION_PLAN.md.bak
 echo '{"type":"result","result":"reviewing"}'
 MOCK
     chmod +x "$TEST_DIR/bin/claude"
