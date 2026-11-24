@@ -47,6 +47,16 @@ assert_no_trailing_space() {
     done <<<"$output"
 }
 
+utf8_locale() {
+    local locale dash=—
+    for locale in C.UTF-8 en_US.UTF-8 UTF-8; do
+        if [[ $(LC_ALL=$locale bash -c 'echo "${#1}"' _ "$dash" 2>/dev/null) == 1 ]]; then
+            echo "$locale"
+            return 0
+        fi
+    done
+}
+
 @test "build records one metrics line per iteration" {
     "$RALPH" init
     printf -- '- [ ] one\n- [ ] two\n- [ ] three\n' > IMPLEMENTATION_PLAN.md
@@ -674,6 +684,29 @@ EOF
     build_row=$(grep '^build ' <<<"$output")
     header_prefix=${header%%EXIT*}
     [[ "${build_row:${#header_prefix}}" == "130" ]]
+}
+
+@test "a rollup row whose state holds a dash keeps EXIT under its header" {
+    local locale
+    locale=$(utf8_locale)
+    [[ -n "$locale" ]] || skip "no UTF-8 locale where bash counts a dash as one character"
+    export LC_ALL=$locale
+    mkdir -p .ralph/logs/r1/plan
+    printf '%s\n' '{"iteration":1,"mode":"plan","model":"sonnet","effort":null,"wall_s":5,"cost_usd":0.5,"tokens":{"output":40},"plan_items_completed":1,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false}}' \
+        > .ralph/logs/r1/plan/metrics.jsonl
+    cat > .ralph/logs/r1/auto.json <<'EOF'
+{"goal":"ship it","branch":"main","started":"2026-11-23T10:00:00Z","phases":[
+ {"phase":3,"name":"plan","state":"ran","exit":0,"started":null,"ended":null},
+ {"phase":4,"name":"build","state":"failed — exit 1","exit":1,"started":null,"ended":null}]}
+EOF
+
+    run "$RALPH" metrics .ralph/logs/r1
+    [[ "$status" -eq 0 ]]
+    local header build_row header_prefix
+    header=$(grep '^PHASE ' <<<"$output")
+    build_row=$(grep '^build ' <<<"$output")
+    header_prefix=${header%%EXIT*}
+    [[ "${build_row:${#header_prefix}}" == "1" ]]
 }
 
 @test "a phase folder without records prints 0 iterations, dashes and its auto.json exit" {
