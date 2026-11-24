@@ -1816,6 +1816,7 @@ MOCK
     seed_open_item
     nested_push_repo src/det
     git -C src/det checkout --quiet --detach
+    git -C src/det remote remove origin
 
     run "$RALPH" build --dry-run -n 1
     [ "$status" -eq 0 ]
@@ -1944,6 +1945,23 @@ HOOK
     [[ "$output" == *"Push failed in ./src/svc:"* ]]
     [[ "$output" == *"pre-receive hook declined"* ]]
     [[ -z "$(git --git-dir="$TEST_DIR/remote.git" for-each-ref refs/heads/push-branch)" ]]
+}
+
+@test "nested push stops before the next repository" {
+    "$RALPH" init
+    seed_open_item
+    nested_push_repo src/a
+    nested_push_repo src/b
+    add_bare_origin
+    create_nested_push_backend
+    mkdir -p "$TEST_DIR/remotes/src/a.git/hooks"
+    printf '#!/usr/bin/env bash\nexit 1\n' > "$TEST_DIR/remotes/src/a.git/hooks/pre-receive"
+    chmod +x "$TEST_DIR/remotes/src/a.git/hooks/pre-receive"
+
+    MOCK_NESTED_REPOS="src/a src/b" PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Push failed in ./src/a:"* ]]
+    [[ -z "$(git --git-dir="$TEST_DIR/remotes/src/b.git" for-each-ref refs/heads/nested-branch)" ]]
 }
 
 @test "build prompt forbids the agent push" {
