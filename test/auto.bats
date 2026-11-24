@@ -739,6 +739,38 @@ seed_resume_state() {
     [[ "${runs[0]}" == "${before[0]}" ]]
 }
 
+@test "a resumed dirty specs/ refusal keeps the recorded run" {
+    create_committing_backend
+    mkdir -p specs
+    echo "draft" > specs/x.md
+    run_auto --skip-push
+    [[ "$status" -eq 1 ]]
+    local run_line
+    run_line=$(grep '^run=' .ralph/auto-state)
+    [[ -n "${run_line#run=}" ]]
+
+    run_auto --resume --skip-push --no-metrics
+    [[ "$status" -eq 1 ]]
+    grep -qxF "$run_line" .ralph/auto-state
+}
+
+@test "a resumed detached HEAD refusal keeps the recorded run" {
+    create_committing_backend
+    mkdir -p specs
+    echo "spec" > specs/x.md
+    git add -- specs/x.md; git commit -q -m "docs(specs): add x"
+    git checkout -q --detach
+    run_auto --skip-push
+    [[ "$status" -eq 1 ]]
+    local run_line
+    run_line=$(grep '^run=' .ralph/auto-state)
+    [[ -n "${run_line#run=}" ]]
+
+    run_auto --resume --skip-push --no-metrics
+    [[ "$status" -eq 1 ]]
+    grep -qxF "$run_line" .ralph/auto-state
+}
+
 @test "an exported RALPH_RUN_DIR gets nothing from auto --no-metrics" {
     create_committing_backend
     local exported="$BATS_TEST_TMPDIR/exported"
