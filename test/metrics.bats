@@ -194,7 +194,7 @@ MOCK
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"── 1/1 ── "* ]]
 
-    [[ "$(jq -r '.iteration' .ralph/logs/given/build/metrics.jsonl | paste -sd,)" == "1,2" ]]
+    [[ "$(jq -r '.iteration' .ralph/logs/given/build/metrics.jsonl | paste -sd, -)" == "1,2" ]]
     [[ -f .ralph/logs/given/build/iter-001.stream.jsonl ]]
     [[ -f .ralph/logs/given/build/iter-002.stream.jsonl ]]
 }
@@ -224,7 +224,7 @@ MOCK
     RALPH_RUN_DIR=.ralph/logs/given PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
     [[ "$status" -eq 0 ]]
 
-    [[ "$(jq -r '.iteration' .ralph/logs/given/build/metrics.jsonl | paste -sd,)" == "12,13" ]]
+    [[ "$(jq -r '.iteration' .ralph/logs/given/build/metrics.jsonl | paste -sd, -)" == "12,13" ]]
     [[ -f .ralph/logs/given/build/iter-013.stream.jsonl ]]
 }
 
@@ -238,7 +238,7 @@ MOCK
     RALPH_RUN_DIR=.ralph/logs/given PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
     [[ "$status" -eq 0 ]]
 
-    [[ "$(jq -r '.iteration' .ralph/logs/given/build/metrics.jsonl | paste -sd,)" == "3,1,4" ]]
+    [[ "$(jq -r '.iteration' .ralph/logs/given/build/metrics.jsonl | paste -sd, -)" == "3,1,4" ]]
     [[ -f .ralph/logs/given/build/iter-004.stream.jsonl ]]
 }
 
