@@ -1863,3 +1863,48 @@ HOOK
     [ "$status" -eq 0 ]
     [[ "$(<"$TEST_DIR/push-order")" == *"/remotes/a/b.git"*"/remotes/a.git"* ]]
 }
+
+@test "nested push skips a repository it cannot push" {
+    "$RALPH" init
+    seed_open_item
+    nested_push_repo src/bare
+    nested_push_repo src/det
+    git -C src/bare remote remove origin
+    git -C src/det checkout --quiet --detach
+    create_nested_push_backend
+
+    MOCK_NESTED_REPOS="src/bare src/det" PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"No 'origin' remote in ./src/bare — skipping push."* ]]
+    [[ "$output" == *"Detached HEAD in ./src/det — skipping push."* ]]
+    [[ "$output" == *$'\nNo \'origin\' remote — skipping push.'* ]]
+}
+
+@test "nested push sets an upstream" {
+    "$RALPH" init
+    seed_open_item
+    nested_push_repo src/svc
+    create_nested_push_backend
+    run git -C src/svc rev-parse --abbrev-ref '@{u}'
+    [ "$status" -ne 0 ]
+
+    MOCK_NESTED_REPOS="src/svc" PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1
+    [ "$status" -eq 0 ]
+    [[ "$(git -C src/svc rev-parse --abbrev-ref '@{u}')" == "origin/nested-branch" ]]
+}
+
+@test "nested push stops on a rejected push" {
+    "$RALPH" init
+    seed_open_item
+    nested_push_repo src/svc
+    add_bare_origin
+    create_nested_push_backend
+    mkdir -p "$TEST_DIR/remotes/src/svc.git/hooks"
+    printf '#!/usr/bin/env bash\nexit 1\n' > "$TEST_DIR/remotes/src/svc.git/hooks/pre-receive"
+    chmod +x "$TEST_DIR/remotes/src/svc.git/hooks/pre-receive"
+
+    MOCK_NESTED_REPOS="src/svc" PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Push failed in ./src/svc:"* ]]
+    [[ -z "$(git --git-dir="$TEST_DIR/remote.git" for-each-ref refs/heads/push-branch)" ]]
+}
