@@ -1770,3 +1770,14 @@ MOCK
     [[ "$output" != *"No 'origin' remote"* ]]
     [[ "$output" != *"Push failed"* ]]
 }
+
+# --- Nested push ---
+
+@test "nested push set orders deepest first" {
+    nested_push_repo c
+    nested_push_repo a/b
+    nested_push_repo a
+    run ralph_fn cycle_push_set
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == $'./a/b\n./a\n./c' ]]
+}
