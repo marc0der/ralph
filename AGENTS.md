@@ -112,6 +112,8 @@ Override with `RALPH_BIN_DIR` and `RALPH_CONFIG_DIR`.
 - Each test gets a fresh temp directory with `git init` and a mock `RALPH_CONFIG_DIR` (see `test/test_helper.bash`)
 - Use `skip` with a message when a test can't run on the current platform (e.g., missing `devcontainer` CLI, NixOS PATH isolation issues)
 - The `path_without` helper in `sandbox.bats` builds a PATH excluding a specific command — but beware that on NixOS/Ubuntu, coreutils share a directory, so stripping one command may break others
+- Tests, helpers and mock backends use only command forms that GNU and BSD tools both accept, unless they first check for the tool and skip with a message when the form is missing. Never use in-place `sed` with no backup suffix (write `sed -i.bak …` and delete the `.bak`), `sed` addresses that start at line `0`, `paste` with no file operand (write `paste -sd, -`), or `date +%N`
+- An assertion never compares a whole card row that holds a path under the temporary directory — macOS temp paths are long enough for the card to cut the row; call `use_relative_config_dir` first — and never depends on the quotes in glibc's `getopt` message
 
 ## Workflow conventions
 
