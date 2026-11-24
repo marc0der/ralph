@@ -193,11 +193,17 @@ if echo "$prompt" | grep -qi 'plan prompt'; then
 elif echo "$prompt" | grep -qi 'build prompt'; then
     # Retro hard-stops without a dated entry, which init's template never holds.
     printf '### [2026-11-14 10:00] — Mock build\n\n**Summary:** Built.\n' >> PROGRESS.md
-    # Tick the first open item, then commit so HEAD moves.
+    # Tick the first open item below '## Items', or the first in a plan without
+    # that heading, then commit so HEAD moves.
     if grep -q '^- \[ \]' "$plan" 2>/dev/null; then
-        sed -i '0,/^- \[ \]/s//- [x]/' "$plan"
+        on=1
+        grep -qE '^## Items[[:space:]]*$' "$plan" && on=0
+        awk -v on="$on" '
+            /^## Items[[:space:]]*$/ { on = 1 }
+            on && !done && /^- \[ \]/ { sub(/^- \[ \]/, "- [x]"); done = 1 }
+            { print }' "$plan" > "$plan.tmp" && mv "$plan.tmp" "$plan"
     fi
-    echo "build $(date +%s%N)" >> mock-build-output.txt
+    echo "build" >> mock-build-output.txt
     git add mock-build-output.txt
     git commit -q -m "mock build commit" >/dev/null 2>&1
 elif echo "$prompt" | grep -qi 'review prompt'; then
