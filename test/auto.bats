@@ -719,6 +719,35 @@ seed_resume_state() {
     [[ -f "${runs[0]}retro/iter-001.stream.jsonl" ]]
 }
 
+@test "an exported RALPH_RUN_DIR gets nothing from auto --no-metrics" {
+    create_committing_backend
+    local exported="$BATS_TEST_TMPDIR/exported"
+    mkdir -p "$exported"
+    # shellcheck disable=SC2030
+    export RALPH_RUN_DIR="$exported"
+
+    MOCK_RETRO_EXIT=1 PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true run "$RALPH" auto --skip-push --no-metrics -g "the goal"
+    [[ "$status" -eq 1 ]]
+
+    [[ -z "$(ls -A "$exported")" ]]
+    grep -qx 'run=' .ralph/auto-state
+}
+
+@test "an exported RALPH_RUN_DIR gets nothing from auto with metrics" {
+    create_committing_backend
+    local exported="$BATS_TEST_TMPDIR/exported"
+    mkdir -p "$exported"
+    # shellcheck disable=SC2031
+    export RALPH_RUN_DIR="$exported"
+
+    run_auto --skip-push
+    [[ "$status" -eq 0 ]]
+
+    local -a runs=(.ralph/logs/*/)
+    [[ "${#runs[@]}" -eq 1 ]]
+    [[ -z "$(ls -A "$exported")" ]]
+}
+
 # --- auto.json (specs/023-run-logs-and-metrics.md §3) ------------------------
 
 @test "a lifecycle writes auto.json listing the seven phases in order" {
