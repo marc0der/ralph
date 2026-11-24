@@ -68,7 +68,8 @@ RALPH_RETRO_ARTIFACTS=""
 
 # --- Backend definitions ---
 # Each backend_<name> function sets well-known variables, among them
-# BACKEND_EFFORT_LEVELS, and defines build_backend_cmd(model, effort), which
+# BACKEND_EFFORT_LEVELS and BACKEND_PHASE_DEFAULTS, and defines
+# build_backend_cmd(model, effort), which
 # populates the BACKEND_CMD array with BACKEND_EXTRA_ARGS after Ralph's own.
 # Adding a new backend only requires a new function and a SUPPORTED_BACKENDS entry.
 
@@ -102,6 +103,14 @@ backend_claude() {
     BACKEND_CLI="claude"
     BACKEND_EFFORT_LEVELS=(low medium high xhigh max)
     BACKEND_DEFAULT_MODEL="opus"
+    # One "<section> <model> <effort>" entry per phase; specs/029-claude-phase-default-values.md §1
+    BACKEND_PHASE_DEFAULTS=(
+        "plan opus xhigh"
+        "build sonnet xhigh"
+        "review opus max"
+        "fix opus high"
+        "retro sonnet medium"
+    )
     BACKEND_PERMISSION_FLAG="--dangerously-skip-permissions"
     BACKEND_PERMISSION_WARNING="Claude will have unrestricted access to tools (file writes, shell commands, etc)."
     BACKEND_JQ_FLAGS=(-r)
@@ -143,6 +152,7 @@ backend_codex() {
     BACKEND_CLI="codex"
     BACKEND_EFFORT_LEVELS=(minimal low medium high xhigh max ultra)
     BACKEND_DEFAULT_MODEL="gpt-5.2-codex"
+    BACKEND_PHASE_DEFAULTS=()
     BACKEND_PERMISSION_FLAG="--dangerously-bypass-approvals-and-sandbox"
     BACKEND_PERMISSION_WARNING="Codex will have unrestricted access to tools (file writes, shell commands, etc)."
     BACKEND_JQ_FLAGS=(-rs)
@@ -167,6 +177,7 @@ backend_copilot() {
     BACKEND_CLI="copilot"
     BACKEND_EFFORT_LEVELS=(none minimal low medium high xhigh max)
     BACKEND_DEFAULT_MODEL="claude-sonnet-4.6"
+    BACKEND_PHASE_DEFAULTS=()
     BACKEND_PERMISSION_FLAG="--yolo"
     BACKEND_PERMISSION_WARNING="Copilot will have unrestricted access to tools (file writes, shell commands, etc)."
     BACKEND_JQ_FLAGS=(-rs)
@@ -191,6 +202,7 @@ backend_pi() {
     # Pi's default provider is google, so a bare 'opus' would resolve there;
     # pin the fully-qualified provider/id to land on Anthropic.
     BACKEND_DEFAULT_MODEL="anthropic/claude-opus-4-8"
+    BACKEND_PHASE_DEFAULTS=()
     # Pi has no permission flag — its built-in tools run without prompting,
     # so build_backend_cmd omits the positional entirely (no stray empty arg).
     BACKEND_PERMISSION_FLAG=""
@@ -260,6 +272,21 @@ resolve_backend() {
         exit 1
     fi
     "backend_${name}"
+}
+
+# Prints the backend's built-in model or effort for a section, or nothing.
+resolve_phase_default() {
+    local section="$1" field="$2" entry entry_section model effort
+    for entry in ${BACKEND_PHASE_DEFAULTS[@]+"${BACKEND_PHASE_DEFAULTS[@]}"}; do
+        read -r entry_section model effort <<<"$entry"
+        if [[ "$entry_section" == "$section" ]]; then
+            case "$field" in
+                model)  echo "$model" ;;
+                effort) echo "$effort" ;;
+            esac
+            return 0
+        fi
+    done
 }
 
 usage() {
