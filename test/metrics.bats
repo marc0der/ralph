@@ -37,6 +37,16 @@ latest_metrics_file() {
     ls -1t .ralph/logs/*/*/metrics.jsonl | head -1
 }
 
+assert_no_trailing_space() {
+    local line
+    while IFS= read -r line; do
+        if [[ "$line" == *" " ]]; then
+            echo "line ends in a space: '$line'" >&2
+            return 1
+        fi
+    done <<<"$output"
+}
+
 @test "build records one metrics line per iteration" {
     "$RALPH" init
     printf -- '- [ ] one\n- [ ] two\n- [ ] three\n' > IMPLEMENTATION_PLAN.md
@@ -621,6 +631,7 @@ EOF
     [[ "$squeezed" == *"$expected"* ]]
     [[ "$squeezed" == *"commits 6 (+35/-4)"* ]]
     [[ "$squeezed" == *"Repos: . 3 (+15/-1) · ./svc 3 (+20/-3)"* ]]
+    assert_no_trailing_space
 }
 
 @test "the rollup table never calls column" {
@@ -742,6 +753,7 @@ EOF
     [[ "$squeezed" == *"$expected"* ]]
     [[ "$squeezed" == *"Totals: 2 iterations"* ]]
     [[ "$squeezed" != *"PHASE"* ]]
+    assert_no_trailing_space
 }
 
 @test "a standalone build's run directory prints its build per-iteration table" {
