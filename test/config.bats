@@ -362,7 +362,7 @@ run_retro_with_config() {
     printf 'defaults:\n  model: haiku\n' > "$RALPH_CONFIG_DIR/config.yaml"
     run_build_with_config 'build:\n  effort: low\n'
     [[ "$status" -eq 0 ]]
-    [[ "$(card_row backend "$stderr" build)" == *" model: opus effort: "* ]]
+    [[ "$(card_row backend "$stderr" build)" == *" model: sonnet effort: "* ]]
     [[ "$output" != *"haiku"* ]]
 }
 
@@ -474,7 +474,7 @@ run_retro_with_config() {
     run --separate-stderr "$RALPH" build --dry-run -q
     [[ "$status" -eq 0 ]]
     [[ "$(card_row config "$stderr" build)" == "config: built-in (no config file) [build]" ]]
-    [[ "$(card_row backend "$stderr" build)" == "backend: claude model: opus effort: default" ]]
+    [[ "$(card_row backend "$stderr" build)" == "backend: claude model: sonnet effort: xhigh" ]]
     [[ "$(card_row iterations "$stderr" build)" == "iterations: auto(2) headroom: 20% patience: 2 push: on" ]]
     [[ "$(card_row metrics "$stderr" build)" == "metrics: off (dry-run)" ]]
     [[ "$(card_row quiet "$stderr" build)" == "quiet: on" ]]

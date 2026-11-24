@@ -152,12 +152,12 @@ MOCK
     [[ "$output" == *"--effort high"* ]]
 }
 
-@test "build adds no effort flag when -e is absent" {
+@test "build adds no effort flag for codex when -e is absent" {
     "$RALPH" init
     seed_open_item
-    run "$RALPH" build --dry-run
+    run "$RALPH" build --dry-run -b codex
     [[ "$status" -eq 0 ]]
-    [[ "$output" != *"--effort"* ]]
+    [[ "$output" != *"model_reasoning_effort"* ]]
 }
 
 @test "build rejects -v" {

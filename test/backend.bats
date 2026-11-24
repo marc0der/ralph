@@ -37,12 +37,12 @@ load test_helper
     [[ "$output" == *"gpt-5.2-codex"* ]]
 }
 
-@test "dry-run with claude shows default model opus" {
+@test "dry-run with claude shows default model sonnet" {
     "$RALPH" init
     seed_open_item
     run "$RALPH" build --dry-run -n 1
     [[ "$status" -eq 0 ]]
-    [[ "$(card_row backend "$output" build)" == *" model: opus effort: "* ]]
+    [[ "$(card_row backend "$output" build)" == *" model: sonnet effort: "* ]]
 }
 
 @test "-m flag overrides default model for any backend" {

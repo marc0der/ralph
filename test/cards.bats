@@ -203,9 +203,9 @@ load test_helper
     seed_open_item
     run --separate-stderr "$RALPH" build --dry-run
     [ "$status" -eq 0 ]
-    [ "$(card_row backend "$stderr" build)" = "backend: claude model: opus effort: default" ]
+    [ "$(card_row backend "$stderr" build)" = "backend: claude model: sonnet effort: xhigh" ]
     run --separate-stderr "$RALPH" build --dry-run -e high
-    [ "$(card_row backend "$stderr" build)" = "backend: claude model: opus effort: high" ]
+    [ "$(card_row backend "$stderr" build)" = "backend: claude model: sonnet effort: high" ]
 }
 
 @test "run card prints under --quiet and names the quiet row" {
@@ -233,7 +233,7 @@ load test_helper
     seed_open_item
     run --separate-stderr "$RALPH" fix --dry-run
     [ "$status" -eq 0 ]
-    [ "$(card_row backend "$stderr" fix)" = "backend: claude model: opus effort: default" ]
+    [ "$(card_row backend "$stderr" fix)" = "backend: claude model: opus effort: high" ]
 }
 
 @test "run card names the built-in config source with its section" {
@@ -402,9 +402,9 @@ load test_helper
 @test "divider prints default for an unset effort" {
     "$RALPH" init
     seed_open_item
-    run --separate-stderr "$RALPH" build --dry-run -n 1 -m opus
+    run --separate-stderr "$RALPH" build --dry-run -n 1 -b codex -m opus
     [ "$status" -eq 0 ]
-    [[ "$output" == *"── 1/1 ── claude · opus · default ── 0s ── "* ]]
+    [[ "$output" == *"── 1/1 ── codex · opus · default ── 0s ── "* ]]
 }
 
 @test "divider follows a blank line and is 120 wide off a terminal" {
