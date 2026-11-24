@@ -192,7 +192,7 @@ MOCK
     [[ "$status" -eq 0 ]]
     RALPH_RUN_DIR=.ralph/logs/given PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 --skip-push -y
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"ITERATION 1 / 1"* ]]
+    [[ "$output" == *"── 1/1 ── "* ]]
 
     [[ "$(jq -r '.iteration' .ralph/logs/given/build/metrics.jsonl | paste -sd,)" == "1,2" ]]
     [[ -f .ralph/logs/given/build/iter-001.stream.jsonl ]]
