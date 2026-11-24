@@ -1781,3 +1781,14 @@ MOCK
     [[ "$status" -eq 0 ]]
     [[ "$output" == $'./a/b\n./a\n./c' ]]
 }
+
+@test "nested push sends a moved repository to its origin" {
+    "$RALPH" init
+    seed_open_item
+    nested_push_repo src/svc
+    create_nested_push_backend
+
+    MOCK_NESTED_REPOS="src/svc" PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1
+    [ "$status" -eq 0 ]
+    [[ "$(git --git-dir="$TEST_DIR/remotes/src/svc.git" rev-parse nested-branch)" == "$(git -C src/svc rev-parse HEAD)" ]]
+}
