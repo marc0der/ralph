@@ -771,6 +771,43 @@ seed_resume_state() {
     grep -qxF "$run_line" .ralph/auto-state
 }
 
+@test "a resumed interrupt keeps the recorded run" {
+    create_committing_backend
+    mkdir -p specs
+    echo "draft" > specs/x.md
+    run_auto --skip-push
+    [[ "$status" -eq 1 ]]
+    local run_line
+    run_line=$(grep '^run=' .ralph/auto-state)
+    [[ -n "${run_line#run=}" ]]
+    git add -- specs/x.md; git commit -q -m "docs(specs): add x"
+
+    mv "$TEST_DIR/bin/claude" "$TEST_DIR/bin/claude.real"
+    cat > "$TEST_DIR/bin/claude" <<MOCK
+#!/usr/bin/env bash
+prompt=\$(cat)
+if echo "\$prompt" | grep -qi 'plan prompt'; then
+    touch "$BATS_TEST_TMPDIR/plan-started"
+    sleep 1
+fi
+echo "\$prompt" | "$TEST_DIR/bin/claude.real" "\$@"
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+
+    local pid status_code=0 waited=0
+    PATH="$TEST_DIR/bin:$PATH" DEVCONTAINER=true "$RALPH" auto --resume --skip-push --no-metrics -g "the goal" > "$TEST_DIR/out" 2>&1 &
+    pid=$!
+    while [[ ! -f "$BATS_TEST_TMPDIR/plan-started" ]] && (( waited < 100 )); do
+        sleep 0.1
+        waited=$((waited + 1))
+    done
+    kill -TERM "$pid"
+    wait "$pid" || status_code=$?
+
+    [[ "$status_code" -eq 130 ]]
+    grep -qxF "$run_line" .ralph/auto-state
+}
+
 @test "an exported RALPH_RUN_DIR gets nothing from auto --no-metrics" {
     create_committing_backend
     local exported="$BATS_TEST_TMPDIR/exported"
