@@ -2994,6 +2994,8 @@ write_auto_state() {
 }
 
 cmd_auto() {
+    unset RALPH_RUN_DIR
+
     # '-n' is rejected because each phase resolves its own iteration count
     # (see specs/012-auto-lifecycle.md §8).
     local goal=""
