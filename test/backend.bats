@@ -154,6 +154,74 @@ backend_levels() {
     )
 }
 
+# Prints the phase default of section $2 for backend $1, after claude has set its own.
+backend_phase_defaults() {
+    (
+        export RALPH_CONFIG_DIR
+        eval "$(sed '/^# Main dispatch/,$d' "$RALPH")"
+        backend_claude
+        "backend_${1}"
+        echo "model=[$(resolve_phase_default "$2" model)] effort=[$(resolve_phase_default "$2" effort)]"
+    )
+}
+
+@test "phase default: claude plan is opus at xhigh" {
+    run backend_phase_defaults claude plan
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "model=[opus] effort=[xhigh]" ]]
+}
+
+@test "phase default: claude build is sonnet at xhigh" {
+    run backend_phase_defaults claude build
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "model=[sonnet] effort=[xhigh]" ]]
+}
+
+@test "phase default: claude review is opus at max" {
+    run backend_phase_defaults claude review
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "model=[opus] effort=[max]" ]]
+}
+
+@test "phase default: claude fix is opus at high" {
+    run backend_phase_defaults claude fix
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "model=[opus] effort=[high]" ]]
+}
+
+@test "phase default: claude retro is sonnet at medium" {
+    run backend_phase_defaults claude retro
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "model=[sonnet] effort=[medium]" ]]
+}
+
+@test "phase default: codex declares none for any section" {
+    local section
+    for section in plan build review fix retro; do
+        run backend_phase_defaults codex "$section"
+        [[ "$status" -eq 0 ]]
+        [[ "$output" == "model=[] effort=[]" ]]
+    done
+}
+
+@test "phase default: copilot declares none for any section" {
+    local section
+    for section in plan build review fix retro; do
+        run backend_phase_defaults copilot "$section"
+        [[ "$status" -eq 0 ]]
+        [[ "$output" == "model=[] effort=[]" ]]
+    done
+}
+
+@test "phase default: pi declares none for any section" {
+    local section
+    for section in plan build review fix retro; do
+        run backend_phase_defaults pi "$section"
+        [[ "$status" -eq 0 ]]
+        [[ "$output" == "model=[] effort=[]" ]]
+    done
+}
+
 @test "effort: claude appends --effort" {
     run backend_cmd claude high
     [[ "$status" -eq 0 ]]
