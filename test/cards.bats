@@ -287,7 +287,7 @@ load test_helper
     "$RALPH" init
     run --separate-stderr "$RALPH" plan --dry-run -g "A goal"
     [ "$status" -eq 0 ]
-    [ "$(card_row iterations "$stderr" plan)" = "iterations: 6" ]
+    [ "$(card_row iterations "$stderr" plan)" = "iterations: 3" ]
     seed_shipped_item
     seed_cycle_base
     run --separate-stderr "$RALPH" review --dry-run
@@ -800,7 +800,7 @@ MOCK
     create_streaming_backend
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" plan -g "the goal" --no-metrics
     [ "$status" -eq 0 ]
-    [[ "$output" == *$'\n── 1/6 done ── '* ]]
+    [[ "$output" == *$'\n── 1/3 done ── '* ]]
 }
 
 @test "terminal divider holds an escape code with colour allowed" {

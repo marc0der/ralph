@@ -61,7 +61,7 @@ load test_helper
     # Spec (015-one-shot-review.md section 13): review runs exactly one pass and
     # rejects -n, so the -n help names plan's default alone and never implies
     # review converges over several passes.
-    [[ "$output" == *"--iterations N"*"plan default: 6"* ]]
+    [[ "$output" == *"--iterations N"*"plan default: 3"* ]]
     [[ "$output" == *"in plan mode it caps"*"never disables"*"convergence exit"* ]]
     [[ "$output" == *"review and retro reject -n"* ]]
     [[ "$output" != *"plan and review default"* ]]
