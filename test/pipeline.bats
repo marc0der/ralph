@@ -2,6 +2,36 @@
 
 load test_helper
 
+# Create a nested repository at $1 with one commit, gitignore its top directory,
+# give it a bare origin under $TEST_DIR/remotes, and check out nested-branch.
+nested_push_repo() {
+    local path="$1"
+    mkdir -p "$path"
+    git -C "$path" init --quiet
+    git -C "$path" config user.email "nested@test.com"
+    git -C "$path" config user.name "Nested"
+    git -C "$path" commit --allow-empty -m "nested initial" --quiet
+    echo "${path%%/*}/" >> .gitignore
+    git init --bare --quiet "$TEST_DIR/remotes/$path.git"
+    git -C "$path" remote add origin "$TEST_DIR/remotes/$path.git"
+    git -C "$path" checkout --quiet -b nested-branch
+}
+
+# Mock backend that commits in each space-separated path in $MOCK_NESTED_REPOS
+# and touches nothing in the workspace.
+create_nested_push_backend() {
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/claude" <<'MOCK'
+#!/usr/bin/env bash
+cat > /dev/null
+for repo in $MOCK_NESTED_REPOS; do
+    git -C "$repo" commit --allow-empty -m "nested work" --quiet
+done
+echo '{"type":"result","result":"done"}'
+MOCK
+    chmod +x "$TEST_DIR/bin/claude"
+}
+
 # --- Verbose output content ---
 
 @test "dry-run output includes the backend command line by default" {
