@@ -100,14 +100,14 @@ load test_helper
     [ "$output" = "<d>ab ---<o>" ]
 }
 
-@test "print_card_rows aligns labels and values in columns" {
+@test "print_card_rows aligns row labels and the pairs after them" {
     S=$'\x1f'
     run ralph_fn eval "CARD_LOCALE=C.UTF-8 CARD_WIDTH=120
         print_card_rows 'backend${S}claude${S}model${S}opus' 'iterations${S}auto(2)${S}headroom${S}20%' 'config${S}./ralph.yaml (local) [build]'"
     [ "$status" -eq 0 ]
-    [ "${lines[0]}" = "  backend     claude   model     opus" ]
-    [ "${lines[1]}" = "  iterations  auto(2)  headroom  20%" ]
-    [ "${lines[2]}" = "  config      ./ralph.yaml (local) [build]" ]
+    [ "${lines[0]}" = "  backend:     claude   model: opus" ]
+    [ "${lines[1]}" = "  iterations:  auto(2)  headroom: 20%" ]
+    [ "${lines[2]}" = "  config:      ./ralph.yaml (local) [build]" ]
     [ "${#lines[@]}" -eq 3 ]
 }
 
@@ -116,10 +116,10 @@ load test_helper
     run ralph_fn eval "CARD_LOCALE=C.UTF-8 CARD_WIDTH=30
         print_card_rows 'backend${S}claude${S}model${S}opus' 'iterations${S}auto(2)${S}headroom${S}20%'"
     [ "$status" -eq 0 ]
-    [ "${lines[0]}" = "  backend     claude" ]
-    [ "${lines[1]}" = "  model       opus" ]
-    [ "${lines[2]}" = "  iterations  auto(2)" ]
-    [ "${lines[3]}" = "  headroom    20%" ]
+    [ "${lines[0]}" = "  backend:     claude" ]
+    [ "${lines[1]}" = "  model:       opus" ]
+    [ "${lines[2]}" = "  iterations:  auto(2)" ]
+    [ "${lines[3]}" = "  headroom:    20%" ]
     [ "${#lines[@]}" -eq 4 ]
 }
 
@@ -128,9 +128,9 @@ load test_helper
     run ralph_fn eval "CARD_LOCALE=C.UTF-8 CARD_WIDTH=20
         print_card_rows 'a${S}1${S}b${S}long-value-xx' 'a${S}1${S}b${S}2'"
     [ "$status" -eq 0 ]
-    [ "${lines[0]}" = "  a  1" ]
-    [ "${lines[1]}" = "  b  long-value-xx" ]
-    [ "${lines[2]}" = "  a  1  b  2" ]
+    [ "${lines[0]}" = "  a:  1" ]
+    [ "${lines[1]}" = "  b:  long-value-xx" ]
+    [ "${lines[2]}" = "  a:  1  b: 2" ]
     [ "${#lines[@]}" -eq 3 ]
 }
 
@@ -139,7 +139,7 @@ load test_helper
     run ralph_fn eval "CARD_LOCALE=C.UTF-8 CARD_WIDTH=10 CARD_LABEL='<l>' CARD_OFF='<o>'
         print_card_rows 'ab${S}abcdefghij'"
     [ "$status" -eq 0 ]
-    [ "$output" = "  ab  abc…" ]
+    [ "$output" = "  ab:  ab…" ]
 }
 
 @test "print_card_rows wraps labels in the label and off codes" {
@@ -147,7 +147,7 @@ load test_helper
     run ralph_fn eval "CARD_LOCALE=C.UTF-8 CARD_WIDTH=40 CARD_LABEL='<l>' CARD_OFF='<o>'
         print_card_rows 'ab${S}cd${S}ef${S}gh'"
     [ "$status" -eq 0 ]
-    [ "$output" = "  <l>ab<o>  cd  <l>ef<o>  gh" ]
+    [ "$output" = "  <l>ab:<o>  cd  <l>ef:<o> gh" ]
 }
 
 @test "print_card_rows keeps an empty label cell and a trailing empty value" {
@@ -155,8 +155,8 @@ load test_helper
     run ralph_fn eval "CARD_LOCALE=C.UTF-8 CARD_WIDTH=40
         print_card_rows 'metrics${S}on${S}${S}file.jsonl' 'quiet${S}'"
     [ "$status" -eq 0 ]
-    [ "${lines[0]}" = "  metrics  on    file.jsonl" ]
-    [ "${lines[1]}" = "  quiet    " ]
+    [ "${lines[0]}" = "  metrics:  on  file.jsonl" ]
+    [ "${lines[1]}" = "  quiet:    " ]
 }
 
 @test "print_card_rows aligns a multibyte cell like an ASCII cell under LC_ALL=C" {
@@ -164,8 +164,8 @@ load test_helper
     run ralph_fn eval "LC_ALL=C card_style 1
         LC_ALL=C print_card_rows 'model${S}opüs${S}effort${S}high' 'model${S}opus${S}effort${S}high'"
     [ "$status" -eq 0 ]
-    [ "${lines[0]}" = "  model  opüs  effort  high" ]
-    [ "${lines[1]}" = "  model  opus  effort  high" ]
+    [ "${lines[0]}" = "  model:  opüs  effort: high" ]
+    [ "${lines[1]}" = "  model:  opus  effort: high" ]
 }
 
 @test "run card prints once per dry run between a titled top rule and a full bottom rule" {
@@ -203,19 +203,19 @@ load test_helper
     seed_open_item
     run --separate-stderr "$RALPH" build --dry-run
     [ "$status" -eq 0 ]
-    [ "$(card_row backend "$stderr" build)" = "backend claude model opus effort default" ]
+    [ "$(card_row backend "$stderr" build)" = "backend: claude model: opus effort: default" ]
     run --separate-stderr "$RALPH" build --dry-run -e high
-    [ "$(card_row backend "$stderr" build)" = "backend claude model opus effort high" ]
+    [ "$(card_row backend "$stderr" build)" = "backend: claude model: opus effort: high" ]
 }
 
 @test "run card prints under --quiet and names the quiet row" {
     "$RALPH" init
     seed_open_item
     run --separate-stderr "$RALPH" build --dry-run
-    [ "$(card_row quiet "$stderr" build)" = "quiet off" ]
+    [ "$(card_row quiet "$stderr" build)" = "quiet: off" ]
     run --separate-stderr "$RALPH" build --dry-run -q
     [ "$status" -eq 0 ]
-    [ "$(card_row quiet "$stderr" build)" = "quiet on" ]
+    [ "$(card_row quiet "$stderr" build)" = "quiet: on" ]
 }
 
 @test "run card prints the branch and prompt rows" {
@@ -223,8 +223,8 @@ load test_helper
     seed_open_item
     run --separate-stderr "$RALPH" build --dry-run
     [ "$status" -eq 0 ]
-    [ "$(card_row branch "$stderr" build)" = "branch $(git branch --show-current)" ]
-    [ "$(card_row prompt "$stderr" build)" = "prompt $RALPH_CONFIG_DIR/prompts/build.md" ]
+    [ "$(card_row branch "$stderr" build)" = "branch: $(git branch --show-current)" ]
+    [ "$(card_row prompt "$stderr" build)" = "prompt: $RALPH_CONFIG_DIR/prompts/build.md" ]
 }
 
 @test "run card titles a fix run with its section" {
@@ -232,14 +232,14 @@ load test_helper
     seed_open_item
     run --separate-stderr "$RALPH" fix --dry-run
     [ "$status" -eq 0 ]
-    [ "$(card_row backend "$stderr" fix)" = "backend claude model opus effort default" ]
+    [ "$(card_row backend "$stderr" fix)" = "backend: claude model: opus effort: default" ]
 }
 
 @test "run card names the built-in config source with its section" {
     "$RALPH" init
     seed_open_item
     run --separate-stderr "$RALPH" build --dry-run
-    [ "$(card_row config "$stderr" build)" = "config built-in (no config file) [build]" ]
+    [ "$(card_row config "$stderr" build)" = "config: built-in (no config file) [build]" ]
 }
 
 @test "run card names the local and central config sources with their section" {
@@ -249,12 +249,12 @@ load test_helper
     printf 'build:\n  effort: high\n' > "$RALPH_CONFIG_DIR/config.yaml"
     run --separate-stderr "$RALPH" build --dry-run
     [ "$status" -eq 0 ]
-    [ "$(card_row config "$stderr" build)" = "config $RALPH_CONFIG_DIR/config.yaml (central) [build]" ]
+    [ "$(card_row config "$stderr" build)" = "config: $RALPH_CONFIG_DIR/config.yaml (central) [build]" ]
     printf 'build:\n  quiet: true\n' > ralph.yaml
     run --separate-stderr "$RALPH" build --dry-run
     [ "$status" -eq 0 ]
-    [ "$(card_row config "$stderr" build)" = "config ./ralph.yaml (local) [build]" ]
-    [ "$(card_row quiet "$stderr" build)" = "quiet on" ]
+    [ "$(card_row config "$stderr" build)" = "config: ./ralph.yaml (local) [build]" ]
+    [ "$(card_row quiet "$stderr" build)" = "quiet: on" ]
 }
 
 @test "run card prints the iterations row with the build tuning cells" {
@@ -262,7 +262,7 @@ load test_helper
     seed_open_item
     run --separate-stderr "$RALPH" build --dry-run
     [ "$status" -eq 0 ]
-    [ "$(card_row iterations "$stderr" build)" = "iterations auto(2) headroom 20% patience 2 push on" ]
+    [ "$(card_row iterations "$stderr" build)" = "iterations: auto(2) headroom: 20% patience: 2 push: on" ]
 }
 
 @test "run card prints a fixed iteration count without auto and with push off" {
@@ -270,7 +270,7 @@ load test_helper
     seed_open_item
     run --separate-stderr "$RALPH" build --dry-run -n 3 --skip-push
     [ "$status" -eq 0 ]
-    [ "$(card_row iterations "$stderr" build)" = "iterations 3 headroom 20% patience 2 push off" ]
+    [ "$(card_row iterations "$stderr" build)" = "iterations: 3 headroom: 20% patience: 2 push: off" ]
 }
 
 @test "run card prints the build tuning cells in fix" {
@@ -278,23 +278,23 @@ load test_helper
     seed_open_item
     run --separate-stderr "$RALPH" fix --dry-run
     [ "$status" -eq 0 ]
-    [ "$(card_row iterations "$stderr" fix)" = "iterations auto(2) headroom 20% patience 2 push on" ]
+    [ "$(card_row iterations "$stderr" fix)" = "iterations: auto(2) headroom: 20% patience: 2 push: on" ]
 }
 
 @test "run card prints no tuning cells in plan, review and retro" {
     "$RALPH" init
     run --separate-stderr "$RALPH" plan --dry-run -g "A goal"
     [ "$status" -eq 0 ]
-    [ "$(card_row iterations "$stderr" plan)" = "iterations 6" ]
+    [ "$(card_row iterations "$stderr" plan)" = "iterations: 6" ]
     seed_shipped_item
     seed_cycle_base
     run --separate-stderr "$RALPH" review --dry-run
     [ "$status" -eq 0 ]
-    [ "$(card_row iterations "$stderr" review)" = "iterations 1" ]
+    [ "$(card_row iterations "$stderr" review)" = "iterations: 1" ]
     seed_progress_entry
     run --separate-stderr "$RALPH" retro --dry-run
     [ "$status" -eq 0 ]
-    [ "$(card_row iterations "$stderr" retro)" = "iterations 1" ]
+    [ "$(card_row iterations "$stderr" retro)" = "iterations: 1" ]
 }
 
 @test "run card prints metrics off in a dry run" {
@@ -302,7 +302,7 @@ load test_helper
     seed_open_item
     run --separate-stderr "$RALPH" build --dry-run
     [ "$status" -eq 0 ]
-    [ "$(card_row metrics "$stderr" build)" = "metrics off (dry-run)" ]
+    [ "$(card_row metrics "$stderr" build)" = "metrics: off (dry-run)" ]
 }
 
 @test "run card prints metrics on with the metrics file" {
@@ -311,7 +311,7 @@ load test_helper
     seed_open_item
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push
     [ "$status" -eq 0 ]
-    [[ "$(card_row metrics "$stderr" build)" == "metrics on .ralph/metrics/"*"/metrics.jsonl" ]]
+    [[ "$(card_row metrics "$stderr" build)" == "metrics: on .ralph/metrics/"*"/metrics.jsonl" ]]
 }
 
 @test "run card prints metrics off under --no-metrics" {
@@ -320,7 +320,7 @@ load test_helper
     seed_open_item
     PATH="$TEST_DIR/bin:$PATH" run --separate-stderr "$RALPH" build -n 1 --skip-push --no-metrics
     [ "$status" -eq 0 ]
-    [ "$(card_row metrics "$stderr" build)" = "metrics off" ]
+    [ "$(card_row metrics "$stderr" build)" = "metrics: off" ]
 }
 
 @test "run card prints the extra args row only when the section sets extra_args" {
@@ -333,7 +333,7 @@ load test_helper
     printf 'build:\n  extra_args: [--foo, bar]\n' > ralph.yaml
     run --separate-stderr "$RALPH" build --dry-run
     [ "$status" -eq 0 ]
-    [ "$(card_row 'extra args' "$stderr" build)" = "extra args --foo bar" ]
+    [ "$(card_row 'extra args' "$stderr" build)" = "extra args: --foo bar" ]
 }
 
 @test "run card leaves out extra args that -b drops" {
@@ -347,11 +347,11 @@ load test_helper
 }
 
 @test "card_row returns the row of the named card only" {
-    text=$'━━ ralph plan ━━\n  quiet  off\n━━━━\n━━ ralph build ━━\n  quiet  on\n━━━━'
+    text=$'━━ ralph plan ━━\n  quiet:  off\n━━━━\n━━ ralph build ━━\n  quiet:  on\n━━━━'
     run card_row quiet "$text" build
-    [ "$output" = "quiet on" ]
+    [ "$output" = "quiet: on" ]
     run card_row quiet "$text" plan
-    [ "$output" = "quiet off" ]
+    [ "$output" = "quiet: off" ]
     run card_row branch "$text" build
     [ -z "$output" ]
 }

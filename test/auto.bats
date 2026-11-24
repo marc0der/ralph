@@ -227,10 +227,10 @@ seed_resume_state() {
     run_auto --skip-push --no-metrics
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"6 fix       ran"* ]]
-    [[ "$(card_row config "$output" build)" == "config ./ralph.yaml (local) [build]" ]]
-    [[ "$(card_row backend "$output" build)" == *"effort high" ]]
-    [[ "$(card_row config "$output" fix)" == "config ./ralph.yaml (local) [fix]" ]]
-    [[ "$(card_row backend "$output" fix)" == *"effort low" ]]
+    [[ "$(card_row config "$output" build)" == "config: ./ralph.yaml (local) [build]" ]]
+    [[ "$(card_row backend "$output" build)" == *"effort: high" ]]
+    [[ "$(card_row config "$output" fix)" == "config: ./ralph.yaml (local) [fix]" ]]
+    [[ "$(card_row backend "$output" fix)" == *"effort: low" ]]
 }
 
 @test "each phase that runs prints one run card title" {

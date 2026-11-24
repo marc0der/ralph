@@ -226,7 +226,7 @@ card_row() {
     awk -v label="$label" -v title="━━ ralph $title " '
         !inside { if (index($0, title) == 1) inside = 1; next }
         substr($0, 1, 1) == "━" { exit }
-        substr($0, 3, length(label) + 1) == label " " {
+        substr($0, 3, length(label) + 1) == label ":" {
             gsub(/ +/, " "); sub(/^ /, ""); print; exit
         }' <<< "$text"
 }
