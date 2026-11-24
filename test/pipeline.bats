@@ -1782,6 +1782,14 @@ MOCK
     [[ "$output" == $'./a/b\n./a\n./c' ]]
 }
 
+@test "nested push set drops a commitless repository" {
+    nested_push_repo src/svc
+    git init --quiet src/bare
+    run ralph_fn cycle_push_set
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "./src/svc" ]]
+}
+
 @test "nested push sends a moved repository to its origin" {
     "$RALPH" init
     seed_open_item
