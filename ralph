@@ -1192,8 +1192,12 @@ cycle_push_set() {
 
 # Push each repository in the cycle push set, deepest first; stop at the first rejection.
 push_cycle_repos() {
-    local quiet="$2" repo branch push_output
+    local dry_run="$1" quiet="$2" repo branch push_output
     while IFS= read -r repo; do
+        if $dry_run; then
+            echo "[dry-run] Would run: git -C $repo push origin $(git -C "$repo" rev-parse --abbrev-ref HEAD)"
+            continue
+        fi
         if ! git -C "$repo" remote get-url origin >/dev/null 2>&1; then
             echo "No 'origin' remote in $repo — skipping push."
             continue
@@ -2967,6 +2971,7 @@ cmd_loop() {
         # build pushes Ralph's spec commits with its own.
         if [[ "$mode" == "build" ]]; then
             if $dry_run; then
+                $skip_push || push_cycle_repos true "$quiet"
                 echo "[dry-run] Would run: git push origin $current_branch"
             elif ! $skip_push; then
                 push_cycle_repos false "$quiet" || exit 1
