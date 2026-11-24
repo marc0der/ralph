@@ -2019,13 +2019,45 @@ print_metrics_totals() {
         ' "$@"
 }
 
-# Align tab-separated rows from stdin, or pass them through without column.
+# Align tab-separated rows from stdin. Each column is as wide as its widest cell, counted in
+# characters. Every cell but the last is padded to that width and followed by two spaces; the
+# last cell is never padded. Padding is spaces appended by hand, because a printf field width
+# counts bytes.
 print_tsv_table() {
-    if command -v column >/dev/null 2>&1; then
-        column -t -s $'\t'
-    else
-        cat
-    fi
+    local row rest cell line column_index cell_index count pad
+    local -a cells=() counts=() widths=()
+    while IFS= read -r row || [[ -n "$row" ]]; do
+        rest=$row
+        count=0
+        while :; do
+            cell=${rest%%$'\t'*}
+            cells+=("$cell")
+            if (( ${#cell} > ${widths[count]:-0} )); then
+                widths[count]=${#cell}
+            fi
+            count=$((count + 1))
+            [[ "$rest" == *$'\t'* ]] || break
+            rest=${rest#*$'\t'}
+        done
+        counts+=("$count")
+    done
+    (( ${#counts[@]} > 0 )) || return 0
+    cell_index=0
+    for count in "${counts[@]}"; do
+        line=""
+        for (( column_index = 0; column_index < count; column_index++ )); do
+            cell=${cells[cell_index]}
+            cell_index=$((cell_index + 1))
+            line+=$cell
+            if (( column_index < count - 1 )); then
+                pad=$(( widths[column_index] - ${#cell} + 2 ))
+                while (( pad-- > 0 )); do
+                    line+=" "
+                done
+            fi
+        done
+        printf '%s\n' "$line"
+    done
 }
 
 run_phase_dirs() {
