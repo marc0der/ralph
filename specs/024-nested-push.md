@@ -70,8 +70,10 @@ push:
 The workspace push that follows is unchanged (`013-meta-repo-hardening.md` §3).
 
 With `--dry-run`, the block prints one `[dry-run] Would run: git -C <repo> push origin <branch>`
-line per repository in the set, then the workspace line it prints today. With `skip_push`, it
-pushes nothing and prints nothing new.
+line per repository in the set, then the workspace line it prints today. A dry run runs none of
+the checks in step 3, as the workspace dry run runs none, and prints `HEAD` as the branch of a
+repository on a detached `HEAD`. A dry run writes no base, so the missing-base rule below decides
+its set. With `skip_push`, it pushes nothing and prints nothing new.
 
 ### Why the cycle base
 
@@ -88,7 +90,7 @@ repository whose SHA is not `-` counts as moved.
 
 - **Where to commit** loses the bullet "Push every repository you committed in …". It gains:
   "Never run `git push`. Ralph pushes every repository the cycle moved after this iteration."
-- Phase 3 loses step 4, "Push as **Where to commit** states."
+- Phase 4 loses step 4, "Push as **Where to commit** states.", and its step 5 becomes step 4.
 - The detached-`HEAD` rule still makes the agent check out a branch before it commits, so a
   repository the cycle moved is normally on a branch Ralph can push.
 
@@ -103,7 +105,9 @@ the workspace alone.
   workspace and every nested repository the cycle moved". The paragraph on spec commits says a
   nested spec commit is pushed with the first build commit in that repository.
 - `README.md`: the `--skip-push` and `--push` rows, the `skip_push` key row, and the paragraph on
-  rejected pushes.
+  rejected pushes. The key table has no description column, so one sentence below it says that
+  `skip_push` governs every repository the cycle moved, and the workspace. The paragraph on
+  rejected pushes says Ralph names the repository whose push git rejected.
 - `CLAUDE.md`: core loop step 7 says Ralph pushes every repository the cycle moved, deepest
   first, then the workspace.
 
