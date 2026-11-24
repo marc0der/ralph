@@ -756,3 +756,64 @@ dry_run_card_rows() {
     [[ "$(grep '^config: \[' <<< "$shipped" | tr '\n' ' ')" == "config: [review] config: [retro] config: [plan] config: [build] config: [fix] " ]]
     [[ "$shipped" == "$builtin" ]]
 }
+
+@test "phase default: claude with no config file takes the spec table in every phase" {
+    "$RALPH" init
+    seed_shipped_item
+    seed_cycle_base
+    local expected rows
+    expected=$(printf '%s\n' \
+        "backend: claude model: opus effort: max" "config: [review]" \
+        "backend: claude model: sonnet effort: medium" "config: [retro]" \
+        "backend: claude model: opus effort: xhigh" "config: [plan]" \
+        "backend: claude model: sonnet effort: xhigh" "config: [build]" \
+        "backend: claude model: opus effort: high" "config: [fix]")
+    rows=$(dry_run_card_rows)
+    [[ "$(grep -E '^(backend|config):' <<< "$rows")" == "$expected" ]]
+}
+
+@test "phase default: -m and -e beat it on the run card" {
+    "$RALPH" init
+    seed_open_item
+    run --separate-stderr "$RALPH" build --dry-run -n 1 -m haiku -e low
+    [[ "$status" -eq 0 ]]
+    [[ "$(card_row backend "$stderr" build)" == "backend: claude model: haiku effort: low" ]]
+}
+
+@test "phase default: a section model, defaults.model and defaults.effort each beat it" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_open_item
+    printf 'build:\n  model: haiku\n' > ralph.yaml
+    run --separate-stderr "$RALPH" build --dry-run -n 1
+    [[ "$status" -eq 0 ]]
+    [[ "$(card_row backend "$stderr" build)" == "backend: claude model: haiku effort: xhigh" ]]
+    printf 'defaults:\n  model: haiku\n' > ralph.yaml
+    run --separate-stderr "$RALPH" build --dry-run -n 1
+    [[ "$status" -eq 0 ]]
+    [[ "$(card_row backend "$stderr" build)" == "backend: claude model: haiku effort: xhigh" ]]
+    printf 'defaults:\n  effort: low\n' > ralph.yaml
+    run --separate-stderr "$RALPH" build --dry-run -n 1
+    [[ "$status" -eq 0 ]]
+    [[ "$(card_row backend "$stderr" build)" == "backend: claude model: sonnet effort: low" ]]
+}
+
+@test "phase default: a codex file backend gets none, and -b claude gets the claude table" {
+    require_yq_or_skip
+    "$RALPH" init
+    seed_open_item
+    printf 'defaults:\n  backend: codex\n' > ralph.yaml
+    run --separate-stderr "$RALPH" build --dry-run -n 1
+    [[ "$status" -eq 0 ]]
+    [[ "$(card_row backend "$stderr" build)" == "backend: codex model: gpt-5.2-codex effort: default" ]]
+    run --separate-stderr "$RALPH" build --dry-run -n 1 -b claude
+    [[ "$status" -eq 0 ]]
+    [[ "$(card_row backend "$stderr" build)" == "backend: claude model: sonnet effort: xhigh" ]]
+}
+
+@test "phase default: a plan with no effort passes --effort xhigh" {
+    "$RALPH" init
+    run --separate-stderr "$RALPH" plan --dry-run -g goal
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Would run: claude "*"--model opus "*"--effort xhigh"* ]]
+}
