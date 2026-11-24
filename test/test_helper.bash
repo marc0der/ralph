@@ -221,6 +221,12 @@ MOCK
     chmod +x "$TEST_DIR/bin/claude"
 }
 
+# Helper: name the config directory by a relative path, so a card row that prints it
+# stays within the card width however long TMPDIR is.
+use_relative_config_dir() {
+    export RALPH_CONFIG_DIR=.ralph-config
+}
+
 # Helper: build a PATH that hides a specific command. On NixOS and Ubuntu,
 # coreutils share a directory, so hiding one command may hide others.
 path_without() {
