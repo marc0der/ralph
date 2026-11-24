@@ -1190,6 +1190,29 @@ cycle_push_set() {
     done < <(repo_state) | LC_ALL=C sort -t$'\t' -k1,1nr -k2,2 | cut -f2-
 }
 
+# Push each repository in the cycle push set, deepest first; stop at the first rejection.
+push_cycle_repos() {
+    local quiet="$2" repo branch push_output
+    while IFS= read -r repo; do
+        if ! git -C "$repo" remote get-url origin >/dev/null 2>&1; then
+            echo "No 'origin' remote in $repo — skipping push."
+            continue
+        fi
+        if ! branch=$(git -C "$repo" symbolic-ref -q --short HEAD); then
+            echo "Detached HEAD in $repo — skipping push."
+            continue
+        fi
+        local push_args=(origin "$branch")
+        git -C "$repo" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1 || push_args=(-u origin "$branch")
+        if ! push_output=$(git -C "$repo" push "${push_args[@]}" 2>&1); then
+            echo "Push failed in $repo:" >&2
+            echo "$push_output" >&2
+            return 1
+        fi
+        $quiet || echo "$push_output" >&2
+    done < <(cycle_push_set)
+}
+
 # List the paths the cycle changed, relative to the workspace root, one per line.
 # A repository commitless at the base or created after it counts all its tracked files.
 cycle_changed_files() {
@@ -2946,6 +2969,7 @@ cmd_loop() {
             if $dry_run; then
                 echo "[dry-run] Would run: git push origin $current_branch"
             elif ! $skip_push; then
+                push_cycle_repos false "$quiet" || exit 1
                 if ! git remote get-url origin >/dev/null 2>&1; then
                     echo "No 'origin' remote — skipping push."
                 elif ! git rev-parse -q --verify HEAD >/dev/null 2>&1; then
