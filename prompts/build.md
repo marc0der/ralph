@@ -85,7 +85,7 @@ Once tests pass:
    - An item whose paths span two repositories produces one set of commits per repository.
    - **Never commit on a detached `HEAD`.** Check `git -C <toplevel> symbolic-ref -q HEAD` first. When it fails, check out a branch before committing: the branch `AGENTS.md` or `CLAUDE.md` names for that repository when one is named, otherwise a new branch `ralph/<item-title-in-kebab-case>` created at the current commit. Record the branch in the `PROGRESS.md` entry.
    - After committing in a nested repository, run `git status --short -- <path>` in the workspace. A ` M <path>` line means the repository is a submodule of the workspace. Stage that path and commit the pointer update in the workspace with the subject `chore: bump <path> to <short sha>`.
-   - Push every repository you committed in, from inside it: `git -C <toplevel> push`, with `-u origin <branch>` on a branch you created. Ralph pushes the workspace and only the workspace.
+   - Never run `git push`. Ralph pushes every repository the cycle moved after this iteration.
 
    **How to commit** — the message and staging rules:
 
@@ -97,8 +97,7 @@ Once tests pass:
    - **Body**: optional, at most 3 bulleted lines, only when the subject alone does not explain the change.
    - **Prevailing style**: read `git -C <toplevel> log --oneline -10` first and match the repository's prevailing style.
    - Write the message through a heredoc so the subject, body and footer keep their newlines.
-4. Push as **Where to commit** states.
-5. **Stop here.** Do not pick up another item — the next iteration starts fresh from Phase 1.
+4. **Stop here.** Do not pick up another item — the next iteration starts fresh from Phase 1.
 
 ---
 
