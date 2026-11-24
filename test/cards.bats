@@ -756,7 +756,8 @@ for i in $(seq 1 COUNT); do
 done
 echo '{"type":"result","subtype":"success","duration_ms":1234,"duration_api_ms":1000,"num_turns":3,"result":"done here","session_id":"s1","total_cost_usd":0.02,"usage":{"input_tokens":100,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":50}}'
 MOCK
-    sed -i "s/COUNT/$count/; s/LENGTH/$length/" "$TEST_DIR/bin/claude"
+    sed -i.bak "s/COUNT/$count/; s/LENGTH/$length/" "$TEST_DIR/bin/claude"
+    rm -f "$TEST_DIR/bin/claude.bak"
 }
 
 @test "footer keeps a tool list that fits the width" {
