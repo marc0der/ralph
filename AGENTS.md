@@ -23,7 +23,7 @@ shellcheck ralph install.sh
 shellcheck test/*.bats test/test_helper.bash
 ```
 
-CI runs both ShellCheck and BATS on every push/PR to main. Run both locally after every build iteration, before committing — green BATS with a dirty ShellCheck is not done.
+CI runs ShellCheck, and BATS on Linux and macOS, on every push/PR to main. Run both locally after every build iteration, before committing — green BATS with a dirty ShellCheck is not done.
 
 ## Architecture
 
