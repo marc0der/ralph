@@ -5,8 +5,8 @@ A meta repository holds no service code of its own. It has a manifest and a sync
 ## What changes
 
 - **Commits anywhere count as progress.** Ralph watches every git repository beneath the workspace, not just the workspace's own. A pass that only commits inside `source/svc` is progress, not a no-op. The scan follows symlinks and goes 6 levels deep.
-- **Ralph pushes the workspace only.** If the workspace has no `origin`, or no commits yet, ralph skips the push and carries on. A push that git rejects is still a failure.
-- **The agent commits where each file lives.** The build prompt finds the repository that owns each changed file and runs its git commands, push included, there. When a plan run ends, Ralph commits the planner's spec changes in each repository that has them, and bumps the gitlink of a submodule in the workspace. Plan pushes none of these commits: build pushes them, the workspace after each pass and a nested repository when it commits there.
+- **Ralph pushes the workspace and every nested repository the cycle moved.** If the workspace has no `origin`, or no commits yet, ralph skips the push and carries on. A push that git rejects is still a failure.
+- **The agent commits where each file lives.** The build prompt finds the repository that owns each changed file and runs its git commands there. When a plan run ends, Ralph commits the planner's spec changes in each repository that has them, and bumps the gitlink of a submodule in the workspace. Plan pushes none of these commits: build pushes the workspace after each pass, and a nested spec commit ships with the first build commit there.
 - **The plan and progress log stay at the root.** `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` always live where you ran ralph, whatever the goal points at. The goal can name a spec anywhere below the root: inside a service's clone for a single-service feature, or in the workspace's own `specs/` for a feature that spans services.
 
 ## Set up your guardrails
@@ -20,6 +20,6 @@ Metrics count git activity in every repository beneath the workspace, with a per
 
 ## Troubleshooting
 
-**`build` stops after two passes while the agent is committing.** Check that no clone sits more than 6 levels below the workspace, since the scan can't see it. And don't pass `--skip-push` out of habit: ralph already skips the push when there is no `origin`, and the flag would leave real workspace commits unpushed.
+**`build` stops after two passes while the agent is committing.** Check that no clone sits more than 6 levels below the workspace, since the scan can't see it. And don't pass `--skip-push` out of habit: ralph already skips the push when there is no `origin`, and the flag would leave real commits unpushed.
 
 **`plan` converged after one pass, but the plan is empty.** The agent wrote the plan somewhere else, usually because a stale project-local `PROMPT_plan.md` doesn't pin the plan to the workspace root. Re-run `install.sh`, then delete or refresh any `PROMPT_*.md` in the project.
