@@ -1817,3 +1817,49 @@ MOCK
     [ "$status" -eq 0 ]
     [[ "$output" != *"git -C ./src/svc push"* ]]
 }
+
+@test "nested push leaves an unmoved repository alone" {
+    "$RALPH" init
+    seed_open_item
+    nested_push_repo src/idle
+    nested_push_repo src/svc
+    create_nested_push_backend
+
+    MOCK_NESTED_REPOS="src/svc" PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1
+    [ "$status" -eq 0 ]
+    [[ -n "$(git --git-dir="$TEST_DIR/remotes/src/svc.git" for-each-ref refs/heads/nested-branch)" ]]
+    [[ -z "$(git --git-dir="$TEST_DIR/remotes/src/idle.git" for-each-ref refs/heads/nested-branch)" ]]
+}
+
+@test "nested push sends a repository absent from the base" {
+    "$RALPH" init
+    seed_open_item
+    seed_cycle_base
+    nested_push_repo src/late
+    create_nested_push_backend
+
+    MOCK_NESTED_REPOS="" PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1
+    [ "$status" -eq 0 ]
+    [[ -n "$(git --git-dir="$TEST_DIR/remotes/src/late.git" for-each-ref refs/heads/nested-branch)" ]]
+}
+
+@test "nested push sends deeper repositories first" {
+    "$RALPH" init
+    seed_open_item
+    nested_push_repo a
+    nested_push_repo a/b
+    create_nested_push_backend
+    local remote
+    for remote in a a/b; do
+        mkdir -p "$TEST_DIR/remotes/$remote.git/hooks"
+        cat > "$TEST_DIR/remotes/$remote.git/hooks/pre-receive" <<HOOK
+#!/usr/bin/env bash
+echo "\$PWD" >> "$TEST_DIR/push-order"
+HOOK
+        chmod +x "$TEST_DIR/remotes/$remote.git/hooks/pre-receive"
+    done
+
+    MOCK_NESTED_REPOS="a a/b" PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1
+    [ "$status" -eq 0 ]
+    [[ "$(<"$TEST_DIR/push-order")" == *"/remotes/a/b.git"*"/remotes/a.git"* ]]
+}
