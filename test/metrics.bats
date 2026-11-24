@@ -646,6 +646,25 @@ EOF
     [[ "$output" == "$without_shim" ]]
 }
 
+@test "a rollup row with empty middle cells keeps EXIT under its header" {
+    mkdir -p .ralph/logs/r1/plan
+    printf '%s\n' '{"iteration":1,"mode":"plan","model":"sonnet","effort":null,"wall_s":5,"cost_usd":0.5,"tokens":{"output":40},"plan_items_completed":1,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false}}' \
+        > .ralph/logs/r1/plan/metrics.jsonl
+    cat > .ralph/logs/r1/auto.json <<'EOF'
+{"goal":"ship it","branch":"main","started":"2026-11-23T10:00:00Z","phases":[
+ {"phase":3,"name":"plan","state":"ran","exit":0,"started":null,"ended":null},
+ {"phase":4,"name":"build","state":"interrupted","exit":130,"started":null,"ended":null}]}
+EOF
+
+    LC_ALL=C run "$RALPH" metrics .ralph/logs/r1
+    [[ "$status" -eq 0 ]]
+    local header build_row header_prefix
+    header=$(grep '^PHASE ' <<<"$output")
+    build_row=$(grep '^build ' <<<"$output")
+    header_prefix=${header%%EXIT*}
+    [[ "${build_row:${#header_prefix}}" == "130" ]]
+}
+
 @test "a phase folder without records prints 0 iterations, dashes and its auto.json exit" {
     mkdir -p .ralph/logs/r1/plan .ralph/logs/r1/build .ralph/logs/r1/retro
     printf '%s\n' '{"iteration":1,"mode":"plan","model":"sonnet","effort":null,"wall_s":5,"cost_usd":0.5,"tokens":{"output":40},"plan_items_completed":1,"git":{"commits":1,"files_changed":1,"insertions":2,"deletions":0,"noop":false}}' \
