@@ -35,3 +35,22 @@ jobs:
           "$HOME/.local/bin/yq" --version
       - uses: bats-core/bats-action@main
       - run: bats test/
+
+  test-macos:
+    name: BATS Tests (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: brew install bash bats-core jq yq gnu-getopt
+      # ralph needs bash 4 and util-linux getopt, and macOS ships bash 3.2 and BSD
+      # getopt. gnu-getopt is keg-only, so its bin directory goes on PATH by hand.
+      - name: Put Homebrew tools first on PATH
+        run: |
+          echo "$(brew --prefix)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix gnu-getopt)/bin" >> "$GITHUB_PATH"
+      - name: Show tool versions
+        run: |
+          bash --version
+          yq --version
+      - run: bats test/
