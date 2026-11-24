@@ -82,6 +82,12 @@ where the tests are listed.
 - `.github/workflows/ci.yml` gains a job `test-macos`, named `BATS Tests (macOS)`, on
   `macos-latest`. It installs `bash`, `bats-core`, `jq` and `yq` with Homebrew, puts Homebrew's
   `bash` first on `PATH`, prints `bash --version` and `yq --version`, and runs `bats test/`.
+- The job also installs `gnu-getopt` with Homebrew and puts its `bin` directory on `PATH` ahead of
+  `/usr/bin`. `cmd_loop` and `cmd_auto` parse their flags with util-linux `getopt` and its
+  `--long` option, which the macOS `getopt` lacks. Homebrew installs `gnu-getopt` keg-only, so
+  its `bin` directory is not on `PATH` by default. Planner decision, 2026-11-24: without it, no
+  loop or `auto` test can pass on macOS, this spec's §5 tests included. It assumes that the
+  `macos-latest` image puts no util-linux `getopt` on `PATH`.
 - The `shellcheck` and `test` jobs are unchanged.
 
 ## 4. Documentation
@@ -119,6 +125,9 @@ where the tests are listed.
 - **The macOS job uses Homebrew `bash`, not `/bin/bash` 3.2.** `ralph` already uses `mapfile`,
   which needs bash 4, so it cannot run under `/bin/bash` 3.2 today. The job checks BSD tools, not
   bash 3.2.
+- **The macOS job uses Homebrew `gnu-getopt`, not the macOS `getopt`.** `ralph` needs the
+  `--long` option of util-linux `getopt` today, as it needs bash 4. The job does not check the
+  macOS `getopt`.
 - **A resume without metrics leaves gaps in the recorded run.** Under `--no-metrics`, the phases
   that run write no phase folder and no `auto.json` entry. A later resume with metrics keeps the
   earlier entries, so the run shows those phases with their old state.
@@ -128,5 +137,6 @@ where the tests are listed.
 ## 7. Out of scope
 
 - Support for `/bin/bash` 3.2 on macOS, and the removal of `mapfile`.
+- Support for the macOS `getopt`.
 - A macOS ShellCheck job.
 - Running the suite on macOS from inside the build loop.
