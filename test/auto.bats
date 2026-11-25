@@ -537,6 +537,7 @@ seed_resume_state() {
     [[ "$output" != *"--metrics"* ]]
     [[ "$output" != *"--push"* ]]
     [[ "$output" != *" -e "* ]]
+    [[ "$output" != *" -m "* ]]
 }
 
 # --- Config validation (specs/019-phase-config.md §7) ---------------------------
