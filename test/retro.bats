@@ -765,6 +765,19 @@ PASS
     [[ "$output" != *"Retro kept"* ]]
 }
 
+@test "a retro pass counts each duplicate old bullet as dropped" {
+    create_retro_backend
+    seed_progress_entry
+    mkdir -p .ralph
+    printf '# Learnings\n\n- same\n- same\n- kept\n' > .ralph/learnings.md
+    cat > "$TEST_DIR/pass.sh" <<'PASS'
+printf '# Learnings\n\n- kept\n' > .ralph/learnings.md
+PASS
+    run --separate-stderr "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$stderr" == *"Retro kept 1 learnings: 0 added, 2 dropped."* ]]
+}
+
 # Helper: write a 021-format learnings file with one dated bullet under each of its four headings.
 write_021_learnings() {
     mkdir -p .ralph

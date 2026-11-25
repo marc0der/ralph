@@ -1444,14 +1444,14 @@ print_retro_summary() {
         learnings_bullets "$2" | sed 's/^/n/'
     } | awk '
         { text = substr($0, 2) }
-        /^o/ { old[text] = 1; next }
+        /^o/ { old[text]++; next }
         {
             kept++
             new[text] = 1
             if (!(text in old)) added++
         }
         END {
-            for (text in old) if (!(text in new)) dropped++
+            for (text in old) if (!(text in new)) dropped += old[text]
             printf "Retro kept %d learnings: %d added, %d dropped.\n", kept, added, dropped
         }
     ' >&2
