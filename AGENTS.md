@@ -31,7 +31,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 
 | Command | Purpose |
 |---------|---------|
-| `plan` | Run planning loop (max 6 iterations, exits on convergence) — requires a goal (`-g`), reads specs/source, produces `IMPLEMENTATION_PLAN.md` |
+| `plan` | Run planning loop (max 3 iterations, exits on convergence) — requires a goal (`-g`), reads specs/source, produces `IMPLEMENTATION_PLAN.md` |
 | `build` | Run build loop (default: open items plus 20% headroom) — picks next task, implements, tests, commits, pushes |
 | `fix` | Run the build loop with the `fix` section of the config file — `auto` runs it as phase 6 |
 | `review` | Run one review pass — reviews the cycle's work against its cited specs, the written rules and the review catalogue, files findings as new `- [ ]` items |
@@ -47,7 +47,7 @@ Ralph is a single Bash script (`ralph`) with these commands:
 ### Core loop flow (`cmd_loop`)
 
 1. Validate CLI dependencies (selected backend's CLI binary, git)
-2. Resolve the config file via `resolve_config` — `./ralph.yaml`, else `$CONFIG_DIR/config.yaml`, else the built-in defaults — and check it whole with `validate_config`, which needs mikefarah `yq` v4. `config_get` reads a key from the run's section (`plan`, `build`, `fix`, `review` or `retro`), then `defaults`. Each setting takes the CLI flag, then the file, then the built-in default, and `print_run_card` prints the result to stderr as the run card, before the first iteration
+2. Resolve the config file via `resolve_config` — `./ralph.yaml`, else `$CONFIG_DIR/config.yaml`, else the built-in defaults — and check it whole with `validate_config`, which needs mikefarah `yq` v4. `config_get` reads a key from the run's section (`plan`, `build`, `fix`, `review` or `retro`), then `defaults`. Each setting takes the CLI flag, then the file, then the built-in default. For `claude`, the built-in `model` and `effort` are the phase's entry in `BACKEND_PHASE_DEFAULTS`, which `resolve_phase_default` reads after `resolve_backend`: `plan` opus/xhigh, `build` sonnet/xhigh, `review` opus/max, `fix` opus/high, `retro` sonnet/medium. The other backends declare none. `print_run_card` prints the result to stderr as the run card, before the first iteration
 3. Resolve the backend from `-b`, then the section's `backend`, then `claude`, which loads the backend's command builder, default model, and jq filter. A `-b` that differs from the file's backend drops the file's `model`, `effort` and `extra_args` with a warning
 4. Resolve prompt template: project-local `PROMPT_<mode>.md` → installed default (`~/.config/ralph/prompts/`)
 5. Substitute `{{GOAL}}` and then `{{WORKSPACE}}` into the prompt via bash parameter expansion. `{{GOAL}}` expands first, so a goal may itself carry `{{WORKSPACE}}`, and it reaches `plan` alone — `plan` and `auto` require `-g`, and `build`, `review` and `retro` refuse it. `{{WORKSPACE}}` expands to `$PWD`, the workspace root, which anchors `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` in every prompt
