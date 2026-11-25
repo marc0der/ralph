@@ -1203,7 +1203,28 @@ MOCK
 
     local line
     line=$(tail -1 "$(latest_metrics_file)")
-    [[ $(jq -c '{section, effort, config}' <<<"$line") == '{"section":"build","effort":"xhigh","config":null}' ]]
+    [[ $(jq -c '{section, model, effort, config}' <<<"$line") == '{"section":"build","model":"sonnet","effort":"xhigh","config":null}' ]]
+}
+
+@test "metrics record null effort for a codex build with no -e" {
+    "$RALPH" init
+    printf -- '- [ ] one\n- [ ] two\n' > IMPLEMENTATION_PLAN.md
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/codex" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"type":"thread.started","thread_id":"thread_abc123"}'
+echo '{"type":"turn.started"}'
+echo '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"I fixed the bug in main.py"}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":100,"cached_input_tokens":50,"output_tokens":200}}'
+MOCK
+    chmod +x "$TEST_DIR/bin/codex"
+
+    PATH="$TEST_DIR/bin:$PATH" run "$RALPH" build -n 1 -b codex --skip-push -y
+    [[ "$status" -eq 0 ]]
+
+    local line
+    line=$(tail -1 "$(latest_metrics_file)")
+    [[ $(jq -c '{backend, effort}' <<<"$line") == '{"backend":"codex","effort":null}' ]]
 }
 
 @test "ralph metrics shows effort, config and section in the run summary" {
