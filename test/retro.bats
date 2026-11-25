@@ -857,10 +857,14 @@ PASS
     [[ "$(grep -cF "date '+%Y-%m-%d %H:%M'" "$BATS_TEST_DIRNAME/../prompts/review.md")" -eq 1 ]]
 }
 
-@test "the retro prompt dates bullets from date +%F" {
+@test "the retro prompt names the cap of 10" {
     prompt="$BATS_TEST_DIRNAME/../prompts/retro.md"
-    grep -qF 'date +%F' "$prompt"
-    run ! grep -qF "Use today's date" "$prompt"
+    grep -qF 'at most 10 learnings' "$prompt"
+    grep -qF 'Blocks the cycle' "$prompt"
+    grep -qF 'Fails an iteration' "$prompt"
+    grep -qF 'Costs time' "$prompt"
+    run ! grep -qF 'Promote to AGENTS.md' "$prompt"
+    run ! grep -qF 'date +%F' "$prompt"
 }
 
 @test "the progress template names the date command and the zone" {

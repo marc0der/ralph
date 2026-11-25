@@ -44,22 +44,27 @@ Drop a candidate that fails one test. Do not write it anywhere.
 
 You write the whole file again. Follow these rules:
 
-- Add each candidate that passes the admission test, under one heading.
-- Merge a candidate into an existing bullet that says the same thing. Never duplicate a bullet.
-- Give a bullet that this cycle observed again today's date.
-- Remove a bullet that this cycle contradicts. For example, remove the JDK 11 bullet when JDK 11 is now installed.
-- Remove a `Promote to AGENTS.md` bullet whose content `AGENTS.md` or `CLAUDE.md` now states.
-- Keep every other bullet and its date.
-- When the file would exceed 30 bullets, remove the bullets with the oldest dates first. Never remove a `Promote to AGENTS.md` bullet for this reason. Among equal dates, remove the bullet nearest the end of the file first.
+- Read the current learnings as candidates, together with the cycle's candidates.
+- Apply admission tests 1 and 3 to the cycle's new candidates only. A current learning leaves through the removal rules or the rank.
+- Merge a candidate into an existing learning that says the same thing. Never duplicate a learning.
+- Remove a learning that this cycle contradicts. For example, remove the JDK 11 learning when JDK 11 is now installed.
+- Remove a learning that `AGENTS.md`, `CLAUDE.md`, a spec or a code comment now states. A commit message does not count, because plan and build never read `git log`.
+- Text in an example block of a spec or a prompt does not state a learning.
+- Rank every remaining learning as the next section says. Write the first 10 in rank order.
 
-Run `date +%F` once before you write the file. Use its output for every new bullet and every bullet this cycle observed again.
+### Rank the learnings
 
-### Choose the heading
+Put each learning in one of three tiers, by what a future cycle loses without it:
 
-- **Environment** — the machine, the container or the network. Examples: missing tools, permissions, proxies.
-- **Tooling** — how the project's build, test and lint tools behave here.
-- **Codebase** — a fact about the code that a reader of the repository would not find quickly.
-- **Promote to AGENTS.md** — a learning that the operator should move into the guardrails file. The heading keeps this name in a project whose guardrails file is `CLAUDE.md`.
+1. **Blocks the cycle.** Without it, the cycle cannot build, test or pass its quality gate.
+2. **Fails an iteration.** Without it, an iteration fails or takes a wrong turn.
+3. **Costs time.** Without it, a step takes longer but still succeeds.
+
+Every tier 1 learning ranks above every tier 2 learning. Every tier 2 learning ranks above every tier 3 learning.
+
+Inside one tier, rank a learning by how likely the next cycle is to need it. A learning that this cycle needed again moves up. Age does not change the rank.
+
+Write at most 10 learnings. The first bullet is the most important, so the file order is the rank. When more than 10 learnings remain after the removals, rank them all together and drop the lowest. Keep no record of a learning that leaves.
 
 A bullet about a nested repository names that repository's path.
 
