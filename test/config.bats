@@ -817,3 +817,10 @@ dry_run_card_rows() {
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Would run: claude "*"--model opus "*"--effort xhigh"* ]]
 }
+
+@test "phase default: the shipped config.yaml sets no model or effort and every backend example reads claude" {
+    local template="$BATS_TEST_DIRNAME/../templates/config.yaml"
+    [[ "$(grep -cE '^ *(model|effort):' "$template" || true)" -eq 0 ]]
+    [[ "$(grep -cE '^ *# backend: [a-z]+$' "$template")" -eq 5 ]]
+    [[ "$(grep -cE '^ *# backend: claude$' "$template")" -eq 5 ]]
+}
