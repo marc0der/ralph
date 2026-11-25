@@ -1,8 +1,8 @@
 ---
 id: "030"
 created: 2026-11-25
-area: [retro]
-amends: ["021", "022"]
+area: [retro, backend]
+amends: ["021", "022", "029"]
 ---
 
 # Ranked Learnings
@@ -16,7 +16,8 @@ This spec amends `021-retro-phase.md`. It replaces the last bullet of §2, §3 F
 rules, §4 Summary, the promotion clauses of §5, the format and summary tests of §10, and the first
 two risks of §11. The rest of 021 stands. It also replaces the `prompts/retro.md` clauses of
 `022-progress-timestamps.md` §2, §3 and §5: the retro prompt no longer runs `date +%F`, and the test
-that requires it goes.
+that requires it goes. It replaces the `retro` row of the table in `029-claude-phase-default-values.md`
+§1: the `claude` default effort for `retro` becomes `high`.
 
 ## 1. Problem
 
@@ -37,9 +38,19 @@ The learnings file of this repository on 2026-11-25 shows the problem:
 - **A short list.** The learnings file holds at most 10 learnings.
 - **Ranked by importance.** The file holds one list. The first bullet is the most important. The
   file order is the rank.
-- **Cost times likelihood.** The retro ranks a learning by what a future cycle loses without it,
-  and by how likely the next cycle is to need it. A learning that this cycle needed again moves
-  up. Age does not change the rank.
+- **Severity tiers first.** The retro puts each learning in one of three tiers, by what a future
+  cycle loses without it:
+  1. **Blocks the cycle.** Without it, the cycle cannot build, test or pass its quality gate.
+  2. **Fails an iteration.** Without it, an iteration fails or takes a wrong turn.
+  3. **Costs time.** Without it, a step takes longer but still succeeds.
+
+  Every tier 1 learning ranks above every tier 2 learning, and every tier 2 learning ranks above
+  every tier 3 learning.
+- **Likelihood within a tier.** Inside one tier, the retro ranks a learning by how likely the next
+  cycle is to need it. A learning that this cycle needed again moves up. Age does not change the
+  rank.
+- **Room to think.** For `claude`, the retro's default effort is `high`. The default model stays
+  `sonnet`.
 - **The least important learning leaves.** When more than 10 learnings remain after the
   removals, the retro ranks them all together, and the lowest leave. The retro keeps no record
   of a learning that leaves.
@@ -82,8 +93,8 @@ Each retro writes the whole file again:
 - It removes a learning that `AGENTS.md`, `CLAUDE.md`, a spec or a code comment now states.
   A commit message does not count, because plan and build never read `git log`.
 - Text in an example block of a spec or a prompt does not state a learning.
-- It ranks every remaining learning by cost times likelihood, and writes the first 10 in rank
-  order.
+- It ranks every remaining learning by tier, then by likelihood within the tier, and writes the
+  first 10 in rank order.
 
 ### A file in the old format
 
@@ -127,7 +138,9 @@ specs and the code comments.
 - `README.md`: "Keeping learnings" states the cap of 10, the ranked list and the removal of the
   least important learning. The banner bullet goes.
 - `CLAUDE.md` and `AGENTS.md`: the retro paragraph states the new summary line, and no longer names
-  the promotion banner.
+  the promotion banner. Core loop step 2 lists `retro sonnet/high`.
+- `README.md` phase defaults table and `templates/config.yaml` `retro` section: the `claude`
+  default effort for `retro` reads `high`.
 
 ## 7. Testing
 
@@ -143,6 +156,10 @@ specs and the code comments.
 - The summary line names no refreshed count.
 - A pass prints no promotion banner, even when the old file held a `Promote to AGENTS.md` bullet.
 
+**Retro default**
+- With no config file and the `claude` backend, `retro` prints `model: sonnet effort: high` on its
+  run card.
+
 **Iteration card**
 - The card counts the bullets of an old-format file and of a new-format file.
 
@@ -150,7 +167,7 @@ specs and the code comments.
 - A 021-era `PROMPT_retro.md` whose pass fails the format check prints that line.
 
 **Prompt**
-- `prompts/retro.md` names the cap of 10 and the ranking, and no longer names `Promote to
+- `prompts/retro.md` names the cap of 10 and the three tiers, and no longer names `Promote to
   AGENTS.md`.
 
 ## 8. Accepted risks
