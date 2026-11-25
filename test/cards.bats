@@ -579,6 +579,16 @@ MOCK
     [[ "$output" == *$'\n▶ distilling 2 PROGRESS.md entries · 3 learnings on file\n'* ]]
 }
 
+@test "headline in retro counts the bullets of a ranked-format file" {
+    "$RALPH" init
+    seed_progress_entry
+    mkdir -p .ralph
+    printf '# Learnings\n\n- One\n- Two\n' > .ralph/learnings.md
+    run --separate-stderr "$RALPH" retro --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\n▶ distilling 1 PROGRESS.md entry · 2 learnings on file\n'* ]]
+}
+
 @test "headline in retro uses the singular for one entry and one learning" {
     "$RALPH" init
     seed_progress_entry
