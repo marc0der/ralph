@@ -17,11 +17,11 @@ defaults:
   backend: claude
 
   # model: non-empty string. Phases: all. Flag: -m.
-  # Unset: the backend's own default model applies.
+  # Unset: the phase's built-in default applies; each phase section names it.
   # model: opus
 
   # effort: a level the backend lists. Phases: all. Flag: -e.
-  # Unset: Ralph passes no effort flag, and the backend's own default applies.
+  # Unset: the phase's built-in default applies; each phase section names it.
   #   claude:  low medium high xhigh max
   #   codex:   minimal low medium high xhigh max ultra
   #   copilot: none minimal low medium high xhigh max
@@ -45,19 +45,19 @@ plan:
   # backend: claude
 
   # model: non-empty string. Phases: all. Flag: -m.
-  # Unset: the defaults model applies.
+  # Unset: the defaults model applies, else opus for claude.
   # model: opus
 
   # effort: a level the backend lists. Phases: all. Flag: -e.
-  # Unset: the defaults effort applies.
-  # effort: max
+  # Unset: the defaults effort applies, else xhigh for claude.
+  # effort: xhigh
 
   # extra_args: list of strings. Phases: all. Flag: none.
   # Unset: the defaults extra_args apply.
   # extra_args: []
 
   # iterations: positive integer, the plan cap. Phases: plan, build, fix. Flag: -n.
-  # iterations: 6
+  # iterations: 3
 
 build:
   # backend: one of claude, codex, copilot, pi. Phases: all. Flag: -b.
@@ -66,12 +66,12 @@ build:
   # backend: claude
 
   # model: non-empty string. Phases: all. Flag: -m.
-  # Unset: the defaults model applies.
+  # Unset: the defaults model applies, else sonnet for claude.
   # model: sonnet
 
   # effort: a level the backend lists. Phases: all. Flag: -e.
-  # Unset: the defaults effort applies.
-  # effort: medium
+  # Unset: the defaults effort applies, else xhigh for claude.
+  # effort: xhigh
 
   # extra_args: list of strings. Phases: all. Flag: none.
   # Unset: the defaults extra_args apply.
@@ -101,15 +101,15 @@ review:
   # backend: one of claude, codex, copilot, pi. Phases: all. Flag: -b.
   # Unset: the defaults backend applies. A different backend inherits no
   # model, effort or extra_args from defaults.
-  # backend: codex
+  # backend: claude
 
   # model: non-empty string. Phases: all. Flag: -m.
-  # Unset: the defaults model applies.
-  # model: gpt-5-codex
+  # Unset: the defaults model applies, else opus for claude.
+  # model: opus
 
   # effort: a level the backend lists. Phases: all. Flag: -e.
-  # Unset: the defaults effort applies.
-  # effort: xhigh
+  # Unset: the defaults effort applies, else max for claude.
+  # effort: max
 
   # extra_args: list of strings. Phases: all. Flag: none.
   # Unset: the defaults extra_args apply.
@@ -124,11 +124,11 @@ fix:
   # backend: claude
 
   # model: non-empty string. Phases: all. Flag: -m.
-  # Unset: the defaults model applies.
-  # model: sonnet
+  # Unset: the defaults model applies, else opus for claude.
+  # model: opus
 
   # effort: a level the backend lists. Phases: all. Flag: -e.
-  # Unset: the defaults effort applies.
+  # Unset: the defaults effort applies, else high for claude.
   # effort: high
 
   # extra_args: list of strings. Phases: all. Flag: none.
@@ -158,11 +158,11 @@ retro:
   # backend: claude
 
   # model: non-empty string. Phases: all. Flag: -m.
-  # Unset: the defaults model applies.
+  # Unset: the defaults model applies, else sonnet for claude.
   # model: sonnet
 
   # effort: a level the backend lists. Phases: all. Flag: -e.
-  # Unset: the defaults effort applies.
+  # Unset: the defaults effort applies, else medium for claude.
   # effort: medium
 
   # extra_args: list of strings. Phases: all. Flag: none.
