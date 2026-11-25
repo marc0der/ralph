@@ -151,7 +151,7 @@ Outside a container, ralph warns you and asks `Continue anyway? [y/N]` before it
 
 **Your project's rules.** Ralph reads your `CLAUDE.md` or `AGENTS.md` on every pass, but never writes to it. Put your build and test commands, conventions and gotchas there. If it points to a directory of written rules, every phase follows those rules and review reports code that breaks them.
 
-**The prompts.** `ralph init --prompts` copies the prompts into your project as `PROMPT_plan.md`, `PROMPT_build.md`, `PROMPT_review.md` and `PROMPT_retro.md`, where they override the installed ones. The defaults mention Claude model names, so edit them if you use another agent. A local copy doesn't update when ralph does, so refresh it after an upgrade.
+**The prompts.** `ralph init --prompts` copies the prompts into your project as `PROMPT_plan.md`, `PROMPT_build.md`, `PROMPT_review.md` and `PROMPT_retro.md`, where they override the installed ones. A local copy doesn't update when ralph does, so refresh it after an upgrade.
 
 **The config file.** A YAML file sets the backend, model, effort, iteration count and loop tuning for each phase. Ralph reads `./ralph.yaml` when it exists and ignores the central copy, otherwise `~/.config/ralph/config.yaml`, which `install.sh` writes on every install, otherwise nothing, and then it uses the built-in defaults. The winning file is read whole: a key it leaves out takes the built-in default, never the central copy's value. A CLI flag beats the file. `ralph init --config` copies the central copy into your project as `ralph.yaml`, which `ralph init` gitignores.
 
