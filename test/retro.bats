@@ -960,6 +960,14 @@ PASS
     run ! grep -qF 'date +%F' "$prompt"
 }
 
+@test "the retro prompt states the format rules and the old-format rule" {
+    prompt="$BATS_TEST_DIRNAME/../prompts/retro.md"
+    grep -qF 'Ignore a file in the old format' "$prompt"
+    grep -qF 'Write at most 10 bullets.' "$prompt"
+    grep -qF 'Write at most 40 words in a bullet.' "$prompt"
+    grep -qF 'A bullet carries no date.' "$prompt"
+}
+
 @test "the progress template names the date command and the zone" {
     template="$BATS_TEST_DIRNAME/../templates/PROGRESS.md"
     grep -qF '### [YYYY-MM-DD HH:mm]' "$template"
