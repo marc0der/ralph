@@ -765,6 +765,53 @@ PASS
     [[ "$output" != *"Retro kept"* ]]
 }
 
+# Helper: write a 021-format learnings file with one dated bullet under each of its four headings.
+write_021_learnings() {
+    mkdir -p .ralph
+    cat > .ralph/learnings.md <<'OLD'
+# Learnings
+
+## Environment
+- JDK 11 is not installed. (confirmed 2026-11-14)
+
+## Tooling
+- Run bats serially. (confirmed 2026-11-14)
+
+## Codebase
+- Cut a repo path with a suffix strip. (confirmed 2026-11-14)
+
+## Promote to AGENTS.md
+- AGENTS.md: promote me (confirmed 2026-11-14)
+OLD
+}
+
+@test "a retro pass over an old-format file counts each old bullet as dropped" {
+    create_retro_backend
+    seed_progress_entry
+    write_021_learnings
+    cat > "$TEST_DIR/pass.sh" <<'PASS'
+printf '# Learnings\n\n- Run bats serially.\n' > .ralph/learnings.md
+PASS
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Retro kept 1 learnings: 1 added, 4 dropped."* ]]
+    [[ "$output" != *"refreshed"* ]]
+}
+
+@test "a retro pass that writes only the title over an old-format file prints no banner" {
+    create_retro_backend
+    seed_progress_entry
+    write_021_learnings
+    cat > "$TEST_DIR/pass.sh" <<'PASS'
+printf '# Learnings\n' > .ralph/learnings.md
+PASS
+    DEVCONTAINER=true run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Retro kept 0 learnings: 0 added, 4 dropped."* ]]
+    [[ "$output" != *"⚠️"* ]]
+    [[ "$output" != *"Move them by hand"* ]]
+}
+
 @test "a first retro pass without an old file counts every bullet as added" {
     create_retro_backend
     seed_progress_entry
