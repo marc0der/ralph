@@ -730,6 +730,15 @@ setup_bullets_pass() {
     [[ "$status" -eq 0 ]]
 }
 
+@test "a retro pass that writes a mid-text date passes the format check" {
+    setup_format_pass <<'PASS'
+printf '# Learnings\n\n- trailing (confirmed 2026-11-14) more\n' > .ralph/learnings.md
+PASS
+    run "$RALPH" retro
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Retro kept 1 learnings: 1 added, 1 dropped."* ]]
+}
+
 @test "a retro pass that writes an 11th bullet fails the format check at its line" {
     setup_bullets_pass 11 1
     run_retro_expecting_format_failure 13
