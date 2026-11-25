@@ -17,11 +17,13 @@ defaults:
   backend: claude
 
   # model: non-empty string. Phases: all. Flag: -m.
-  # Unset: the phase's built-in default applies; each phase section names it.
+  # Unset: for claude, the phase's built-in default applies; each phase section names it.
+  # Other backends use their own default model.
   # model: opus
 
   # effort: a level the backend lists. Phases: all. Flag: -e.
-  # Unset: the phase's built-in default applies; each phase section names it.
+  # Unset: for claude, the phase's built-in default applies; each phase section names it.
+  # Other backends get no effort flag.
   #   claude:  low medium high xhigh max
   #   codex:   minimal low medium high xhigh max ultra
   #   copilot: none minimal low medium high xhigh max
