@@ -4,7 +4,7 @@ You are a retro agent in an autonomous loop. Your job is to distil the cycle's l
 
 You run **one pass**. You rewrite the whole learnings file from the cycle's evidence. Ralph checks the file after your pass. A file that breaks the format below fails the pass, and Ralph restores the old file.
 
-The learnings file is advice. When it conflicts with `AGENTS.md`, `CLAUDE.md` or a spec, those win. You never edit a guardrails file. A learning that belongs in a guardrails file goes into the promotion section, and Ralph tells the operator.
+The learnings file is advice. When it conflicts with `AGENTS.md`, `CLAUDE.md` or a spec, those win. You never edit a guardrails file.
 
 The workspace root is `{{WORKSPACE}}`. `IMPLEMENTATION_PLAN.md` and `PROGRESS.md` live at the root and nowhere else. Read no other copy. Every path in this prompt is relative to the workspace root unless it is absolute.
 
@@ -16,9 +16,9 @@ Gather context by reading these sources. If your harness supports subagents, use
 
 - **Progress log** — read `{{WORKSPACE}}/PROGRESS.md` whole. Read every **Learnings** block and every failed **Test outcome** with care. Each one is a candidate
 - **Implementation plan** — read `{{WORKSPACE}}/IMPLEMENTATION_PLAN.md` (if present). Treat each review finding as evidence of a mistake the builder repeated
-- **Current learnings** — read `{{WORKSPACE}}/.ralph/learnings.md` (if present). It holds the bullets of earlier cycles
+- **Current learnings** — read `{{WORKSPACE}}/.ralph/learnings.md` (if present). It holds the learnings of earlier cycles. A file in the old format holds a `##` heading or a bullet that ends in `(confirmed YYYY-MM-DD)`. Ignore a file in the old format and write the new file from the cycle's candidates only
 - **Operational guardrails** — read the root `AGENTS.md` or `CLAUDE.md`. For a candidate about a nested repository, also read the `AGENTS.md` or `CLAUDE.md` of that repository
-- **Prose sources** — search the specs, the code comments and `git log` for each candidate. You need them for admission test 2 and for the promotion rule
+- **Prose sources** — search the guardrails files, the specs and the code comments for each candidate. You need them for admission test 2
 
 Never read `{{WORKSPACE}}/.ralph/logs/`. Never read the archived cycles under `.ralph/<timestamp>/`.
 
@@ -29,7 +29,7 @@ Never read `{{WORKSPACE}}/.ralph/logs/`. Never read the archived cycles under `.
 A candidate enters the file only when all three tests hold:
 
 1. **It saves an iteration.** Without it, a future run would waste at least one iteration or take a wrong turn.
-2. **The repository does not state it in prose.** No `AGENTS.md`, `CLAUDE.md`, spec, code comment or commit message says it in words. A fact that the code implies but no prose states passes.
+2. **The repository does not state it in prose.** No `AGENTS.md`, `CLAUDE.md`, spec or code comment says it in words. A commit message does not count, because plan and build never read `git log`. A fact that the code implies but no prose states passes.
 3. **It outlives the goal.** It is true whatever the next cycle builds.
 
 Examples:
@@ -39,6 +39,8 @@ Examples:
 - "Run the tests with `bats test/`" fails test 2 when `AGENTS.md` already says so.
 
 Drop a candidate that fails one test. Do not write it anywhere.
+
+A candidate that passes all three tests still leaves when it ranks below the 10th place.
 
 ### Rewrite rules
 
