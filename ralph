@@ -103,13 +103,13 @@ backend_claude() {
     BACKEND_CLI="claude"
     BACKEND_EFFORT_LEVELS=(low medium high xhigh max)
     BACKEND_DEFAULT_MODEL="opus"
-    # One "<section> <model> <effort>" entry per phase; specs/029-claude-phase-default-values.md §1
+    # One "<section> <model> <effort>" entry per phase; specs/029-claude-phase-default-values.md §1, specs/030-ranked-learnings.md §2
     BACKEND_PHASE_DEFAULTS=(
         "plan opus xhigh"
         "build sonnet xhigh"
         "review opus max"
         "fix opus high"
-        "retro sonnet medium"
+        "retro sonnet high"
     )
     BACKEND_PERMISSION_FLAG="--dangerously-skip-permissions"
     BACKEND_PERMISSION_WARNING="Claude will have unrestricted access to tools (file writes, shell commands, etc)."

@@ -764,7 +764,7 @@ dry_run_card_rows() {
     local expected rows
     expected=$(printf '%s\n' \
         "backend: claude model: opus effort: max" "config: [review]" \
-        "backend: claude model: sonnet effort: medium" "config: [retro]" \
+        "backend: claude model: sonnet effort: high" "config: [retro]" \
         "backend: claude model: opus effort: xhigh" "config: [plan]" \
         "backend: claude model: sonnet effort: xhigh" "config: [build]" \
         "backend: claude model: opus effort: high" "config: [fix]")

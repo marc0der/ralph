@@ -189,10 +189,10 @@ backend_phase_defaults() {
     [[ "$output" == "model=[opus] effort=[high]" ]]
 }
 
-@test "phase default: claude retro is sonnet at medium" {
+@test "phase default: claude retro is sonnet at high" {
     run backend_phase_defaults claude retro
     [[ "$status" -eq 0 ]]
-    [[ "$output" == "model=[sonnet] effort=[medium]" ]]
+    [[ "$output" == "model=[sonnet] effort=[high]" ]]
 }
 
 @test "phase default: codex declares none for any section" {

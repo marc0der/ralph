@@ -164,8 +164,8 @@ retro:
   # model: sonnet
 
   # effort: a level the backend lists. Phases: all. Flag: -e.
-  # Unset: the defaults effort applies, else medium for claude.
-  # effort: medium
+  # Unset: the defaults effort applies, else high for claude.
+  # effort: high
 
   # extra_args: list of strings. Phases: all. Flag: none.
   # Unset: the defaults extra_args apply.
