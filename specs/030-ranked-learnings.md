@@ -70,6 +70,8 @@ The learnings file of this repository on 2026-11-25 shows the problem:
 
 - The first line is `# Learnings`.
 - Each learning is one bullet on one physical line: `- <text>`. A bullet carries no date.
+- A bullet whose text ends in `(confirmed YYYY-MM-DD)`, the date form of 021, carries a date. A
+  date elsewhere in the text is part of the learning, so the format check accepts it.
 - The text holds at most 40 words, where a word is a maximal run of non-whitespace characters.
 - The file holds at most 10 bullets.
 - The file holds nothing else: no other headings and no prose. Blank lines are allowed.
@@ -149,6 +151,7 @@ specs and the code comments.
   line.
 - A pass that writes only `# Learnings` succeeds.
 - A pass that writes 10 bullets succeeds.
+- A pass that writes a bullet that ends in `(confirmed 2026-11-14)` fails. The error names the line.
 
 **Summary**
 - The counts of added and dropped bullets match a known pair of files in the new format.
