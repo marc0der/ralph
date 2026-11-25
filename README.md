@@ -178,7 +178,7 @@ With the `claude` backend, a phase that gets no `model` or `effort` from a flag 
 | `build`  | `sonnet` | `xhigh`  |
 | `review` | `opus`   | `max`    |
 | `fix`    | `opus`   | `high`   |
-| `retro`  | `sonnet` | `medium` |
+| `retro`  | `sonnet` | `high`   |
 
 `skip_push` governs every repository the cycle moved, and the workspace. `defaults` takes only the keys whose phases read "all". `iterations` turns self-sizing off, so a section that sets it can't also set `headroom_pct` or `noop_patience`. Every run prints a run card to stderr naming the file, the section and the values it used.
 
