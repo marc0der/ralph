@@ -1532,10 +1532,11 @@ check_learnings_format() {
     ' "$file" >&2
 }
 
-# Fail a retro pass that broke a rule of specs/021-retro-phase.md §4. The
+# Fail a retro pass that broke a rule of specs/021-retro-phase.md §4, and name
+# a local prompt on a format failure (specs/030-ranked-learnings.md §4). The
 # caller exits 1, so the EXIT trap restores the learnings file.
 check_retro_pass() {
-    local changed
+    local prompt_file="$1" changed
     changed=$(first_changed_line "$RALPH_RETRO_HEADS" "$(repo_state)")
     if [[ -n "$changed" ]]; then
         echo "Error: retro pass committed in ${changed% *}; retro may not commit." >&2
@@ -1559,8 +1560,11 @@ check_retro_pass() {
         echo "Error: .ralph/learnings.md is not a regular file." >&2
         return 1
     fi
-    if [[ -f "$LEARNINGS_FILE" ]]; then
-        check_learnings_format "$LEARNINGS_FILE" || return 1
+    if [[ -f "$LEARNINGS_FILE" ]] && ! check_learnings_format "$LEARNINGS_FILE"; then
+        if [[ "$prompt_file" == "PROMPT_retro.md" ]]; then
+            echo "This project has its own PROMPT_retro.md; delete it and run 'ralph init --prompts' to get the ranked-learnings prompt." >&2
+        fi
+        return 1
     fi
 }
 
@@ -2941,7 +2945,7 @@ cmd_loop() {
                 fi
             fi
 
-            if [[ "$mode" == "retro" ]] && ! check_retro_pass; then
+            if [[ "$mode" == "retro" ]] && ! check_retro_pass "$prompt_file"; then
                 exit 1
             fi
 
