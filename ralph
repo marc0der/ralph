@@ -1429,56 +1429,30 @@ arm_retro_pass() {
     RALPH_RETRO_ARTIFACTS=$(retro_artifact_state) || exit 1
 }
 
-# Print "<heading>\t<date>\t<text>" per bullet of a §3-valid learnings file,
-# and nothing for a missing file. The text goes last because it may hold a tab.
+# Print the text of each bullet as written, and nothing for a missing file;
+# see specs/030-ranked-learnings.md §4 Summary.
 learnings_bullets() {
     [[ -f "$1" ]] || return 0
-    awk '
-        /^## / { heading = substr($0, 4); next }
-        /^- / {
-            text = substr($0, 3)
-            sub(/ \(confirmed [0-9-]+\)$/, "", text)
-            printf "%s\t%s\t%s\n", heading, substr($0, length($0) - 10, 10), text
-        }
-    ' "$1"
+    awk '/^- / { print substr($0, 3) }' "$1"
 }
 
-# Print the Retro kept line to stderr; see specs/021-retro-phase.md §4 Summary.
-# Bullets compare by heading and text, and a new date marks a refresh.
+# Print the Retro kept line to stderr; see specs/030-ranked-learnings.md §4 Summary.
+# The tags o and n keep the old and new bullets apart on one stream.
 print_retro_summary() {
-    local old_bullets new_bullets
-    old_bullets=$(learnings_bullets "$1")
-    new_bullets=$(learnings_bullets "$2")
-    printf '%s\n@@\n%s\n' "$old_bullets" "$new_bullets" | awk -F'\t' '
-        $0 == "@@" { in_new = 1; next }
-        NF == 0 { next }
-        { key = $1 FS substr($0, length($1) + length($2) + 3) }
-        !in_new { old[key] = $2; next }
+    {
+        learnings_bullets "$1" | sed 's/^/o/'
+        learnings_bullets "$2" | sed 's/^/n/'
+    } | awk '
+        { text = substr($0, 2) }
+        /^o/ { old[text] = 1; next }
         {
             kept++
-            new[key] = 1
-            if (!(key in old)) added++
-            else if (old[key] != $2) refreshed++
+            new[text] = 1
+            if (!(text in old)) added++
         }
         END {
-            for (key in old) if (!(key in new)) dropped++
-            printf "Retro kept %d learnings: %d added, %d dropped, %d refreshed.\n", kept, added, dropped, refreshed
-        }
-    ' >&2
-}
-
-# Print the promotion banner to stderr, or nothing when the section holds no
-# bullet; see specs/021-retro-phase.md §4 Summary.
-print_promotion_banner() {
-    learnings_bullets "$1" | awk -F'\t' '
-        BEGIN { rule = sprintf("%64s", ""); gsub(/ /, "=", rule) }
-        $1 == "Promote to AGENTS.md" { lines[++count] = substr($0, length($1) + length($2) + 3) }
-        END {
-            if (count == 0) exit
-            print rule
-            printf "⚠️  %d learnings belong in a guardrails file. Move them by hand:\n", count
-            for (i = 1; i <= count; i++) printf "⚠️    - %s\n", lines[i]
-            print rule
+            for (text in old) if (!(text in new)) dropped++
+            printf "Retro kept %d learnings: %d added, %d dropped.\n", kept, added, dropped
         }
     ' >&2
 }
@@ -1488,7 +1462,6 @@ print_promotion_banner() {
 finish_retro_pass() {
     [[ "$RALPH_RETRO_ARMED" == "true" ]] || return 0
     print_retro_summary "$RALPH_RETRO_BACKUP" "$LEARNINGS_FILE"
-    print_promotion_banner "$LEARNINGS_FILE"
     RALPH_RETRO_ARMED=false
     mkdir -p "$ARCHIVE_DIR"
     if [[ -n "$RALPH_RETRO_BACKUP" ]]; then

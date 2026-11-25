@@ -817,7 +817,7 @@ PASS
     [[ "$status" -eq 0 ]]
 }
 
-@test "a retro pass prints the added, dropped and refreshed counts of a known pair" {
+@test "a retro pass prints the added and dropped counts of a known pair" {
     create_retro_backend
     seed_progress_entry
     mkdir -p .ralph
@@ -827,20 +827,8 @@ printf '# Learnings\n\n## Environment\n- keep me (confirmed 2026-11-01)\n- refre
 PASS
     run --separate-stderr "$RALPH" retro
     [[ "$status" -eq 0 ]]
-    [[ "$stderr" == *"Retro kept 4 learnings: 2 added, 2 dropped, 1 refreshed."* ]]
+    [[ "$stderr" == *"Retro kept 4 learnings: 3 added, 3 dropped."* ]]
     [[ "$output" != *"Retro kept"* ]]
-}
-
-@test "a retro pass counts the same text under another heading as dropped and added" {
-    create_retro_backend
-    seed_progress_entry
-    write_learnings "moving text"
-    cat > "$TEST_DIR/pass.sh" <<'PASS'
-printf '# Learnings\n\n## Environment\n\n## Tooling\n- moving text (confirmed 2026-11-14)\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
-PASS
-    run "$RALPH" retro
-    [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Retro kept 1 learnings: 1 added, 1 dropped, 0 refreshed."* ]]
 }
 
 @test "a first retro pass without an old file counts every bullet as added" {
@@ -851,7 +839,7 @@ printf '# Learnings\n\n## Environment\n- first (confirmed 2026-11-14)\n\n## Tool
 PASS
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Retro kept 2 learnings: 2 added, 0 dropped, 0 refreshed."* ]]
+    [[ "$output" == *"Retro kept 2 learnings: 2 added, 0 dropped."* ]]
 }
 
 @test "an idle retro pass keeps every bullet and prints no change" {
@@ -860,7 +848,7 @@ PASS
     write_learnings "steady"
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Retro kept 1 learnings: 0 added, 0 dropped, 0 refreshed."* ]]
+    [[ "$output" == *"Retro kept 1 learnings: 0 added, 0 dropped."* ]]
 }
 
 @test "a failed retro pass prints no summary" {
@@ -871,58 +859,6 @@ PASS
     run "$RALPH" retro
     [[ "$status" -eq 1 ]]
     [[ "$output" != *"Retro kept"* ]]
-}
-
-@test "a retro pass prints the promotion banner with each target and the count" {
-    create_retro_backend
-    seed_progress_entry
-    cat > "$TEST_DIR/pass.sh" <<'PASS'
-printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n- AGENTS.md: state the JDK command (confirmed 2026-11-14)\n- services/api/AGENTS.md: state the port (confirmed 2026-11-14)\n' > .ralph/learnings.md
-PASS
-    run --separate-stderr "$RALPH" retro
-    [[ "$status" -eq 0 ]]
-    rule=$(printf '=%.0s' $(seq 1 64))
-    [[ "$stderr" == *"$rule"$'\n'"⚠️  2 learnings belong in a guardrails file. Move them by hand:"* ]]
-    [[ "$stderr" == *"⚠️    - AGENTS.md: state the JDK command"$'\n'* ]]
-    [[ "$stderr" == *"⚠️    - services/api/AGENTS.md: state the port"$'\n'"$rule"* ]]
-    [[ "$stderr" != *"(confirmed 2026-11-14)"$'\n'"$rule"* ]]
-    [[ "$output" != *"⚠️"* ]]
-    [[ "$(grep -cx '================================================================' <<<"$stderr")" -eq 2 ]]
-}
-
-@test "a retro pass counts a tabbed bullet with a new date as refreshed" {
-    create_retro_backend
-    seed_progress_entry
-    mkdir -p .ralph
-    printf '# Learnings\n\n## Environment\n- split\there (confirmed 2026-11-01)\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
-    cat > "$TEST_DIR/pass.sh" <<'PASS'
-printf '# Learnings\n\n## Environment\n- split\there (confirmed 2026-11-14)\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
-PASS
-    run "$RALPH" retro
-    [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Retro kept 1 learnings: 0 added, 0 dropped, 1 refreshed."* ]]
-}
-
-@test "a retro pass prints a tabbed promotion bullet whole in the banner" {
-    create_retro_backend
-    seed_progress_entry
-    cat > "$TEST_DIR/pass.sh" <<'PASS'
-printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n- AGENTS.md: state\tthe port (confirmed 2026-11-14)\n' > .ralph/learnings.md
-PASS
-    run "$RALPH" retro
-    [[ "$status" -eq 0 ]]
-    [[ "$output" == *"⚠️    - AGENTS.md: state"$'\t'"the port"$'\n'* ]]
-}
-
-@test "a retro pass with an empty promotion section prints no banner" {
-    create_retro_backend
-    seed_progress_entry
-    write_learnings "steady"
-    run "$RALPH" retro
-    [[ "$status" -eq 0 ]]
-    [[ "$output" != *"Move them by hand"* ]]
-    rule=$(printf '=%.0s' $(seq 1 64))
-    [[ "$output" != *$'\n'"$rule"$'\n'* ]]
 }
 
 @test "the retro prompt names the four headings and the dated bullet form" {
@@ -950,7 +886,7 @@ cp "$TEST_DIR/exemplar.md" .ralph/learnings.md
 PASS
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Retro kept 4 learnings: 4 added, 0 dropped, 0 refreshed."* ]]
+    [[ "$output" == *"Retro kept 4 learnings: 4 added, 0 dropped."* ]]
 }
 
 @test "archive and clean keep both learnings files" {
