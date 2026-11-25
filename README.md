@@ -57,11 +57,11 @@ The four phases have different jobs:
 - **`review`** checks the cycle's work in one pass against the specs the plan cited, your project's written rules and a fixed catalogue of code-quality defects. It adds every finding as a new task, and only runs once every task has shipped.
 - **`retro`** reads the cycle's `PROGRESS.md` in one pass and keeps the few lessons that will still save a future run an iteration in `.ralph/learnings.md`. It needs one dated progress entry.
 
-A capable model writing the plan and a cheaper one following it works well:
+A capable model writing the plan and a cheaper one following it works well, and with `claude` that is the default:
 
 ```bash
-ralph plan -g specs/checkout-flow.md   # default model writes the plan
-ralph build -m sonnet                  # a cheaper model follows the steps
+ralph plan -g specs/checkout-flow.md   # opus writes the plan
+ralph build                            # sonnet follows the steps
 ```
 
 *The name comes from the [Ralph Wiggum pattern](https://github.com/ghuntley/how-to-ralph-wiggum) and Ralph's cheerful "I'm helping!", which is an agent working through a list without needing its hand held.*
@@ -113,12 +113,12 @@ The file holds at most 30 one-line bullets under four headings: `Environment`, `
 ```bash
 ralph build -b codex           # use Codex
 ralph build -b copilot -n 10   # use Copilot, at most 10 passes
-ralph build -m sonnet          # use a different model
+ralph build -m haiku           # use a different model
 ```
 
 | Backend   | Default model               |
 |-----------|-----------------------------|
-| `claude`  | `opus`                      |
+| `claude`  | opus or sonnet, by phase    |
 | `codex`   | `gpt-5.2-codex`             |
 | `copilot` | `claude-sonnet-4.6`         |
 | `pi`      | `anthropic/claude-opus-4-8` |
@@ -157,18 +157,28 @@ Outside a container, ralph warns you and asks `Continue anyway? [y/N]` before it
 
 The file holds up to six sections: `defaults`, `plan`, `build`, `fix`, `review` and `retro`. Each phase section inherits from `defaults` key by key, but when it sets a different `backend` it inherits no `model`, `effort` or `extra_args`. `fix` configures `ralph fix`, the build that `auto` runs as phase 6, before `retro`, and does not inherit from `build`. Ralph validates the whole file before every run, so a typo in one section fails every phase.
 
-| Key             | Type                                    | Phases           | Default                      | Flag |
-|-----------------|-----------------------------------------|------------------|------------------------------|------|
-| `backend`       | `claude`, `codex`, `copilot` or `pi`    | all              | `claude`                     | `-b` |
-| `model`         | non-empty string                        | all              | the backend's default model  | `-m` |
-| `effort`        | a level the backend lists               | all              | none: the backend's default  | `-e` |
-| `extra_args`    | list of strings                         | all              | `[]`                         | none |
-| `metrics`       | boolean                                 | all              | `true`                       | `--no-metrics` / `--metrics` |
-| `quiet`         | boolean                                 | all              | `false`                      | `-q` / `--verbose` |
-| `iterations`    | positive integer                        | plan, build, fix | plan: 6; else self-sizing    | `-n` |
-| `headroom_pct`  | non-negative integer                    | build, fix       | `20`                         | none |
-| `noop_patience` | positive integer                        | build, fix       | `2`                          | none |
-| `skip_push`     | boolean                                 | build, fix       | `false`                      | `--skip-push` / `--push` |
+| Key             | Type                                    | Phases           | Default                                   | Flag |
+|-----------------|-----------------------------------------|------------------|-------------------------------------------|------|
+| `backend`       | `claude`, `codex`, `copilot` or `pi`    | all              | `claude`                                  | `-b` |
+| `model`         | non-empty string                        | all              | claude: phase default; else the backend's | `-m` |
+| `effort`        | a level the backend lists               | all              | claude: phase default; else none          | `-e` |
+| `extra_args`    | list of strings                         | all              | `[]`                                      | none |
+| `metrics`       | boolean                                 | all              | `true`                                    | `--no-metrics` / `--metrics` |
+| `quiet`         | boolean                                 | all              | `false`                                   | `-q` / `--verbose` |
+| `iterations`    | positive integer                        | plan, build, fix | plan: 3; else self-sizing                 | `-n` |
+| `headroom_pct`  | non-negative integer                    | build, fix       | `20`                                      | none |
+| `noop_patience` | positive integer                        | build, fix       | `2`                                       | none |
+| `skip_push`     | boolean                                 | build, fix       | `false`                                   | `--skip-push` / `--push` |
+
+With the `claude` backend, a phase that gets no `model` or `effort` from a flag or the file takes these defaults. A flag, a section key or a `defaults` key beats them. The other backends keep their default model and pass no effort flag.
+
+| Phase    | Model    | Effort   |
+|----------|----------|----------|
+| `plan`   | `opus`   | `xhigh`  |
+| `build`  | `sonnet` | `xhigh`  |
+| `review` | `opus`   | `max`    |
+| `fix`    | `opus`   | `high`   |
+| `retro`  | `sonnet` | `medium` |
 
 `skip_push` governs every repository the cycle moved, and the workspace. `defaults` takes only the keys whose phases read "all". `iterations` turns self-sizing off, so a section that sets it can't also set `headroom_pct` or `noop_patience`. Every run prints a run card to stderr naming the file, the section and the values it used.
 
@@ -184,7 +194,7 @@ The file holds up to six sections: `defaults`, `plan`, `build`, `fix`, `review` 
 
 | Command             | What it does |
 |---------------------|--------------|
-| `plan`              | Turn a goal into `IMPLEMENTATION_PLAN.md`. Requires `-g`. At most 6 passes |
+| `plan`              | Turn a goal into `IMPLEMENTATION_PLAN.md`. Requires `-g`. At most 3 passes |
 | `build`             | Implement, test, commit and push the next open item (default: open items plus 20% headroom) |
 | `fix`               | Run `build` with the `fix` section of the config file. `auto` runs it as phase 6 |
 | `review`            | Review the cycle's work against its specs, rules and catalogue, and add findings as new items. One pass |
@@ -204,9 +214,9 @@ The file holds up to six sections: `defaults`, `plan`, `build`, `fix`, `review` 
 |----------------------|-------------|
 | `-g`, `--goal`       | The spec, directory or sentence to plan from. `plan` and `auto` only, and required there |
 | `-n`, `--iterations` | Maximum passes. In `build` and `fix` it also stops the early exit. `review`, `retro` and `auto` refuse it |
-| `-m`, `--model`      | Model to use (default depends on the backend) |
+| `-m`, `--model`      | Model to use (default depends on the backend and phase) |
 | `-b`, `--backend`    | `claude`, `codex`, `copilot` or `pi` (default: `claude`) |
-| `-e`, `--effort`     | Effort level, one the backend lists (default: the backend's own) |
+| `-e`, `--effort`     | Effort level, one the backend lists (default: the phase's for `claude`, else the backend's own) |
 | `--skip-push`        | Skip the push of every repository the cycle moved, and the workspace, after each build pass. Plan, review and retro never push |
 | `--push`             | Push every repository the cycle moved, and the workspace, after each build pass, overriding `skip_push: true` |
 | `--dry-run`          | Show what would run, without running it |
