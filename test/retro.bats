@@ -812,6 +812,39 @@ PASS
     [[ "$output" != *"Move them by hand"* ]]
 }
 
+@test "an idle retro pass over an old-format file prints the ranked-learnings prompt hint with a local prompt" {
+    create_retro_backend
+    seed_progress_entry
+    echo "# Local retro prompt" > PROMPT_retro.md
+    write_021_learnings
+    run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: .ralph/learnings.md line 3: unexpected heading \"## Environment\"."* ]]
+    [[ "$output" == *"This project has its own PROMPT_retro.md; delete it and run 'ralph init --prompts' to get the ranked-learnings prompt."* ]]
+}
+
+@test "an idle retro pass over an old-format file prints no ranked-learnings prompt hint without a local prompt" {
+    create_retro_backend
+    seed_progress_entry
+    write_021_learnings
+    run "$RALPH" retro
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"Error: .ralph/learnings.md line 3: unexpected heading \"## Environment\"."* ]]
+    [[ "$output" != *"ranked-learnings prompt"* ]]
+}
+
+@test "a retro pass that edits a tracked file prints no ranked-learnings prompt hint with a local prompt" {
+    echo "# Local retro prompt" > PROMPT_retro.md
+    echo one > tracked.txt
+    git add tracked.txt
+    git commit -q -m "add tracked"
+    setup_format_pass <<'PASS'
+echo two > tracked.txt
+PASS
+    run_retro_expecting_tree_failure
+    [[ "$output" != *"ranked-learnings prompt"* ]]
+}
+
 @test "a first retro pass without an old file counts every bullet as added" {
     create_retro_backend
     seed_progress_entry
