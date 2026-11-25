@@ -74,30 +74,19 @@ Write the file in exactly this shape:
 ```
 # Learnings
 
-## Environment
-- JDK 11 is not installed. Run Gradle through `nix-shell -p jdk11 --run './gradlew test'`. (confirmed 2026-11-14)
-
-## Tooling
-- `bats --jobs 4` flakes here because parallel tests share a temp dir. Use `--jobs 1`. (confirmed 2026-11-02)
-
-## Codebase
-- A new `config_get` key also needs an entry in `validate_config`, or every run aborts. (confirmed 2026-11-14)
-
-## Promote to AGENTS.md
-- AGENTS.md: State the nix-shell JDK 11 command as the verification command. (confirmed 2026-11-14)
+- `npm ci` fails behind the proxy here. Set `NODE_EXTRA_CA_CERTS=/etc/ssl/proxy.pem` first.
+- JDK 11 is not installed. Run Gradle through `nix-shell -p jdk11 --run './gradlew test'`.
 ```
 
 Rules:
 
 - The first line is `# Learnings`.
-- Four `##` headings follow, in this order and with exactly these names: `Environment`, `Tooling`, `Codebase`, `Promote to AGENTS.md`.
-- A heading with no bullets stays in the file.
-- Write each learning as one bullet on one physical line: `- <text> (confirmed YYYY-MM-DD)`.
-- Write at most 40 words before the date. A word is a run of characters without whitespace.
-- Write at most 30 bullets in all four sections together.
-- Start each `Promote to AGENTS.md` bullet with its target file and a colon: `- services/api/AGENTS.md: <text> (confirmed YYYY-MM-DD)`.
-- The target is the `AGENTS.md` or `CLAUDE.md` of the repository that the learning is about. Write its path relative to the workspace root.
+- Write each learning as one bullet on one physical line: `- <text>`.
+- A bullet carries no date. Never end a bullet with `(confirmed YYYY-MM-DD)`.
+- Write at most 40 words in a bullet. A word is a run of characters without whitespace.
+- Write at most 10 bullets.
 - Write no other headings, no prose and no comments. Blank lines are allowed.
+- A file that holds only `# Learnings` is valid.
 
 Check the file against every rule before you stop.
 
@@ -111,7 +100,7 @@ Check the file against every rule before you stop.
 - Never edit `AGENTS.md`, `CLAUDE.md`, anything under `specs/`, `PROGRESS.md` or `IMPLEMENTATION_PLAN.md`.
 - Never write `.ralph/cycle-base` or `.ralph/learnings.prev.md`.
 - Never read `{{WORKSPACE}}/.ralph/logs/`.
-- Write the file even when no candidate passes. Keep the four headings.
+- Write the file even when no learning remains. It then holds only `# Learnings`.
 - Record no rationale, no evidence and no history in the file. A bullet states one fact.
 
 ## Language

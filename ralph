@@ -1499,8 +1499,8 @@ retro_learnings_unchanged() {
 }
 
 # Fail with an error naming the first line of a learnings file that breaks
-# specs/021-retro-phase.md §3 Format; a missing last heading names the line after the end.
-# A bullet holds "-", its text, "(confirmed" and the date, so its text has NF - 3 words.
+# specs/030-ranked-learnings.md §3 Format.
+# A bullet holds "-" and its text, so its text has NF - 1 words.
 check_learnings_format() {
     local file="$1"
     awk '
@@ -1509,42 +1509,25 @@ check_learnings_format() {
             bad = 1
             exit 1
         }
-        BEGIN {
-            split("Environment|Tooling|Codebase|Promote to AGENTS.md", names, "|")
-            seen = 0
-            bullets = 0
-        }
         NR == 1 {
             if ($0 != "# Learnings") fail(NR, "the first line must be \"# Learnings\"")
             next
         }
         /^[ \t]*$/ { next }
-        /^#/ {
-            if (seen >= 4) fail(NR, "unexpected heading \"" $0 "\"")
-            if ($0 != "## " names[seen + 1]) fail(NR, "expected heading \"## " names[seen + 1] "\"")
-            seen++
-            next
-        }
-        /^- [^ ].* \(confirmed [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\)$/ {
-            if (seen == 0) fail(NR, "a bullet may not sit above \"## Environment\"")
-            if (++bullets > 30) fail(NR, "the file holds more than 30 bullets")
-            if (NF - 3 > 40) fail(NR, "a bullet holds more than 40 words")
-            if (seen < 4) next
-            target = $2
-            if (target ~ /^\//) fail(NR, "a promotion target must be relative to the workspace root")
-            if (("/" target "/") ~ /\/\.\.\//) fail(NR, "a promotion target may not leave the workspace root")
-            sub(/.*\//, "", target)
-            if (target != "AGENTS.md:" && target != "CLAUDE.md:")
-                fail(NR, "a promotion bullet must start with \"<path>AGENTS.md:\" or \"<path>CLAUDE.md:\"")
+        /^#/ { fail(NR, "unexpected heading \"" $0 "\"") }
+        /^- [^ ]/ {
+            if ($0 ~ / \(confirmed [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\)$/)
+                fail(NR, "a bullet carries no date; remove the trailing \"(confirmed YYYY-MM-DD)\"")
+            if (++bullets > 10) fail(NR, "the file holds more than 10 bullets")
+            if (NF - 1 > 40) fail(NR, "a bullet holds more than 40 words")
             next
         }
         {
-            fail(NR, "expected a heading, a bullet \"- <text> (confirmed YYYY-MM-DD)\" or a blank line")
+            fail(NR, "expected a bullet \"- <text>\" or a blank line")
         }
         END {
             if (bad) exit 1
             if (NR == 0) fail(1, "the first line must be \"# Learnings\"")
-            if (seen < 4) fail(NR + 1, "missing heading \"## " names[seen + 1] "\"")
         }
     ' "$file" >&2
 }

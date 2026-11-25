@@ -118,7 +118,7 @@ setup_artifact_pass() {
 # Helper: write a §3-valid learnings file holding one bullet tagged with $1.
 write_learnings() {
     mkdir -p .ralph
-    printf '# Learnings\n\n## Environment\n- %s (confirmed 2026-11-14)\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' "$1" > .ralph/learnings.md
+    printf '# Learnings\n\n- %s\n' "$1" > .ralph/learnings.md
 }
 
 @test "a successful retro pass leaves learnings.prev.md equal to the old file" {
@@ -127,7 +127,7 @@ write_learnings() {
     write_learnings "old learning"
     cp .ralph/learnings.md "$TEST_DIR/old.md"
     cat > "$TEST_DIR/pass.sh" <<'PASS'
-printf '# Learnings\n\n## Environment\n- new learning (confirmed 2026-11-15)\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+printf '# Learnings\n\n- new learning\n' > .ralph/learnings.md
 PASS
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
@@ -137,16 +137,16 @@ PASS
 
 @test "a failed retro pass restores the learnings file at mode 644" {
     setup_format_pass <<'PASS'
-printf '# Learnings\n\n## Environment\n- no date here\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+printf '# Learnings\n\n## Extra\n' > .ralph/learnings.md
 PASS
     chmod 644 .ralph/learnings.md
-    run_retro_expecting_format_failure 4
+    run_retro_expecting_format_failure 3
     [[ "$(find .ralph/learnings.md -perm 644)" == ".ralph/learnings.md" ]]
 }
 
 @test "a successful retro pass keeps learnings.prev.md at mode 644" {
     setup_format_pass <<'PASS'
-printf '# Learnings\n\n## Environment\n- new learning (confirmed 2026-11-15)\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+printf '# Learnings\n\n- new learning\n' > .ralph/learnings.md
 PASS
     chmod 644 .ralph/learnings.md
     run "$RALPH" retro
@@ -343,7 +343,7 @@ last_retro_noop() {
     seed_progress_entry
     write_learnings "old learning"
     cat > "$TEST_DIR/pass.sh" <<'PASS'
-printf '# Learnings\n\n## Environment\n- extra (confirmed 2026-11-15)\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+printf '# Learnings\n\n- extra\n' > .ralph/learnings.md
 PASS
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
@@ -355,7 +355,7 @@ PASS
     seed_progress_entry
     cat > "$TEST_DIR/pass.sh" <<'PASS'
 mkdir -p .ralph
-printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+printf '# Learnings\n' > .ralph/learnings.md
 PASS
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
@@ -365,7 +365,7 @@ PASS
 # Helper: write a pass that rewrites the learnings file, then runs $1.
 write_learnings_pass() {
     {
-        printf '%s\n' "printf '# Learnings\\n\\n## Environment\\n\\n## Tooling\\n\\n## Codebase\\n\\n## Promote to AGENTS.md\\n' > .ralph/learnings.md"
+        printf '%s\n' "printf '# Learnings\\n' > .ralph/learnings.md"
         printf '%s\n' "$1"
     } > "$TEST_DIR/pass.sh"
 }
@@ -653,59 +653,29 @@ write_learnings_pass() {
     [[ -f .ralph/logs/r/retro/iter-001.stream.jsonl ]]
 }
 
-@test "a retro pass that writes a fifth heading fails the format check at its line" {
+@test "a retro pass that writes a ## heading fails the format check at its line" {
     setup_format_pass <<'PASS'
-printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n\n## Extra\n' > .ralph/learnings.md
+printf '# Learnings\n\n- first\n\n## Extra\n' > .ralph/learnings.md
 PASS
-    run_retro_expecting_format_failure 11
+    run_retro_expecting_format_failure 5
     [[ "$output" == *'unexpected heading "## Extra"'* ]]
-}
-
-@test "a retro pass that writes an undated bullet fails the format check at its line" {
-    setup_format_pass <<'PASS'
-printf '# Learnings\n\n## Environment\n- no date here\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
-PASS
-    run_retro_expecting_format_failure 4
-}
-
-@test "a retro pass that writes a bullet above Environment fails the format check" {
-    setup_format_pass <<'PASS'
-printf '# Learnings\n- early (confirmed 2026-11-14)\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
-PASS
-    run_retro_expecting_format_failure 2
-    [[ "$output" == *'above "## Environment"'* ]]
-    [[ "$(grep -c '^Error:' <<<"$output")" -eq 1 ]]
-}
-
-@test "a retro pass that omits the last heading fails the format check after the last line" {
-    setup_format_pass <<'PASS'
-printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n' > .ralph/learnings.md
-PASS
-    run_retro_expecting_format_failure 8
-    [[ "$output" == *'missing heading "## Promote to AGENTS.md"'* ]]
-}
-
-@test "a retro pass that writes headings out of order fails the format check" {
-    setup_format_pass <<'PASS'
-printf '# Learnings\n\n## Tooling\n\n## Environment\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
-PASS
-    run_retro_expecting_format_failure 3
 }
 
 @test "a retro pass that writes prose fails the format check at its line" {
     setup_format_pass <<'PASS'
-printf '# Learnings\n\n## Environment\nSome prose.\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+printf '# Learnings\n\n- first\nSome prose.\n' > .ralph/learnings.md
 PASS
     run_retro_expecting_format_failure 4
+    [[ "$output" == *'expected a bullet "- <text>" or a blank line'* ]]
 }
 
 @test "an idle retro pass fails when the unchanged file already breaks the format" {
     create_retro_backend
     seed_progress_entry
     mkdir -p .ralph
-    printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n\n## Extra\n' > .ralph/learnings.md
+    printf '# Learnings\n\n## Extra\n' > .ralph/learnings.md
     cp .ralph/learnings.md "$TEST_DIR/old.md"
-    run_retro_expecting_format_failure 11
+    run_retro_expecting_format_failure 3
 }
 
 @test "a retro pass that writes an empty learnings file fails the format check at line 1" {
@@ -717,46 +687,40 @@ PASS
 
 @test "a retro pass that writes a wrong title fails the format check at line 1" {
     setup_format_pass <<'PASS'
-printf '# Lessons\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+printf '# Lessons\n' > .ralph/learnings.md
 PASS
     run_retro_expecting_format_failure 1
     [[ "$output" == *'line 1: the first line must be "# Learnings"'* ]]
 }
 
-@test "a retro pass that writes a placeholder date fails the format check at its line" {
+@test "a retro pass that writes a dated bullet fails the format check at its line" {
     setup_format_pass <<'PASS'
-printf '# Learnings\n\n## Environment\n- placeholder (confirmed YYYY-MM-DD)\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+printf '# Learnings\n\n- dated (confirmed 2026-11-14)\n' > .ralph/learnings.md
 PASS
-    run_retro_expecting_format_failure 4
+    run_retro_expecting_format_failure 3
+    [[ "$output" == *"a bullet carries no date"* ]]
 }
 
-@test "a retro pass that writes text after the date fails the format check at its line" {
-    setup_format_pass <<'PASS'
-printf '# Learnings\n\n## Environment\n\n## Tooling\n- trailing (confirmed 2026-11-14) more\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
-PASS
-    run_retro_expecting_format_failure 6
-}
-
-# Helper: print a pass script that writes a file whose Environment bullets are $1 lines of $2 words.
+# Helper: print a pass script that writes a file of $1 bullets of $2 words.
 bullets_pass() {
     cat <<PASS
 words=\$(printf 'w %.0s' \$(seq 1 $2))
+words=\${words% }
 {
-    printf '# Learnings\n\n## Environment\n'
-    for _ in \$(seq 1 $1); do printf -- '- %s(confirmed 2026-11-14)\n' "\$words"; done
-    printf '\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n'
+    printf '# Learnings\n\n'
+    for _ in \$(seq 1 $1); do printf -- '- %s\n' "\$words"; done
 } > .ralph/learnings.md
 PASS
 }
 
-# Helper: seed a retro-ready workspace with a pass that writes $1 Environment bullets of $2 words.
+# Helper: seed a retro-ready workspace with a pass that writes $1 bullets of $2 words.
 setup_bullets_pass() {
     setup_format_pass < <(bullets_pass "$1" "$2")
 }
 
 @test "a retro pass that writes a 41-word bullet fails the format check at its line" {
     setup_bullets_pass 1 41
-    run_retro_expecting_format_failure 4
+    run_retro_expecting_format_failure 3
     [[ "$output" == *"more than 40 words"* ]]
 }
 
@@ -766,53 +730,14 @@ setup_bullets_pass() {
     [[ "$status" -eq 0 ]]
 }
 
-@test "a retro pass that writes a 31st bullet fails the format check at its line" {
-    setup_bullets_pass 31 1
-    run_retro_expecting_format_failure 34
-    [[ "$output" == *"more than 30 bullets"* ]]
+@test "a retro pass that writes an 11th bullet fails the format check at its line" {
+    setup_bullets_pass 11 1
+    run_retro_expecting_format_failure 13
+    [[ "$output" == *"more than 10 bullets"* ]]
 }
 
-@test "a retro pass that writes 30 bullets passes the format check" {
-    setup_bullets_pass 30 1
-    run "$RALPH" retro
-    [[ "$status" -eq 0 ]]
-}
-
-@test "a retro pass that writes an untargeted promotion fails the format check at its line" {
-    setup_format_pass <<'PASS'
-printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n- no target here (confirmed 2026-11-14)\n' > .ralph/learnings.md
-PASS
-    run_retro_expecting_format_failure 10
-    [[ "$output" == *"promotion bullet must start with"* ]]
-}
-
-@test "a retro pass that targets a promotion at a wrong file name fails the format check" {
-    setup_format_pass <<'PASS'
-printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n- services/api/README.md: fix it (confirmed 2026-11-14)\n' > .ralph/learnings.md
-PASS
-    run_retro_expecting_format_failure 10
-}
-
-@test "a retro pass that targets a promotion at an absolute path fails the format check" {
-    setup_format_pass <<'PASS'
-printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n- /abs/AGENTS.md: fix it (confirmed 2026-11-14)\n' > .ralph/learnings.md
-PASS
-    run_retro_expecting_format_failure 10
-    [[ "$output" == *"relative to the workspace root"* ]]
-}
-
-@test "a retro pass that targets a promotion above the workspace root fails the format check" {
-    setup_format_pass <<'PASS'
-printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n- ../other/CLAUDE.md: fix it (confirmed 2026-11-14)\n' > .ralph/learnings.md
-PASS
-    run_retro_expecting_format_failure 10
-    [[ "$output" == *"may not leave the workspace root"* ]]
-}
-
-@test "a retro pass that writes targeted promotions passes the format check" {
-    setup_format_pass <<'PASS'
-printf '# Learnings\n\n## Environment\n\n## Tooling\n\n## Codebase\n\n## Promote to AGENTS.md\n- services/api/AGENTS.md: fix it (confirmed 2026-11-14)\n- CLAUDE.md: fix that (confirmed 2026-11-14)\n' > .ralph/learnings.md
-PASS
+@test "a retro pass that writes 10 bullets passes the format check" {
+    setup_bullets_pass 10 1
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
 }
@@ -821,13 +746,13 @@ PASS
     create_retro_backend
     seed_progress_entry
     mkdir -p .ralph
-    printf '# Learnings\n\n## Environment\n- keep me (confirmed 2026-11-01)\n- refresh me (confirmed 2026-11-01)\n\n## Tooling\n- reword me (confirmed 2026-11-01)\n- drop me (confirmed 2026-11-01)\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+    printf '# Learnings\n\n- keep me\n- reword me\n- drop me\n' > .ralph/learnings.md
     cat > "$TEST_DIR/pass.sh" <<'PASS'
-printf '# Learnings\n\n## Environment\n- keep me (confirmed 2026-11-01)\n- refresh me (confirmed 2026-11-14)\n\n## Tooling\n- reworded me (confirmed 2026-11-14)\n\n## Codebase\n- add me (confirmed 2026-11-14)\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+printf '# Learnings\n\n- keep me\n- reworded me\n- add me\n' > .ralph/learnings.md
 PASS
     run --separate-stderr "$RALPH" retro
     [[ "$status" -eq 0 ]]
-    [[ "$stderr" == *"Retro kept 4 learnings: 3 added, 3 dropped."* ]]
+    [[ "$stderr" == *"Retro kept 3 learnings: 2 added, 2 dropped."* ]]
     [[ "$output" != *"Retro kept"* ]]
 }
 
@@ -835,7 +760,7 @@ PASS
     create_retro_backend
     seed_progress_entry
     cat > "$TEST_DIR/pass.sh" <<'PASS'
-printf '# Learnings\n\n## Environment\n- first (confirmed 2026-11-14)\n\n## Tooling\n- second (confirmed 2026-11-14)\n\n## Codebase\n\n## Promote to AGENTS.md\n' > .ralph/learnings.md
+printf '# Learnings\n\n- first\n- second\n' > .ralph/learnings.md
 PASS
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
@@ -861,14 +786,6 @@ PASS
     [[ "$output" != *"Retro kept"* ]]
 }
 
-@test "the retro prompt names the four headings and the dated bullet form" {
-    prompt="$BATS_TEST_DIRNAME/../prompts/retro.md"
-    for heading in "## Environment" "## Tooling" "## Codebase" "## Promote to AGENTS.md"; do
-        grep -qxF "$heading" "$prompt"
-    done
-    grep -qF "(confirmed YYYY-MM-DD)" "$prompt"
-}
-
 @test "the retro prompt writes only the learnings file and never reads the run logs" {
     prompt="$BATS_TEST_DIRNAME/../prompts/retro.md"
     grep -qF "Write \`{{WORKSPACE}}/.ralph/learnings.md\` and no other file" "$prompt"
@@ -886,7 +803,7 @@ cp "$TEST_DIR/exemplar.md" .ralph/learnings.md
 PASS
     run "$RALPH" retro
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Retro kept 4 learnings: 4 added, 0 dropped."* ]]
+    [[ "$output" == *"Retro kept 2 learnings: 2 added, 0 dropped."* ]]
 }
 
 @test "archive and clean keep both learnings files" {
