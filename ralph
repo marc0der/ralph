@@ -338,7 +338,7 @@ Options:
                        noop exit; in plan mode it caps the run but
                        never disables the convergence exit. review and retro reject -n
   -g, --goal TEXT      Goal to inject into the prompt template (plan and auto only; required)
-  -m, --model MODEL    Model to use (default depends on backend)
+  -m, --model MODEL    Model to use (default depends on backend and phase)
   -b, --backend NAME   Backend to use: claude, codex, copilot, pi (default: claude)
   -e, --effort LEVEL   Effort level for the run (levels depend on backend)
       --skip-push      Skip the push of every repository the cycle moved, and the workspace,
